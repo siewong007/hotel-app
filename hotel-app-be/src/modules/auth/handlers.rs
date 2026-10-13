@@ -132,10 +132,12 @@ pub async fn logout_handler(
     State(pool): State<DbPool>,
     jar: CookieJar,
     req: RefreshTokenRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
     // Best-effort server-side revoke, but always clear the browser cookie below
     // so the client ends up logged out even if the token was already invalid.
-    let _ = svc::logout(&pool, req).await;
+    let _ = svc::logout(&pool, req, ip_address.as_deref(), user_agent.as_deref()).await;
 
     let jar = jar.add(clear_refresh_cookie());
     Ok((

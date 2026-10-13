@@ -93,3 +93,30 @@ pub async fn passkey_login_finish_handler(
     let jar = jar.add(build_refresh_cookie(refresh_token));
     Ok((jar, Json(response)))
 }
+
+pub async fn passkey_second_factor_start_handler(
+    State(pool): State<DbPool>,
+    Json(req): Json<PasskeySecondFactorStart>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(svc::second_factor_start(&pool, req).await?))
+}
+
+pub async fn passkey_second_factor_finish_handler(
+    State(pool): State<DbPool>,
+    jar: CookieJar,
+    Json(req): Json<PasskeySecondFactorFinish>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+    client_timezone: Option<String>,
+) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
+    let (response, refresh_token) = svc::second_factor_finish(
+        &pool,
+        req,
+        ip_address.as_deref(),
+        user_agent.as_deref(),
+        client_timezone.as_deref(),
+    )
+    .await?;
+    let jar = jar.add(build_refresh_cookie(refresh_token));
+    Ok((jar, Json(response)))
+}

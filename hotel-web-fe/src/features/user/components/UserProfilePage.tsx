@@ -1,15 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { HTTPError } from 'ky';
 import { useSearchParams } from '../../../router';
-import { Alert, Box, Card, Tab, Tabs, Typography } from '@mui/material';
+import { Alert, Box, Chip, Stack, Typography } from '@mui/material';
 import { LogoLoader } from '../../../components';
-import {
-  Fingerprint as FingerprintIcon,
-  Laptop as LaptopIcon,
-  Lock as LockIcon,
-  Person as PersonIcon,
-  Security as SecurityIcon,
-} from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import type { UserSessionInfo } from '../../../types';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
@@ -25,13 +18,26 @@ import {
   useUpdatePasswordMutation,
   useUpdateProfileMutation,
 } from '../hooks/useProfileQueries';
-import TabPanel from './profile/TabPanel';
+import ProfileHeaderCard from './profile/ProfileHeaderCard';
 import ProfileTab from './profile/ProfileTab';
 import SecurityTab from './profile/SecurityTab';
 import PasskeysTab, { MAX_PASSKEYS } from './profile/PasskeysTab';
 import DevicesTab from './profile/DevicesTab';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useTranslation } from '../../../i18n';
+
+// MUI's visuallyHidden recipe, inlined (@mui/utils is not a direct dependency).
+const VISUALLY_HIDDEN = {
+  border: 0,
+  clip: 'rect(0 0 0 0)',
+  height: '1px',
+  margin: '-1px',
+  overflow: 'hidden',
+  padding: 0,
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: '1px',
+} as const;
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
@@ -40,9 +46,8 @@ const UserProfilePage: React.FC = () => {
   const { t } = useTranslation('auth');
   const [searchParams, setSearchParams] = useSearchParams();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState(0);
   const [editing, setEditing] = useState(false);
-  const { registerPasskey } = useAuth();
+  const { registerPasskey, roles } = useAuth();
 
   const profileQuery = useProfileQuery();
   const passkeysQuery = usePasskeysQuery();
@@ -55,14 +60,16 @@ const UserProfilePage: React.FC = () => {
   const addPasskey = useRegisterPasskeyMutation(registerPasskey);
   const revokeSession = useRevokeSessionMutation();
 
-  // Labels resolve at render so the tab bar follows the active language.
-  const TABS = [
-    { id: 'profile', label: t('profile.tabs.profile'), icon: <PersonIcon /> },
-    { id: 'security', label: t('profile.tabs.security'), icon: <LockIcon /> },
-    { id: 'passkeys', label: t('profile.tabs.passkeys'), icon: <FingerprintIcon /> },
-    { id: 'twoFactor', label: t('profile.tabs.twoFactor'), icon: <SecurityIcon /> },
-    { id: 'devices', label: t('profile.tabs.devices'), icon: <LaptopIcon /> },
+  // Phone-only jump links: the page is one scrolling column there, so these
+  // replace the old tab bar (whose last two tabs were scrolled out of view).
+  const SECTIONS = [
+    { id: 'profile-account', label: t('profile.sections.accountDetails') },
+    { id: 'profile-security', label: t('profile.tabs.security') },
+    { id: 'profile-devices', label: t('profile.tabs.devices') },
   ];
+  const jumpTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const notify = useCallback((message: string, severity: ApiNotificationSeverity) => {
     emitApiNotification({ message, severity });
@@ -201,58 +208,109 @@ const UserProfilePage: React.FC = () => {
   }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 3, color: 'primary.main' }}>
+    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+      {/* The phone top bar already names the page, so the heading is kept for
+          screen readers only there. */}
+      <Typography
+        variant="h4"
+        component="h1"
+        sx={theme => ({
+          fontWeight: 700,
+          mb: 3,
+          color: 'primary.main',
+          [theme.breakpoints.down('sm')]: VISUALLY_HIDDEN,
+        })}
+      >
         {t('profile.title')}
       </Typography>
 
-      <Card sx={{ mb: 3 }}>
-        {/* Scrollable: the icon+label tabs need ~375px and the narrowest
-            supported viewport is 320px. */}
-        <Tabs
-          value={activeTab}
-          onChange={(_e, v) => setActiveTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
+      <ProfileHeaderCard profile={profile} roles={roles} />
+
+      <Stack
+        component="nav"
+        aria-label={t('common:actions.sections')}
+        direction="row"
+        spacing={1}
+        sx={{
+          display: { xs: 'flex', md: 'none' },
+          mt: 2,
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {SECTIONS.map(section => (
+          <Chip
+            key={section.id}
+            label={section.label}
+            variant="outlined"
+            onClick={() => jumpTo(section.id)}
+            sx={{ height: 44, borderRadius: 22, px: 0.5, flexShrink: 0, fontWeight: 600 }}
+          />
+        ))}
+      </Stack>
+
+      {/* One column on phones (account, security, devices); on desktop the
+          account and device cards sit left and the security stack right. */}
+      <Box
+        sx={{
+          display: 'grid',
+          gap: { xs: 2, md: 3 },
+          mt: { xs: 2, md: 3 },
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' },
+          // The security stack spans both rows; `1fr` hands its extra height
+          // to the second row so Devices sits right under Account details.
+          gridTemplateRows: { md: 'auto 1fr' },
+          gridTemplateAreas: {
+            xs: '"account" "security" "devices"',
+            md: '"account security" "devices security"',
+          },
+          alignItems: 'start',
+          // Jump links land below the sticky top bar, not under it.
+          '& > section': { scrollMarginTop: 80 },
+        }}
+      >
+        <Box component="section" id="profile-account" sx={{ gridArea: 'account', minWidth: 0 }}>
+          <ProfileTab
+            profile={profile}
+            editing={editing}
+            onEditingChange={setEditing}
+            onSave={handleSaveProfile}
+            notify={notify}
+          />
+        </Box>
+
+        <Box
+          component="section"
+          id="profile-security"
+          aria-labelledby="profile-security-heading"
+          sx={{ gridArea: 'security', minWidth: 0 }}
         >
-          {TABS.map(tab => (
-            <Tab key={tab.id} label={tab.label} icon={tab.icon} iconPosition="start" />
-          ))}
-        </Tabs>
-      </Card>
+          <Typography
+            id="profile-security-heading"
+            variant="overline"
+            component="h2"
+            sx={{ display: 'block', color: 'text.secondary', fontWeight: 700, lineHeight: 1.5, mb: 1, px: 0.5 }}
+          >
+            {t('profile.tabs.security')}
+          </Typography>
+          <Stack spacing={{ xs: 2, md: 3 }}>
+            <SecurityTab onUpdatePassword={handleUpdatePassword} notify={notify} />
+            <TwoFactorSetup />
+            <PasskeysTab
+              passkeys={passkeysQuery.data ?? []}
+              onAdd={handleAddPasskey}
+              onDelete={handleDeletePasskey}
+              onRename={handleRenamePasskey}
+              notify={notify}
+            />
+          </Stack>
+        </Box>
 
-      <TabPanel value={activeTab} index={0}>
-        <ProfileTab
-          profile={profile}
-          editing={editing}
-          onEditingChange={setEditing}
-          onSave={handleSaveProfile}
-          notify={notify}
-        />
-      </TabPanel>
-
-      <TabPanel value={activeTab} index={1}>
-        <SecurityTab onUpdatePassword={handleUpdatePassword} notify={notify} />
-      </TabPanel>
-
-      <TabPanel value={activeTab} index={2}>
-        <PasskeysTab
-          passkeys={passkeysQuery.data ?? []}
-          onAdd={handleAddPasskey}
-          onDelete={handleDeletePasskey}
-          onRename={handleRenamePasskey}
-          notify={notify}
-        />
-      </TabPanel>
-
-      <TabPanel value={activeTab} index={3}>
-        <TwoFactorSetup />
-      </TabPanel>
-
-      <TabPanel value={activeTab} index={4}>
-        <DevicesTab sessions={sessionsQuery.data ?? []} onRevoke={handleRevokeSession} />
-      </TabPanel>
+        <Box component="section" id="profile-devices" sx={{ gridArea: 'devices', minWidth: 0 }}>
+          <DevicesTab sessions={sessionsQuery.data ?? []} onRevoke={handleRevokeSession} />
+        </Box>
+      </Box>
     </Box>
   );
 };

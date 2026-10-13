@@ -587,10 +587,12 @@
       "night_audit": "Audit Malam",
       "payment_receipts": "Resit Bayaran",
       "unpaid_hold_release": "Pelepasan Hold Belum Bayar",
+      "room_arrival_holds": "Tahanan Bilik Hari Ketibaan",
       "email_delivery_worker": "Pekerja Penghantaran E-mel",
       "email_campaigns": "Kempen E-mel",
       "birthday_vouchers": "Baucar Hari Lahir",
-      "pre_arrival_reminders": "Peringatan Pra-ketibaan"
+      "pre_arrival_reminders": "Peringatan Pra-ketibaan",
+      "session_retention": "Pembersihan Sesi"
     },
     "col": {
       "job": "Tugasan",
@@ -919,10 +921,12 @@
         "night_audit": "Audit Malam",
         "payment_receipts": "Resit Bayaran",
         "unpaid_hold_release": "Pelepasan Hold Belum Bayar",
+        "room_arrival_holds": "Tahanan Bilik Hari Ketibaan",
         "email_delivery_worker": "Pekerja Penghantaran E-mel",
         "email_campaigns": "Kempen E-mel",
         "birthday_vouchers": "Baucar Hari Lahir",
-        "pre_arrival_reminders": "Peringatan Pra-ketibaan"
+        "pre_arrival_reminders": "Peringatan Pra-ketibaan",
+        "session_retention": "Pembersihan Sesi"
       }
     },
     "health": {

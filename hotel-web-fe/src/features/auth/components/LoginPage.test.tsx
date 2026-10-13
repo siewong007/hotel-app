@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   registerPasskey: vi.fn(),
   loginWithGoogle: vi.fn(),
+  completeTwoFactorWithPasskey: vi.fn(),
   googleAvailable: true,
 }));
 
@@ -40,6 +41,8 @@ vi.mock('../../../auth/AuthContext', () => ({
     login: (...args: unknown[]) => mocks.login(...args),
     registerPasskey: (...args: unknown[]) => mocks.registerPasskey(...args),
     loginWithGoogle: (...args: unknown[]) => mocks.loginWithGoogle(...args),
+    completeTwoFactorWithPasskey: (...args: unknown[]) =>
+      mocks.completeTwoFactorWithPasskey(...args),
   }),
 }));
 
@@ -178,15 +181,27 @@ describe('LoginPage single-step form', () => {
   });
 });
 
-describe('LoginPage two-factor method choice', () => {
-  const TWO_FACTOR_REQUIRED = '2FA required. Please provide a TOTP code or recovery code.';
+/** A failed `/auth/login` as AuthContext rethrows it: the server message plus
+ *  the parsed body on `details`. */
+const apiError = (message: string, details: Record<string, unknown>) =>
+  Object.assign(new Error(message), { statusCode: 401, details });
 
+const twoFactorRequired = (methods: string[], mfaToken = 'mfa-token-1') =>
+  apiError('2FA required. Please provide a TOTP code or recovery code.', {
+    code: 'two_factor_required',
+    mfa_token: mfaToken,
+    available_methods: methods,
+  });
+
+describe('LoginPage second factor', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
+    mocks.setSearchParams.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
     mocks.login.mockReset();
     mocks.loginWithGoogle.mockReset();
+    mocks.completeTwoFactorWithPasskey.mockReset();
     mocks.googleAvailable = false;
     mocks.search = '';
     mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
@@ -198,53 +213,144 @@ describe('LoginPage two-factor method choice', () => {
   });
 
   /** Sign in far enough that the backend asks for a second factor. */
-  const reachTwoFactorStep = async () => {
-    mocks.login.mockRejectedValueOnce(new Error(TWO_FACTOR_REQUIRED));
+  const reachTwoFactorStep = async (error: Error = twoFactorRequired(['totp', 'backup_code'])) => {
+    mocks.login.mockRejectedValueOnce(error);
     renderPage();
     fillCredentials();
     fireEvent.click(screen.getByRole('button', { name: 'Login' }));
-    expect(await screen.findByText('Choose how you want to finish signing in:')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Two-factor authentication' })).toBeTruthy();
   };
 
-  it('asks which second factor to use instead of assuming an authenticator app', async () => {
+  it('leads with the authenticator code and keeps backup codes off the method list', async () => {
     await reachTwoFactorStep();
 
-    expect(screen.getByRole('button', { name: /Use your authenticator app/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Use a recovery code/ })).toBeTruthy();
-    // No code box until a method is picked.
-    expect(screen.queryByLabelText('6-digit code')).toBeNull();
-    expect(screen.queryByLabelText('Recovery code')).toBeNull();
+    const code = screen.getByLabelText('6-digit code') as HTMLInputElement;
+    expect(code.getAttribute('autocomplete')).toBe('one-time-code');
+    expect(code.getAttribute('inputmode')).toBe('numeric');
+    expect(document.activeElement).toBe(code);
+    // No passkey on this account, and backup codes are a link, not a method.
+    expect(screen.queryByRole('button', { name: /passkey/i })).toBeNull();
+    expect(screen.queryByLabelText('Backup code')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Lost access to your authenticator app\? Use a backup code/ })
+    ).toBeTruthy();
   });
 
-  it('verifies an authenticator code against the credentials already entered', async () => {
+  it('submits on the sixth digit without a click, with the credentials already entered', async () => {
     await reachTwoFactorStep();
     mocks.login.mockResolvedValue({ isFirstLogin: false });
 
-    fireEvent.click(screen.getByRole('button', { name: /Use your authenticator app/ }));
-    fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '123456' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    // A paste or one-time-code autofill lands all six digits at once.
+    fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '12 34-56' } });
 
     await waitFor(() => {
       expect(mocks.login).toHaveBeenLastCalledWith('admin', 'hunter2!', '123456', undefined);
     });
+    expect(mocks.login).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith('/admin-portal', { replace: true });
+    });
   });
 
-  it('takes a full recovery code on the recovery path, and only a full one', async () => {
+  it('says how many attempts are left after a wrong code, and clears the boxes', async () => {
     await reachTwoFactorStep();
-    mocks.login.mockResolvedValue({ isFirstLogin: false });
+    mocks.login.mockRejectedValueOnce(
+      apiError('Invalid 2FA code. 3 attempt(s) remaining before account lockout.', {
+        code: 'two_factor_invalid',
+        attempts_remaining: 3,
+      })
+    );
 
-    fireEvent.click(screen.getByRole('button', { name: /Use a recovery code/ }));
-    const field = screen.getByLabelText('Recovery code');
+    const code = screen.getByLabelText('6-digit code') as HTMLInputElement;
+    fireEvent.change(code, { target: { value: '000000' } });
+
+    expect(
+      await screen.findByText("That code didn't work. 3 attempts left before your account is locked.")
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect((screen.getByLabelText('6-digit code') as HTMLInputElement).value).toBe('');
+    });
+    expect(screen.getByLabelText('6-digit code').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('offers the passkey alongside the code when the account has both', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['totp', 'passkey', 'backup_code'], 'tok-both'));
+    mocks.completeTwoFactorWithPasskey.mockResolvedValue({ isFirstLogin: false });
+
+    expect(screen.getByLabelText('6-digit code')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Lost access to your authenticator app or passkey\?/ })
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Use a passkey instead' }));
+
+    await waitFor(() => {
+      expect(mocks.completeTwoFactorWithPasskey).toHaveBeenCalledWith('tok-both');
+    });
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith('/admin-portal', { replace: true });
+    });
+    // The passkey leg never resends the password.
+    expect(mocks.login).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the passkey the primary action for a passkey-only account', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['passkey'], 'tok-pk'));
+
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use a passkey' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Lost access to your passkey\?/ })).toBeTruthy();
+  });
+
+  it('sends the reader back to the password when the passkey step has expired', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['passkey'], 'tok-old'));
+    mocks.completeTwoFactorWithPasskey.mockRejectedValue(
+      apiError('Your sign-in took too long. Enter your password again.', {
+        code: 'two_factor_expired',
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use a passkey' }));
+
+    expect(
+      await screen.findByText('Your sign-in took too long. Enter your password again.')
+    ).toBeTruthy();
+    expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
+  });
+
+  it('opens the backup-code page from the link, as its own history entry', async () => {
+    await reachTwoFactorStep();
+
+    fireEvent.click(screen.getByRole('button', { name: /Use a backup code/ }));
+
+    expect(screen.getByRole('heading', { name: 'Use a backup code' })).toBeTruthy();
+    expect(screen.getByText('No backup codes? Contact your hotel administrator.')).toBeTruthy();
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    const [params, options] = mocks.setSearchParams.mock.calls.at(-1) as [
+      URLSearchParams,
+      { replace?: boolean },
+    ];
+    expect(params.get('two_factor')).toBe('backup');
+    expect(options.replace).toBe(false);
+  });
+
+  it('takes a full backup code, formatted as typed, and never auto-submits it', async () => {
+    await reachTwoFactorStep();
+    mocks.login.mockResolvedValue({ isFirstLogin: false, recoveryCodesRemaining: 4 });
+    fireEvent.click(screen.getByRole('button', { name: /Use a backup code/ }));
+
+    const field = screen.getByLabelText('Backup code') as HTMLInputElement;
     const verify = () => screen.getByRole('button', { name: 'Verify' }) as HTMLButtonElement;
+    expect(field.getAttribute('autocomplete')).toBe('off');
 
-    // Six digits satisfy the authenticator step but are not a recovery code.
+    // Six digits are an authenticator code, not a backup code.
     fireEvent.change(field, { target: { value: '123456' } });
     expect(verify().disabled).toBe(true);
 
-    fireEvent.change(field, { target: { value: 'a1b2c-3d4e5-f6a7b-8c9d0' } });
-    expect(verify().disabled).toBe(false);
-    fireEvent.click(verify());
+    fireEvent.change(field, { target: { value: 'a1b2c3d4e5f6a7b8c9d0' } });
+    expect(field.value).toBe('A1B2C-3D4E5-F6A7B-8C9D0');
+    expect(mocks.login).toHaveBeenCalledTimes(1);
 
+    fireEvent.click(verify());
     await waitFor(() => {
       expect(mocks.login).toHaveBeenLastCalledWith(
         'admin',
@@ -255,25 +361,43 @@ describe('LoginPage two-factor method choice', () => {
     });
   });
 
-  it('lets the user go back and pick the other method', async () => {
-    await reachTwoFactorStep();
+  it('returns from the backup page to the sign-in options', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['totp', 'passkey', 'backup_code']));
+    fireEvent.click(screen.getByRole('button', { name: /Use a backup code/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: /Use your authenticator app/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sign-in options' }));
+
     expect(screen.getByLabelText('6-digit code')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Choose another way' }));
-
-    expect(screen.getByRole('button', { name: /Use a recovery code/ })).toBeTruthy();
-    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use a passkey instead' })).toBeTruthy();
   });
 
-  it('returns to the sign-in form when the second factor is cancelled', async () => {
+  it('explains when the account has no backup codes left', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['totp']));
+    fireEvent.click(screen.getByRole('button', { name: /Use a backup code/ }));
+
+    expect(screen.getByText('This account has no backup codes left.')).toBeTruthy();
+    expect(screen.queryByLabelText('Backup code')).toBeNull();
+  });
+
+  it('still reads a challenge from an older backend that only sends the message', async () => {
+    await reachTwoFactorStep(new Error('2FA required. Please provide a TOTP code or recovery code.'));
+
+    expect(screen.getByLabelText('6-digit code')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /passkey/i })).toBeNull();
+  });
+
+  it('returns to the sign-in form from Back', async () => {
     await reachTwoFactorStep();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
+  });
+
+  it('reports no critical axe violations on the code step', async () => {
+    await reachTwoFactorStep(twoFactorRequired(['totp', 'passkey', 'backup_code']));
+    await expectNoCriticalAxeViolations(document.body);
   });
 });
 

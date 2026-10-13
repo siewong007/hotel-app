@@ -250,6 +250,23 @@ export const getPositiveRatePerNight = (source: RateSource | null | undefined): 
   return isPositiveMoney(value) ? value : null;
 };
 
+/**
+ * Whether a reservation arriving on `checkInDay` holds its room right now.
+ * Earlier arrival days always hold; today's arrival holds once the hotel's
+ * `new_reservation_visible_time` (HH:MM, hotel-local) has passed; later days
+ * never do. All days are hotel-local `YYYY-MM-DD` strings.
+ */
+export const isArrivalHoldVisible = (
+  checkInDay: string,
+  todayDay: string,
+  minutesOfDay: number,
+  visibleFrom: string,
+): boolean => {
+  if (!checkInDay || !todayDay) return false;
+  if (checkInDay < todayDay) return true;
+  return checkInDay === todayDay && minutesOfDay >= timeToMinutes(visibleFrom);
+};
+
 export const deriveRoomStatusInfo = <
   TBooking extends RoomStatusBooking | undefined,
   TReservedBooking extends RoomStatusBooking | undefined,
@@ -258,25 +275,29 @@ export const deriveRoomStatusInfo = <
   booking,
   reservedBooking,
   today = new Date(),
-  checkInTime = getHotelSetting('check_in_time'),
+  visibleFrom = getHotelSetting('new_reservation_visible_time'),
 }: {
   room: RoomStatusRoom;
   booking: TBooking;
   reservedBooking: TReservedBooking;
   today?: Date;
-  checkInTime?: string;
+  /** Hotel-local HH:MM when today's arrivals start holding their rooms. */
+  visibleFrom?: string;
 }) => {
   const todaySerial = dateSerial(formatLocalDate(today));
   const hasCheckedInBooking = isInHouseBookingStatus(booking?.status);
-  // On the arrival day a reservation only "holds" the room once the configured
-  // check-in time has passed; before that the room reads as available. Earlier
-  // arrival dates (a reservation that should already be in-house) are not gated.
+  // A reservation holds its room from its arrival day only, and on that day
+  // only once the hotel's new-reservation time (`new_reservation_visible_time`,
+  // the same clock as the dashboard's New reservations strip) has passed;
+  // before that the room reads as it otherwise would. Earlier arrival dates (a
+  // reservation that should already be in-house) are not gated. Future stays
+  // never mark the room; they stay on the timeline and show as a small hold.
   const reservationCheckInSerial = reservedBooking
     ? dateSerial(reservedBooking.check_in_date)
     : null;
   const isArrivalToday = reservationCheckInSerial === todaySerial;
-  const checkInTimeReached =
-    !isArrivalToday || today.getHours() * 60 + today.getMinutes() >= timeToMinutes(checkInTime);
+  const visibleTimeReached =
+    !isArrivalToday || today.getHours() * 60 + today.getMinutes() >= timeToMinutes(visibleFrom);
   // Any room-holding reservation counts — an unpaid (`pending_payment`) or
   // awaiting-confirmation (`pending_confirmation`) website booking holds the
   // room just like a confirmed one, and the backend already reports it reserved.
@@ -285,20 +306,25 @@ export const deriveRoomStatusInfo = <
     && isRoomHoldingReservationStatus(reservedBooking.status)
     && reservationCheckInSerial !== null
     && reservationCheckInSerial <= todaySerial
-    && checkInTimeReached,
+    && visibleTimeReached,
   );
   const hasFutureReservation = Boolean(reservedBooking && !hasReservationForToday);
   const futureCheckInDate = hasFutureReservation && reservedBooking
     ? parseLocalDate(reservedBooking.check_in_date)
     : null;
 
+  // Housekeeping states win over a reservation, but `reserved_dirty` is only a
+  // hold while today's arrival is due: a stored `reserved_dirty` whose next
+  // stay is still in the future reads plain dirty.
   const computedStatus = hasCheckedInBooking
     ? 'occupied'
-    : ['maintenance', 'dirty', 'reserved_dirty'].includes(room.status || '')
-      ? room.status!
-      : hasReservationForToday
-        ? 'reserved'
-        : 'available';
+    : room.status === 'reserved_dirty'
+      ? (hasReservationForToday ? 'reserved_dirty' : 'dirty')
+      : ['maintenance', 'dirty'].includes(room.status || '')
+        ? room.status!
+        : hasReservationForToday
+          ? 'reserved'
+          : 'available';
 
   const isOccupied = computedStatus === 'occupied';
   const isReserved = computedStatus === 'reserved';

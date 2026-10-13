@@ -7,6 +7,7 @@ import {
   deriveRoomStatusInfo,
   formatHoldRange,
   getCreditBookingDates,
+  isArrivalHoldVisible,
   getNextAvailableDate,
   getPositiveRatePerNight,
   getRoomTypeCode,
@@ -46,7 +47,7 @@ describe('roomManagementUtils', () => {
         check_in_date: '2026-06-15',
       },
       today: new Date(2026, 5, 15, 16, 0, 0),
-      checkInTime: '15:00',
+      visibleFrom: '15:00',
     });
 
     expect(status.computedStatus).toBe('dirty');
@@ -62,7 +63,7 @@ describe('roomManagementUtils', () => {
         check_in_date: '2026-06-15',
       },
       today: new Date(2026, 5, 15, 16, 0, 0),
-      checkInTime: '15:00',
+      visibleFrom: '15:00',
     });
 
     expect(status.computedStatus).toBe('reserved_dirty');
@@ -71,7 +72,7 @@ describe('roomManagementUtils', () => {
     expect(status.hasReservationForToday).toBe(true);
   });
 
-  it('does not mark an arrival-day reservation as reserved before check-in time', () => {
+  it('does not mark an arrival-day reservation as reserved before the new-reservation time', () => {
     const base = {
       room: { status: 'available' },
       booking: undefined,
@@ -79,7 +80,7 @@ describe('roomManagementUtils', () => {
         status: 'confirmed',
         check_in_date: '2026-06-15',
       },
-      checkInTime: '15:00',
+      visibleFrom: '15:00',
     } as const;
 
     const beforeCheckIn = deriveRoomStatusInfo({
@@ -115,6 +116,107 @@ describe('roomManagementUtils', () => {
     expect(status.futureCheckInDate?.getDate()).toBe(20);
   });
 
+  it('reads a stored reserved_dirty room as dirty until its arrival day', () => {
+    // Prod 2026-10-11: rooms checked out with a stay due days later were left
+    // reserved_dirty and showed as held today. They are just dirty, with the
+    // future stay kept as a small hold label.
+    const status = deriveRoomStatusInfo({
+      room: { status: 'reserved_dirty' },
+      booking: undefined,
+      reservedBooking: {
+        status: 'confirmed',
+        check_in_date: '2026-10-12',
+        check_out_date: '2026-10-13',
+      },
+      today: new Date(2026, 9, 11, 10, 0, 0),
+      visibleFrom: '07:00',
+    });
+
+    expect(status.computedStatus).toBe('dirty');
+    expect(status.hasReservationForToday).toBe(false);
+    expect(status.hasFutureReservation).toBe(true);
+    expect(status.futureCheckInDate?.getDate()).toBe(12);
+
+    const noHold = deriveRoomStatusInfo({
+      room: { status: 'reserved_dirty' },
+      booking: undefined,
+      reservedBooking: undefined,
+      today: new Date(2026, 9, 11, 10, 0, 0),
+      visibleFrom: '07:00',
+    });
+    expect(noHold.computedStatus).toBe('dirty');
+  });
+
+  it('holds a dirty room for today\'s arrival only from the new-reservation time', () => {
+    const base = {
+      room: { status: 'reserved_dirty' },
+      booking: undefined,
+      reservedBooking: { status: 'confirmed', check_in_date: '2026-10-11' },
+      visibleFrom: '07:00',
+    } as const;
+
+    expect(deriveRoomStatusInfo({ ...base, today: new Date(2026, 9, 11, 6, 59) }).computedStatus)
+      .toBe('dirty');
+    expect(deriveRoomStatusInfo({ ...base, today: new Date(2026, 9, 11, 7, 0) }).computedStatus)
+      .toBe('reserved_dirty');
+  });
+
+  it('never reads a stored reserved room as held for a later stay', () => {
+    const status = deriveRoomStatusInfo({
+      room: { status: 'reserved' },
+      booking: undefined,
+      reservedBooking: { status: 'confirmed', check_in_date: '2026-10-15' },
+      today: new Date(2026, 9, 11, 12, 0, 0),
+      visibleFrom: '07:00',
+    });
+
+    expect(status.computedStatus).toBe('available');
+    expect(status.isReservedToday).toBe(false);
+    expect(status.hasFutureReservation).toBe(true);
+  });
+
+  it('keeps an overdue arrival holding the room whatever the time', () => {
+    const status = deriveRoomStatusInfo({
+      room: { status: 'reserved' },
+      booking: undefined,
+      reservedBooking: { status: 'confirmed', check_in_date: '2026-10-10' },
+      today: new Date(2026, 9, 11, 1, 0, 0),
+      visibleFrom: '07:00',
+    });
+
+    expect(status.computedStatus).toBe('reserved');
+    expect(status.hasReservationForToday).toBe(true);
+  });
+
+  it('gates arrival holds on the new_reservation_visible_time setting by default', () => {
+    localStorage.setItem('hotelSettings', JSON.stringify({
+      new_reservation_visible_time: '09:30',
+      check_in_time: '15:00',
+    }));
+    try {
+      const base = {
+        room: { status: 'available' },
+        booking: undefined,
+        reservedBooking: { status: 'confirmed', check_in_date: '2026-10-11' },
+      } as const;
+      expect(deriveRoomStatusInfo({ ...base, today: new Date(2026, 9, 11, 9, 29) }).computedStatus)
+        .toBe('available');
+      // Held from 09:30 — the check-in time (15:00) no longer gates it.
+      expect(deriveRoomStatusInfo({ ...base, today: new Date(2026, 9, 11, 9, 30) }).computedStatus)
+        .toBe('reserved');
+    } finally {
+      localStorage.removeItem('hotelSettings');
+    }
+  });
+
+  it('decides arrival-hold visibility from the day and the hotel clock', () => {
+    expect(isArrivalHoldVisible('2026-10-10', '2026-10-11', 0, '07:00')).toBe(true);
+    expect(isArrivalHoldVisible('2026-10-11', '2026-10-11', 6 * 60 + 59, '07:00')).toBe(false);
+    expect(isArrivalHoldVisible('2026-10-11', '2026-10-11', 7 * 60, '07:00')).toBe(true);
+    expect(isArrivalHoldVisible('2026-10-12', '2026-10-11', 23 * 60, '07:00')).toBe(false);
+    expect(isArrivalHoldVisible('', '2026-10-11', 23 * 60, '07:00')).toBe(false);
+  });
+
   it('treats an awaiting-payment hold as reserving the room without offering check-in', () => {
     // Room 210 regression: a website booking in `pending_confirmation` (bank
     // transfer awaiting confirmation) arriving today held the room, but the
@@ -128,7 +230,7 @@ describe('roomManagementUtils', () => {
           check_in_date: '2026-09-25',
         },
         today: new Date(2026, 8, 25, 20, 30, 0),
-        checkInTime: '15:00',
+        visibleFrom: '15:00',
       });
 
       expect(status.computedStatus).toBe('reserved');
@@ -149,7 +251,7 @@ describe('roomManagementUtils', () => {
           check_in_date: '2026-09-25',
         },
         today: new Date(2026, 8, 25, 16, 0, 0),
-        checkInTime: '15:00',
+        visibleFrom: '15:00',
       });
 
       expect(status.isReservedToday).toBe(true);
@@ -167,7 +269,7 @@ describe('roomManagementUtils', () => {
         check_in_date: '2026-09-25',
       },
       today: new Date(2026, 8, 25, 16, 0, 0),
-      checkInTime: '15:00',
+      visibleFrom: '15:00',
     });
 
     expect(status.computedStatus).toBe('available');

@@ -368,10 +368,10 @@ impl AuditRepository {
             .map_err(|e| ApiError::Database(format!("Failed to count audit categories: {}", e)))
     }
 
-    /// Pre-create the `audit_logs` partitions for the current month and the
-    /// next two, via the schema's own `ensure_audit_logs_partition`. Idempotent;
-    /// intended to be called on a daily cadence by a background loop so writes
-    /// never fall back into `audit_logs_default` after the install-time window.
+    /// Pre-create `audit_logs` partitions for the current month and next two
+    /// through the restricted runtime capability. Idempotent; intended to run
+    /// daily so writes never fall back into `audit_logs_default` after the
+    /// install-time window.
     pub async fn ensure_upcoming_partitions(pool: &DbPool) -> Result<(), ApiError> {
         sqlx::query(
             "SELECT public.maintain_audit_partition(month_start::date) \
@@ -396,6 +396,8 @@ impl AuditRepository {
             }
         })
         .map_err(|e| ApiError::Database(e.to_string()))?;
+        // maintain_audit_partition installs per-partition TRUNCATE guards
+        // inside its SECURITY DEFINER capability; hotel_app has no DDL rights.
         Ok(())
     }
 

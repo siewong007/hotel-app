@@ -8,11 +8,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   InputAdornment,
-  InputLabel,
-  MenuItem,
-  Select,
   Stack,
   TextField,
   Typography,
@@ -36,6 +32,8 @@ import {
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../../../utils/idempotency';
 import { emitApiNotification } from '../../../../../utils/apiNotifications';
 import { getBookingBalance, getErrorMessage } from '../../../utils/bookingPageUtils';
+import RoomPaymentMethodSelect from '../../payment/RoomPaymentMethodSelect';
+import { getSettlementLock, isRoomMethodAllowed } from '../../../utils/settlementLock';
 
 export type PaymentDialogContext = 'manual' | 'checkout_required';
 
@@ -324,18 +322,13 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                   input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> },
                   htmlInput: { min: 0, max: balance, step: 0.01 }
                 }} />
-              <FormControl fullWidth>
-                <InputLabel>{t('payment.methodLabel')}</InputLabel>
-                <Select
-                  value={method}
-                  label={t('payment.methodLabel')}
-                  onChange={(e) => setMethod(e.target.value)}
-                >
-                  {paymentMethods.map((m) => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <RoomPaymentMethodSelect
+                booking={currentBooking}
+                paymentMethods={paymentMethods}
+                value={method}
+                onChange={setMethod}
+                label={t('payment.methodLabel')}
+              />
             </Box>
 
             <TextField
@@ -362,6 +355,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
           disabled={
             !isPositiveMoney(amount) ||
             updating ||
+            !isRoomMethodAllowed(getSettlementLock(currentBooking), method) ||
             (context === 'checkout_required' && isLessMoney(amount, balance)) ||
             isGreaterMoney(amount, balance)
           }

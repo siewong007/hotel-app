@@ -63,7 +63,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 the `seed` bin's demo dataset (`cargo run --bin seed -- --list`; refuses production; never deployed);
 `make db-patch` converges an existing V1 DB, and the backend refuses to start until it has
 (`core/schema_catalog.rs`). **No second migration file** — the only forward path is the checksum-verified
-`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 17 on 2026-10-11 — read
+`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 24 on 2026-10-13 — read
 it, never a remembered range), run by `apply-patches.sh` and `src-tauri/src/postgres/patches.rs`. Details: `hotel-app-be/database/README.md`.
 
 - **PG19 Beta 4 reverted SQL/PGQ and `SPLIT/MERGE PARTITION`** — patches 0015/0016 removed both from the schema; they must reach a database while it still runs `19beta3`, before any move off it (`docs/guides/postgres-engine-upgrade.md`).
@@ -108,7 +108,7 @@ and fails in production; new `FromRow` over date/timestamp/numeric/array columns
 Backend: 59 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0, and
 each skip counts as a PASS** — `payment_characterization` reports 48 passed in 0.00s with no DB and the
 same 48 in ~3.5s for real (2026-10-05), so judge by wall-clock + per-suite counts. Patch/drift suites
-need `psql`. Fix-gated tests carry `#[ignore]` when a known bug remains; CI fails
+need `psql`. Fix-gated tests carry `#[ignore]` (one today: ledger-summary reversal netting); CI fails
 when one starts passing. Characterization tests must assert *correct* values. Frontend: Vitest +
 Testing Library (285 files, 7 in `salim-inn/`); build ky errors with `src/api/testSupport/httpError.ts`;
 never run two vitest suites concurrently here — they starve each other's timeouts.

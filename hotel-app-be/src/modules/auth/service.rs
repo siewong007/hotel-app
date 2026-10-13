@@ -71,6 +71,122 @@ pub(crate) async fn ensure_step_up(
     ))
 }
 
+/// How long the token that carries a verified password into the sign-in
+/// second-factor step stays valid.
+pub const LOGIN_MFA_TTL_MINUTES: i64 = 5;
+
+/// Count one failed sign-in attempt (wrong password or wrong second factor)
+/// against the account. Locks the account — and revokes its sessions — when
+/// the configured maximum is reached, returning the lockout error; otherwise
+/// returns how many attempts remain.
+pub(crate) async fn record_failed_login(
+    pool: &DbPool,
+    user_id: i64,
+    username: &str,
+    reason: &str,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<i32, ApiError> {
+    let max_attempts = AuthRepository::max_login_attempts(pool).await;
+    // One atomic statement increments and decides the lockout, so
+    // concurrent guesses each cost exactly one increment.
+    let (attempts_now, is_locked) = AuthRepository::register_failed_login(
+        pool,
+        user_id,
+        max_attempts,
+        Utc::now() + Duration::minutes(30),
+    )
+    .await?;
+
+    if is_locked {
+        AuthService::revoke_all_user_tokens(pool, user_id)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!("Failed to revoke locked-user sessions: {error}"))
+            })?;
+        // The second-factor token is a half-finished sign-in; a lock ends it.
+        let _ = AuthRepository::clear_login_mfa_challenge(pool, user_id).await;
+
+        let _ = AuditLog::log_login_failure(
+            pool,
+            username,
+            "Account locked after max attempts",
+            ip_address.map(str::to_string),
+            user_agent.map(str::to_string),
+        )
+        .await;
+        return Err(ApiError::TooManyRequests(
+            "Account locked due to too many failed login attempts. Try again in 30 minutes."
+                .to_string(),
+        ));
+    }
+
+    let _ = AuditLog::log_login_failure(
+        pool,
+        username,
+        reason,
+        ip_address.map(str::to_string),
+        user_agent.map(str::to_string),
+    )
+    .await;
+    Ok((max_attempts - attempts_now).max(0))
+}
+
+/// The second-factor methods an account can finish signing in with, in the
+/// order the sign-in page offers them. `backup_code` is listed only while the
+/// account still holds unspent backup codes; the page shows it behind a link,
+/// never as a primary method.
+pub fn available_second_factor_methods(
+    has_totp: bool,
+    has_passkey: bool,
+    backup_codes_remaining: usize,
+) -> Vec<String> {
+    let mut methods = Vec::with_capacity(3);
+    if has_totp {
+        methods.push("totp".to_string());
+    }
+    if has_passkey {
+        methods.push("passkey".to_string());
+    }
+    // Backup codes are verified on the authenticator path, so they only work
+    // for an account that has an authenticator enrolled.
+    if has_totp && backup_codes_remaining > 0 {
+        methods.push("backup_code".to_string());
+    }
+    methods
+}
+
+/// Mint the short-lived, single-use token proving this user just passed the
+/// password check, and build the `two_factor_required` answer around it.
+/// Only the token's SHA-256 is stored, like refresh tokens.
+async fn two_factor_required(
+    pool: &DbPool,
+    user: &User,
+    has_totp: bool,
+    has_passkey: bool,
+) -> Result<ApiError, ApiError> {
+    let token = AuthService::generate_refresh_token();
+    AuthRepository::upsert_login_mfa_challenge(
+        pool,
+        user.id,
+        &AuthService::hash_refresh_token(&token),
+        Utc::now() + Duration::minutes(LOGIN_MFA_TTL_MINUTES),
+    )
+    .await?;
+    let backup_codes_remaining = user
+        .two_factor_recovery_codes
+        .as_ref()
+        .map_or(0, |codes| codes.len());
+    Ok(ApiError::TwoFactorRequired {
+        mfa_token: token.into(),
+        available_methods: available_second_factor_methods(
+            has_totp,
+            has_passkey,
+            backup_codes_remaining,
+        ),
+    })
+}
+
 /// Reject a login attempt against a locked account, clearing the lock when it
 /// has already elapsed.
 ///
@@ -179,53 +295,21 @@ pub async fn login(
     ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent).await?;
 
     let password_hash = AuthRepository::password_hash(pool, user.id).await?;
-    let max_attempts = AuthRepository::max_login_attempts(pool).await;
 
     let valid = AuthService::verify_password(&req.password, &password_hash)
         .await
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
-        // One atomic statement increments and decides the lockout, so
-        // concurrent guesses each cost exactly one increment.
-        let (attempts_now, is_locked) = AuthRepository::register_failed_login(
+        let remaining = record_failed_login(
             pool,
             user.id,
-            max_attempts,
-            Utc::now() + Duration::minutes(30),
-        )
-        .await?;
-
-        if is_locked {
-            AuthService::revoke_all_user_tokens(pool, user.id)
-                .await
-                .map_err(|error| {
-                    ApiError::Database(format!("Failed to revoke locked-user sessions: {error}"))
-                })?;
-
-            let _ = AuditLog::log_login_failure(
-                pool,
-                &req.username,
-                "Account locked after max attempts",
-                audit_ip(),
-                audit_ua(),
-            )
-            .await;
-            return Err(ApiError::TooManyRequests(
-                "Account locked due to too many failed login attempts. Try again in 30 minutes."
-                    .to_string(),
-            ));
-        }
-
-        let remaining = max_attempts - attempts_now;
-        let _ = AuditLog::log_login_failure(
-            pool,
             &req.username,
             "Invalid password",
-            audit_ip(),
-            audit_ua(),
+            ip_address,
+            user_agent,
         )
-        .await;
+        .await?;
         return Err(ApiError::Unauthorized(format!(
             "Invalid credentials. {} attempt(s) remaining before account lockout.",
             remaining
@@ -244,11 +328,24 @@ pub async fn login(
 
     let (two_factor_enabled, two_factor_secret) =
         AuthRepository::two_factor_state(pool, user.id).await?;
+    let has_totp = two_factor_enabled.unwrap_or(false);
+    // A registered passkey is a second factor in its own right (the 2FA
+    // enrolment policy already counts it), so a password alone must not
+    // complete a sign-in for an account that has one: the passkey has to be
+    // presented through the second-factor step.
+    let has_passkey = PasskeyRepository::passkey_count(pool, user.id).await? > 0;
     // Set only when this login consumed a recovery code (the lost-authenticator
     // path); carried through to the response so the client can warn the user.
     let mut recovery_codes_remaining: Option<usize> = None;
-    if two_factor_enabled.unwrap_or(false) {
-        let Some(submitted_code) = &req.totp_code else {
+    if has_totp || has_passkey {
+        // A code only means something to an account with an authenticator; a
+        // passkey-only account must finish with its passkey.
+        let submitted_code = req
+            .totp_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|code| !code.is_empty() && has_totp);
+        let Some(submitted_code) = submitted_code else {
             let _ = AuditLog::log_login_failure(
                 pool,
                 &req.username,
@@ -257,9 +354,7 @@ pub async fn login(
                 audit_ua(),
             )
             .await;
-            return Err(ApiError::Unauthorized(
-                "2FA required. Please provide a TOTP code or recovery code.".to_string(),
-            ));
+            return Err(two_factor_required(pool, &user, has_totp, has_passkey).await?);
         };
 
         let stored = two_factor_secret
@@ -318,17 +413,30 @@ pub async fn login(
                     .await;
                 }
                 None => {
-                    let _ = AuditLog::log_login_failure(
+                    // A wrong second factor costs an attempt exactly like a
+                    // wrong password. It used to cost nothing, which left a
+                    // password-holder free to guess six digits bounded only by
+                    // the per-IP rate limit.
+                    let attempts_remaining = record_failed_login(
                         pool,
+                        user.id,
                         &req.username,
                         "Invalid 2FA code",
-                        audit_ip(),
-                        audit_ua(),
+                        ip_address,
+                        user_agent,
                     )
-                    .await;
-                    return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
+                    .await?;
+                    return Err(ApiError::TwoFactorInvalid { attempts_remaining });
                 }
             }
+        }
+        // Signed in by authenticator or backup code: a passkey token issued
+        // for this attempt is no longer needed. Bookkeeping only.
+        if let Err(error) = AuthRepository::clear_login_mfa_challenge(pool, user.id).await {
+            log::warn!(
+                "Failed to clear login MFA token for user {}: {error}",
+                user.id
+            );
         }
     }
 
@@ -336,7 +444,7 @@ pub async fn login(
 
     let login_method = if recovery_codes_remaining.is_some() {
         "password+2fa_recovery"
-    } else if two_factor_enabled.unwrap_or(false) {
+    } else if has_totp {
         "password+2fa"
     } else {
         "password"
@@ -559,6 +667,16 @@ pub(crate) async fn issue_authenticated_response(
     )
     .await
     .map_err(|error| ApiError::Database(format!("Failed to store refresh token: {error}")))?;
+    // Keep the account under its live-session cap: scripts and test runs that
+    // sign in without signing out otherwise pile up hundreds of sessions.
+    super::session_retention::apply_cap_after_sign_in(
+        pool,
+        user.id,
+        &session_id,
+        ip_address,
+        user_agent,
+    )
+    .await;
     let access_token = AuthService::generate_session_jwt(
         user.id,
         user.username.clone(),
@@ -693,13 +811,38 @@ pub async fn refresh_token(
     })
 }
 
-pub async fn logout(pool: &DbPool, req: RefreshTokenRequest) -> Result<(), ApiError> {
+pub async fn logout(
+    pool: &DbPool,
+    req: RefreshTokenRequest,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    AuthService::revoke_refresh_token(pool, &req.refresh_token)
+    let revoked = AuthService::revoke_refresh_token(pool, &req.refresh_token)
         .await
-        .map_err(|e| ApiError::Database(format!("Failed to revoke token: {}", e)))
+        .map_err(|e| ApiError::Database(format!("Failed to revoke token: {}", e)))?;
+
+    // Sign-outs were the one half of the session lifecycle with no audit row.
+    // Only a sign-out that actually ended a live session is recorded, so a
+    // replayed or stale cookie does not write a misleading entry.
+    if let Some((user_id, session_id)) = revoked {
+        let _ = AuditLog::log_event(
+            pool,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "logout",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: Some(json!({ "session_id": session_id })),
+                ip_address: ip_address.map(str::to_string),
+                user_agent: user_agent.map(str::to_string),
+            },
+        )
+        .await;
+    }
+    Ok(())
 }
 
 pub async fn register(

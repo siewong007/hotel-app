@@ -63,6 +63,7 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
             ELSE 'unpaid'
         END AS payment_status, b.payment_method, b.source, b.booking_channel_id,
         bc.name AS booking_channel_name, bc.channel_type AS booking_channel_type,
+        bc.settlement_payment_methods AS booking_channel_settlement_methods,
         b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
@@ -162,6 +163,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
             ELSE 'unpaid'
         END AS payment_status, b.payment_method, b.source, b.booking_channel_id,
         bc.name AS booking_channel_name, bc.channel_type AS booking_channel_type,
+        bc.settlement_payment_methods AS booking_channel_settlement_methods,
         b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,

@@ -4,6 +4,7 @@ import {
   formatHotelDate,
   formatHotelDateTime,
   formatLocalDate,
+  hotelMinutesOfDay,
   isHotelDatePast,
   parseLocalDate,
   toHotelDateString,
@@ -144,5 +145,15 @@ describe('hotel-timezone business dates', () => {
   it('falls back to Asia/Kuala_Lumpur when settings hold an invalid zone', () => {
     localStorage.setItem('hotelSettings', JSON.stringify({ timezone: 'Not/AZone' }));
     expect(toHotelDateString('2026-07-25T16:00:00Z')).toBe('2026-07-26');
+  });
+
+  it('reads the hotel-local clock, not the viewer clock', () => {
+    // 23:05Z is 07:05 the next morning in Kuala Lumpur (+08).
+    expect(hotelMinutesOfDay(new Date('2026-10-10T23:05:00Z'))).toBe(7 * 60 + 5);
+    // Midnight reads 0, never 24:00.
+    expect(hotelMinutesOfDay(new Date('2026-10-10T16:00:00Z'))).toBe(0);
+    localStorage.setItem('hotelSettings', JSON.stringify({ timezone: 'America/New_York' }));
+    // The same instant is 19:05 the evening before in New York (EDT, -04).
+    expect(hotelMinutesOfDay(new Date('2026-10-10T23:05:00Z'))).toBe(19 * 60 + 5);
   });
 });

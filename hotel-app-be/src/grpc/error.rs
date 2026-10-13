@@ -66,6 +66,23 @@ pub fn to_status(err: ApiError) -> Status {
             "Two-factor enrolment is required",
             info("TWO_FACTOR_ENROLLMENT_REQUIRED"),
         ),
+        // Sign-in only happens over REST; these exist so the mapping stays
+        // total. The MFA token is never copied into a gRPC status.
+        ApiError::TwoFactorRequired { .. } => Status::with_error_details(
+            Code::Unauthenticated,
+            "Two-factor authentication is required",
+            info("TWO_FACTOR_REQUIRED"),
+        ),
+        ApiError::TwoFactorInvalid { .. } => Status::with_error_details(
+            Code::Unauthenticated,
+            "Invalid two-factor code",
+            info("TWO_FACTOR_INVALID"),
+        ),
+        ApiError::TwoFactorExpired => Status::with_error_details(
+            Code::Unauthenticated,
+            "Two-factor challenge expired",
+            info("TWO_FACTOR_EXPIRED"),
+        ),
         ApiError::GuestNameTaken => Status::with_error_details(
             Code::AlreadyExists,
             "Guest name is already taken",

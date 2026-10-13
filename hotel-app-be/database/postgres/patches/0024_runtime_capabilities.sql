@@ -15,7 +15,7 @@ BEGIN
         INTO function_body_hash, function_owner, function_is_definer, function_config
         FROM pg_proc
         WHERE oid = 'public.transfer_import_ddl(text,text,text,text)'::regprocedure;
-        IF function_body_hash <> '95a60fa200b86b990d989cddde138290'
+        IF function_body_hash <> '562266b3b2accba8763a64804f2edf58'
            OR function_owner <> expected_owner
            OR NOT function_is_definer
            OR function_config IS DISTINCT FROM ARRAY['search_path=pg_catalog, public, pg_temp']::text[] THEN
@@ -27,7 +27,7 @@ BEGIN
         INTO function_body_hash, function_owner, function_is_definer, function_config
         FROM pg_proc
         WHERE oid = 'public.maintain_audit_partition(date)'::regprocedure;
-        IF function_body_hash <> '70ca550fd81105240e7a20fbe4190ff9'
+        IF function_body_hash <> '562266b3b2accba8763a64804f2edf58'
            OR function_owner <> expected_owner
            OR NOT function_is_definer
            OR function_config IS DISTINCT FROM ARRAY['search_path=pg_catalog, public, pg_temp']::text[] THEN
@@ -178,7 +178,9 @@ END
 $function$;
 REVOKE ALL ON FUNCTION public.transfer_import_ddl(text,text,text,text) FROM PUBLIC;
 
--- Keep the existing function unchanged: older catalog entries verify its exact definition.
+-- Keep the runtime capability aligned with the current partition upkeep
+-- algorithm. The definer owns the required DDL rights; the application role
+-- receives EXECUTE only through the deployment grant.
 CREATE OR REPLACE FUNCTION public.maintain_audit_partition(p_month date)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
@@ -187,6 +189,8 @@ DECLARE
     start_date date := date_trunc('month', p_month)::date;
     end_date date := (date_trunc('month', p_month) + INTERVAL '1 month')::date;
     part_name text := format('audit_logs_%s', to_char(start_date, 'YYYY_MM'));
+    late_month boolean;
+    partition_row record;
 BEGIN
     IF p_month IS NULL OR NOT isfinite(p_month) THEN
         RAISE EXCEPTION 'Invalid partition month' USING ERRCODE = '22023';
@@ -195,32 +199,55 @@ BEGIN
         SELECT 1 FROM pg_class
         WHERE relname = part_name AND relnamespace = 'public'::regnamespace
     ) THEN
-        IF EXISTS (
+        late_month := EXISTS (
             SELECT 1
             FROM public.audit_logs_default
             WHERE created_at >= start_date::timestamptz
               AND created_at < end_date::timestamptz
-            LIMIT 1
-        ) THEN
-            LOCK TABLE public.audit_logs IN ACCESS EXCLUSIVE MODE;
-            CREATE TEMP TABLE audit_logs_default_rows AS TABLE public.audit_logs_default;
-            ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default;
-            DROP TABLE public.audit_logs_default;
-            EXECUTE format(
-                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-                part_name, start_date, end_date
-            );
-            CREATE TABLE public.audit_logs_default PARTITION OF public.audit_logs DEFAULT;
+        );
+        IF late_month THEN
+            EXECUTE 'ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default';
+        END IF;
+        EXECUTE format(
+            'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+            part_name, start_date, end_date
+        );
+        IF late_month THEN
+            WITH moved AS (
+                DELETE FROM public.audit_logs_default
+                WHERE created_at >= start_date::timestamptz
+                  AND created_at < end_date::timestamptz
+                RETURNING *
+            )
             INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE
-                TABLE pg_temp.audit_logs_default_rows;
-            DROP TABLE pg_temp.audit_logs_default_rows;
-        ELSE
-            EXECUTE format(
-                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-                part_name, start_date, end_date
-            );
+            SELECT * FROM moved;
+            EXECUTE 'ALTER TABLE public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT';
         END IF;
     END IF;
+    -- TRUNCATE statement triggers are not cloned onto partitions. Keep this
+    -- DDL inside the pinned SECURITY DEFINER capability so hotel_app does not
+    -- need direct trigger privileges or EXECUTE on an invoker helper.
+    FOR partition_row IN
+        SELECT partition_schema.nspname AS schema_name,
+               partition_table.relname AS table_name
+        FROM pg_inherits AS link
+        JOIN pg_class AS partition_table ON partition_table.oid = link.inhrelid
+        JOIN pg_namespace AS partition_schema
+          ON partition_schema.oid = partition_table.relnamespace
+        WHERE link.inhparent = 'public.audit_logs'::regclass
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pg_trigger AS guard
+              WHERE guard.tgrelid = partition_table.oid
+                AND guard.tgname = 'trg_audit_logs_no_truncate'
+          )
+        ORDER BY partition_table.relname
+    LOOP
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation()',
+            partition_row.schema_name, partition_row.table_name
+        );
+    END LOOP;
 END
 $function$;
 REVOKE ALL ON FUNCTION public.maintain_audit_partition(date) FROM PUBLIC;

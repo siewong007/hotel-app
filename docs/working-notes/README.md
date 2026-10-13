@@ -23,9 +23,6 @@ When a plan merges:
 
 ## Active
 
-- [Repository reliability](plans/2026-10-10-repo-reliability.md) — ledger summaries,
-  import admission, database privileges, and local validation gates.
-
 ## Removal record
 
 Recover any of these with `git log --all -- <path>`, then `git show <sha>:<path>`.

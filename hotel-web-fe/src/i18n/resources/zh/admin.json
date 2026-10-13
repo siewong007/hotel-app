@@ -587,10 +587,12 @@
       "night_audit": "夜间审计",
       "payment_receipts": "付款收据",
       "unpaid_hold_release": "未付保留释放",
+      "room_arrival_holds": "到店日房间保留",
       "email_delivery_worker": "邮件投递工作进程",
       "email_campaigns": "邮件活动",
       "birthday_vouchers": "生日券",
-      "pre_arrival_reminders": "到店前提醒"
+      "pre_arrival_reminders": "到店前提醒",
+      "session_retention": "会话清理"
     },
     "col": {
       "job": "任务",
@@ -919,10 +921,12 @@
         "night_audit": "夜审",
         "payment_receipts": "付款收据",
         "unpaid_hold_release": "未付款保留释放",
+        "room_arrival_holds": "到店日房间保留",
         "email_delivery_worker": "邮件投递任务",
         "email_campaigns": "邮件营销",
         "birthday_vouchers": "生日代金券",
-        "pre_arrival_reminders": "到店前提醒"
+        "pre_arrival_reminders": "到店前提醒",
+        "session_retention": "会话清理"
       }
     },
     "health": {

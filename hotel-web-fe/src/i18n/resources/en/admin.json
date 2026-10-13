@@ -593,10 +593,12 @@
       "night_audit": "Night Audit",
       "payment_receipts": "Payment Receipts",
       "unpaid_hold_release": "Unpaid Hold Release",
+      "room_arrival_holds": "Room Arrival Holds",
       "email_delivery_worker": "Email Delivery Worker",
       "email_campaigns": "Email Campaigns",
       "birthday_vouchers": "Birthday Vouchers",
-      "pre_arrival_reminders": "Pre-arrival Reminders"
+      "pre_arrival_reminders": "Pre-arrival Reminders",
+      "session_retention": "Session Cleanup"
     },
     "col": {
       "job": "Job",
@@ -940,10 +942,12 @@
         "night_audit": "Night Audit",
         "payment_receipts": "Payment Receipts",
         "unpaid_hold_release": "Unpaid Hold Release",
+        "room_arrival_holds": "Room Arrival Holds",
         "email_delivery_worker": "Email Delivery Worker",
         "email_campaigns": "Email Campaigns",
         "birthday_vouchers": "Birthday Vouchers",
-        "pre_arrival_reminders": "Pre-arrival Reminders"
+        "pre_arrival_reminders": "Pre-arrival Reminders",
+        "session_retention": "Session Cleanup"
       }
     },
     "health": {

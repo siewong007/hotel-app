@@ -250,6 +250,12 @@
     "/api/auth/logout": {
       "POST": {}
     },
+    "/api/auth/passkey/2fa/finish": {
+      "POST": {}
+    },
+    "/api/auth/passkey/2fa/start": {
+      "POST": {}
+    },
     "/api/auth/passkey/login/finish": {
       "POST": {}
     },
@@ -865,6 +871,9 @@
     "/api/payments/{payment_id}": {
       "DELETE": {},
       "PATCH": {}
+    },
+    "/api/payments/{payment_id}/void": {
+      "POST": {}
     },
     "/api/profile": {
       "GET": {},

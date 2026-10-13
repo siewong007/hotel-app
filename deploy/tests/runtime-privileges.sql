@@ -101,5 +101,22 @@ DO $$ BEGIN
     ) THEN
         RAISE EXCEPTION 'audit partition maintenance did not move the DEFAULT row';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_trigger
+        WHERE tgrelid = 'public.audit_logs_2098_02'::regclass
+          AND tgname = 'trg_audit_logs_no_truncate'
+          AND tgenabled = 'O'
+          AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION 'runtime partition maintenance did not install the TRUNCATE guard';
+    END IF;
+    BEGIN
+        EXECUTE 'TRUNCATE TABLE public.audit_logs_2098_02';
+        RAISE EXCEPTION 'runtime role truncated a guarded audit partition';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'runtime role truncated a guarded audit partition' THEN
+            RAISE;
+        END IF;
+    END;
 END $$;
 ROLLBACK;

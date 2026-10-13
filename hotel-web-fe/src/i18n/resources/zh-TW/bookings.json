@@ -592,5 +592,10 @@
     "checkOutDate": "退房日期",
     "remarks": "註記",
     "saveChanges": "儲存變更"
+  },
+  "settlementLock": {
+    "settledVia": "已透過 {{platform}} 結算",
+    "missingChannel": "此線上預訂沒有預訂渠道。請先設定預訂渠道（如 Booking.com、Agoda），再記錄房費付款。",
+    "unconfigured": "預訂渠道 {{platform}} 未設定結算付款方式，無法記錄房費付款。"
   }
 }

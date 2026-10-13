@@ -13,6 +13,7 @@ import {
   toMoneyNumber,
 } from '../../../utils/money';
 import type { CheckoutPaymentRecord } from '../types';
+import { MIN_STAFF_REASON_LENGTH } from '../utils/payments';
 
 /**
  * Derived deposit lifecycle for the checkout invoice. The payments ledger is
@@ -84,7 +85,8 @@ export interface UseDepositResolutionOptions {
 export interface RefundDepositArgs {
   method: string;
   reference?: string;
-  note?: string;
+  /** Mandatory staff note — the backend rejects a refund without one. */
+  note: string;
 }
 
 export interface ForfeitDepositArgs {
@@ -108,8 +110,8 @@ export interface UseDepositResolutionResult {
   refund: (args: RefundDepositArgs) => Promise<boolean>;
   forfeit: (args: ForfeitDepositArgs) => Promise<boolean>;
   cancelUncollected: (reason: string) => Promise<boolean>;
-  revertRefund: () => Promise<boolean>;
-  restoreDeposit: () => Promise<boolean>;
+  revertRefund: (reason: string) => Promise<boolean>;
+  restoreDeposit: (reason: string) => Promise<boolean>;
 }
 
 const paymentType = (payment: CheckoutPaymentRecord): string =>
@@ -264,7 +266,8 @@ export function useDepositResolution({
 
   const refund = useCallback(
     async ({ method, reference, note }: RefundDepositArgs): Promise<boolean> => {
-      if (!booking) return false;
+      const trimmedNote = note.trim();
+      if (!booking || trimmedNote.length < MIN_STAFF_REASON_LENGTH) return false;
       // Fixed full-amount refund — always the whole remaining refundable
       // balance (a partial outcome is reached via partial forfeit → refund
       // remainder; the backend's one-active-refund rule makes partial
@@ -304,7 +307,7 @@ export function useDepositResolution({
         }
         await InvoicesService.refundDeposit(booking.id, method, amount, {
           transaction_reference: reference,
-          note,
+          note: trimmedNote,
         });
         await reloadPayments();
         invalidateInvoiceState?.();
@@ -356,7 +359,9 @@ export function useDepositResolution({
       const trimmedReason = reason.trim();
       // Status 'none' means nothing was ever recorded — no mirror to waive
       // and no rows to void, so there is no uncollected deposit to cancel.
-      if (!booking || !trimmedReason || deposit.status === 'none') return false;
+      if (!booking || trimmedReason.length < MIN_STAFF_REASON_LENGTH || deposit.status === 'none') {
+        return false;
+      }
       setCancelling(true);
       setError('');
       try {
@@ -372,7 +377,7 @@ export function useDepositResolution({
           });
         } else {
           for (const row of completedDepositRows) {
-            await InvoicesService.deletePayment(row.id);
+            await InvoicesService.voidPayment(row.id, trimmedReason);
           }
         }
         await reloadPayments();
@@ -388,12 +393,13 @@ export function useDepositResolution({
     [booking, deposit.status, completedDepositRows, reloadPayments, setError, invalidateInvoiceState, t],
   );
 
-  const revertRefund = useCallback(async (): Promise<boolean> => {
-    if (!booking) return false;
+  const revertRefund = useCallback(async (reason: string): Promise<boolean> => {
+    const trimmedReason = reason.trim();
+    if (!booking || trimmedReason.length < MIN_STAFF_REASON_LENGTH) return false;
     setReverting(true);
     setError('');
     try {
-      await InvoicesService.revertDepositRefund(booking.id);
+      await InvoicesService.revertDepositRefund(booking.id, trimmedReason);
       await reloadPayments();
       invalidateInvoiceState?.();
       return true;
@@ -405,12 +411,13 @@ export function useDepositResolution({
     }
   }, [booking, reloadPayments, setError, invalidateInvoiceState, t]);
 
-  const restoreDeposit = useCallback(async (): Promise<boolean> => {
-    if (!booking) return false;
+  const restoreDeposit = useCallback(async (reason: string): Promise<boolean> => {
+    const trimmedReason = reason.trim();
+    if (!booking || trimmedReason.length < MIN_STAFF_REASON_LENGTH) return false;
     setRestoring(true);
     setError('');
     try {
-      await InvoicesService.revertDepositVoid(booking.id);
+      await InvoicesService.revertDepositVoid(booking.id, trimmedReason);
       await reloadPayments();
       invalidateInvoiceState?.();
       return true;

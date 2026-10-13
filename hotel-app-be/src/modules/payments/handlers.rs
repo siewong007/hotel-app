@@ -74,25 +74,27 @@ pub async fn refund_deposit_handler(
     ))
 }
 
-/// Revert a keycard deposit refund recorded by mistake
+/// Revert a keycard deposit refund recorded by mistake (reason required)
 pub async fn revert_deposit_refund_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
+    body: PaymentReasonRequest,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        service::revert_deposit_refund(&pool, user_id, booking_id).await?,
+        service::revert_deposit_refund(&pool, user_id, booking_id, body.reason.as_deref()).await?,
     ))
 }
 
-/// Revert a voided (cancelled) deposit for a booking
+/// Revert a voided (cancelled) deposit for a booking (reason required)
 pub async fn revert_deposit_void_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
+    body: PaymentReasonRequest,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        service::revert_deposit_void(&pool, user_id, booking_id).await?,
+        service::revert_deposit_void(&pool, user_id, booking_id, body.reason.as_deref()).await?,
     ))
 }
 
@@ -168,14 +170,15 @@ pub async fn update_payment_handler(
     ))
 }
 
-/// Delete a payment record
+/// Void a payment record (never a hard delete; reason required)
 pub async fn delete_payment_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(payment_id): Path<i64>,
+    body: PaymentReasonRequest,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        service::delete_payment(&pool, user_id, payment_id).await?,
+        service::delete_payment(&pool, user_id, payment_id, body.reason.as_deref()).await?,
     ))
 }
 

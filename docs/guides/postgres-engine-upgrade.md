@@ -32,7 +32,9 @@ those reverts. The schema used two of them:
 - **`SPLIT PARTITION`:** `ensure_audit_logs_partition` ran it, behind
   `EXECUTE`, when a month's partition arrived after its rows. So the baseline
   still installed on beta4, but the daily partition upkeep failed at runtime.
-  Patch 0016 rebuilds late partitions without it.
+  Patch 0016 rebuilds late partitions without it; patch 0021 (2026-10-12)
+  narrows that to moving only the late month's rows (detach, create, move,
+  reattach), which also works on every 19 build.
 
 Both patches landed on 2026-10-06, and nothing in the repository uses any of
 the other reverted features. A 2026-10-05 check missed `SPLIT PARTITION`

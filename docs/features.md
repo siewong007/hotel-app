@@ -7,7 +7,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Feature | Status | Frontend | Backend | Notes |
 |---|---|---|---|---|
 | Staff authentication (JWT + refresh) | Delivered | ✓ `features/auth` | ✓ `modules/auth` | In-memory access token, HttpOnly refresh cookie, revocable refresh rows |
-| Two-factor (TOTP + recovery codes) | Delivered | ✓ | ✓ `modules/two_factor` | Secrets encrypted at rest when `TOTP_ENCRYPTION_KEY` is set (`enc1:` prefix) |
+| Two-factor (TOTP or passkey second factor + backup codes) | Delivered | ✓ | ✓ `modules/two_factor`, `modules/passkey` | Secrets encrypted at rest when `TOTP_ENCRYPTION_KEY` is set (`enc1:` prefix). Sign-in second step: authenticator code (default) or passkey (`/auth/passkey/2fa/*`, bound to a 5-min single-use `mfa_token`); backup codes on their own page. Wrong codes count toward lockout. Accounts with a passkey must present it (or TOTP) after the password. |
 | Passkeys (WebAuthn) | Delivered | ✓ | ✓ `modules/passkey` | Enrollment step-up; revoked on password change/reset |
 | Google sign-in / One Tap | Delivered | ✓ | ✓ (`services/google_identity.rs`) | Staff and guest surfaces |
 | Email verification | Delivered | ✓ `/verify-email` | ✓ | `SKIP_EMAIL_VERIFICATION` bypass for desktop/dev |

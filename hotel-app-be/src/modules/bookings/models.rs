@@ -400,6 +400,11 @@ pub struct BookingWithDetails {
     /// `booking_channels.channel_type` for the linked channel, so callers can
     /// tell an OTA apart from a direct/walk-in link without matching names.
     pub booking_channel_type: Option<String>,
+    /// `booking_channels.settlement_payment_methods` for the linked channel:
+    /// the only tenders its room charge may be recorded with (see
+    /// `payments::settlement_lock`). `None` for desk channels / no channel.
+    #[serde(default)]
+    pub booking_channel_settlement_methods: Option<Vec<String>>,
     pub ota_reference: Option<String>,
     pub remarks: Option<String>,
     pub special_requests: Option<String>,
@@ -564,6 +569,10 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             booking_channel_id: row.try_get("booking_channel_id").ok().flatten(),
             booking_channel_name: row.try_get("booking_channel_name").ok().flatten(),
             booking_channel_type: row.try_get("booking_channel_type").ok().flatten(),
+            booking_channel_settlement_methods: row
+                .try_get("booking_channel_settlement_methods")
+                .ok()
+                .flatten(),
             ota_reference: row.try_get("ota_reference").ok().flatten(),
             room_id: row.try_get("room_id")?,
             room_number: row.try_get("room_number")?,

@@ -21,15 +21,20 @@
         "messageUncollected": "Marks the deposit as not collected — no money was received. The booking deposit flag is cleared.",
         "title": "Cancel deposit"
       },
-      "deletePayment": {
-        "confirmText": "Delete payment",
-        "message": "This removes the payment from the folio and restores the outstanding balance. This cannot be undone.",
-        "title": "Delete payment record"
+      "voidPayment": {
+        "title": "Void payment",
+        "message": "Voids this {{amount}} payment. The record is kept on the folio, shown as voided with your reason, name and time, and no longer counts toward the balance. If the night audit already closed its day, that day is unchanged and a reversing entry posts on the next open business day (normally today).",
+        "confirmText": "Void payment"
       },
       "revertRefund": {
         "confirmText": "Revert refund",
-        "message": "This removes the refund record so the deposit can be refunded again.",
+        "message": "Voids the refund record (kept, shown as voided with your reason) so the deposit counts as held and can be refunded again. If the night audit already closed the refund's day, a reversing entry posts on the next open business day (normally today).",
         "title": "Revert deposit refund"
+      },
+      "restoreDeposit": {
+        "title": "Restore deposit",
+        "message": "Restores the cancelled deposit so it counts as held again. Not possible once the cancellation is in a day the night audit has closed — record a new deposit instead.",
+        "confirmText": "Restore deposit"
       }
     },
     "depositLine": "Deposit {{state}}",
@@ -38,7 +43,7 @@
     "earlyCheckoutTag": " (Early Checkout)",
     "editRates": "Edit Rates",
     "errors": {
-      "deletePayment": "Failed to delete payment",
+      "voidPayment": "Failed to void payment",
       "processCheckout": "Failed to process checkout",
       "recordPayment": "Failed to record payment",
       "saveDailyRates": "Failed to save daily rates",
@@ -100,7 +105,17 @@
     "totalRefund": "Total to Refund",
     "tourismTax": "Tourism Tax",
     "tourismTaxDay": "Tourism Tax — {{date}}",
-    "saveRates": "Save Rates"
+    "saveRates": "Save Rates",
+    "approvedBy": "Approved by {{name}} · {{at}}",
+    "voidPayment": "Void payment",
+    "voided": {
+      "heading": "Voided payments",
+      "chip": "Voided",
+      "reason": "Reason: {{reason}}",
+      "noReason": "No reason recorded",
+      "by": "Voided by {{name}} · {{at}}",
+      "reversal": "Reversing entry posted on {{date}}"
+    }
   },
   "deposit": {
     "cancel": {
@@ -193,9 +208,11 @@
     "recordedOnBooking": "Recorded on the booking{{at}}",
     "refund": {
       "fixedNote": "Refund amount — fixed to the full held balance:",
+      "defaultNote": "Normal deposit refund - no damages or charges",
       "method": "Refund method",
-      "noteOptional": "Note (optional)",
-      "submit": "Refund {{amount}}"
+      "note": "Note (required)",
+      "submit": "Refund {{amount}}",
+      "lockedToOriginal": "Online booking — the deposit can only be refunded to its original method ({{method}})."
     },
     "refundLine": "Deposit Refund ({{method}})",
     "resolveGroup": "Deposit resolution",
@@ -633,5 +650,10 @@
     "companiesCount_one": "{{count}} account",
     "companiesCount_other": "{{count}} accounts"
   },
-  "title": "Finance"
+  "title": "Finance",
+  "reason": {
+    "label": "Reason",
+    "helper": "Required. Saved with the record and in the audit log.",
+    "tooShort": "Enter at least {{min}} characters."
+  }
 }

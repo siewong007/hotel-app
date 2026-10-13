@@ -113,15 +113,16 @@ describe('MobileNavBar', () => {
     expect(screen.queryByText('Timeline')).toBeTruthy();
   });
 
-  it('offers a language switcher inside the More sheet on phones', () => {
+  it('keeps language out of the More sheet (it lives in the topbar globe)', () => {
     grantAllPolicies();
     render(<MobileNavBar />);
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
-    // The topbar globe hides below `sm`; the sheet's labeled list is the
-    // phone path to `setLocale`, one tap from the bottom bar.
-    expect(screen.getByText('Language')).toBeTruthy();
-    expect(screen.getByRole('list', { name: 'Change language' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'English' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Bahasa Melayu/ })).toBeTruthy();
+    // Phones switch locale from the topbar icon menu, so the sheet carries
+    // no language heading, list, or locale rows.
+    expect(screen.getByText('My Profile')).toBeTruthy();
+    expect(screen.queryByText('Language')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Change language' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'English' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Bahasa Melayu/ })).toBeNull();
   });
 });

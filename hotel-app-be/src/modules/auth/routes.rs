@@ -176,10 +176,20 @@ async fn refresh(
 
 async fn logout(
     State(pool): State<DbPool>,
+    connect_info: Option<Extension<ConnectInfo<SocketAddr>>>,
+    headers: HeaderMap,
     jar: CookieJar,
 ) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
     let req = refresh_request_from_cookie(&jar)?;
-    handlers::logout_handler(State(pool), jar, req).await
+    // Only for the sign-out audit row; optional so a missing peer address can
+    // never stop someone signing out.
+    let ip = connect_info
+        .map(|Extension(ConnectInfo(peer))| extract_client_ip(&headers, peer).to_string());
+    let user_agent: Option<String> = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.chars().take(512).collect());
+    handlers::logout_handler(State(pool), jar, req, ip, user_agent).await
 }
 
 async fn register(

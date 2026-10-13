@@ -596,5 +596,10 @@
     "checkOutDate": "Check-Out Date",
     "remarks": "Remarks",
     "saveChanges": "Save changes"
+  },
+  "settlementLock": {
+    "settledVia": "Settled via {{platform}}",
+    "missingChannel": "This online booking has no booking channel. Set the booking channel (e.g. Booking.com, Agoda) before recording the room payment.",
+    "unconfigured": "Booking channel {{platform}} has no settlement payment method configured, so the room payment cannot be recorded."
   }
 }

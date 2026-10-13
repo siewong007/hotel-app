@@ -271,6 +271,11 @@ $_$;
 --
 -- Name: ensure_audit_logs_partition(date); Type: FUNCTION; Schema: public; Owner: -
 --
+-- Deliberately patch 0016's definition and comment, not the current one:
+-- patches run on fresh installs as well, and 0016 refuses any body but its
+-- own and the pre-0016 one. Patch 0021 then replaces both with the
+-- move-only-the-late-month definition on every database, fresh or upgraded.
+--
 
 CREATE FUNCTION public.ensure_audit_logs_partition(p_month date) RETURNS void
     LANGUAGE plpgsql
@@ -333,6 +338,58 @@ COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempot
 
 
 --
+-- Name: ensure_audit_logs_truncate_guards(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ensure_audit_logs_truncate_guards() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    partition_row record;
+    guarded integer := 0;
+BEGIN
+    -- TRUNCATE triggers can only be statement-level, and PostgreSQL clones
+    -- row triggers to partitions but not statement triggers, so a TRUNCATE
+    -- that names a partition never reaches the guard on audit_logs. Give each
+    -- partition its own. Schema-qualify the DDL: the pinned search_path puts
+    -- pg_catalog first. OR REPLACE keeps two concurrent callers from failing
+    -- on the same partition.
+    FOR partition_row IN
+        SELECT partition_schema.nspname AS schema_name,
+               partition_table.relname AS table_name
+        FROM pg_inherits AS link
+        JOIN pg_class AS partition_table ON partition_table.oid = link.inhrelid
+        JOIN pg_namespace AS partition_schema
+          ON partition_schema.oid = partition_table.relnamespace
+        WHERE link.inhparent = 'public.audit_logs'::regclass
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pg_trigger AS guard
+              WHERE guard.tgrelid = partition_table.oid
+                AND guard.tgname = 'trg_audit_logs_no_truncate'
+          )
+        ORDER BY partition_table.relname
+    LOOP
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation()',
+            partition_row.schema_name, partition_row.table_name
+        );
+        guarded := guarded + 1;
+    END LOOP;
+    RETURN guarded;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION ensure_audit_logs_truncate_guards(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ensure_audit_logs_truncate_guards() IS 'Adds the statement-level BEFORE TRUNCATE trigger trg_audit_logs_no_truncate to every audit_logs partition that lacks it and returns how many it added. PostgreSQL does not clone statement triggers to partitions, so a TRUNCATE that names a partition skips the guard on audit_logs. Partition upkeep calls this after ensure_audit_logs_partition(); a partition created any other way is guarded on the next call.';
+
+
+--
 -- Name: prevent_audit_log_mutation(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -349,6 +406,15 @@ BEGIN
     IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
         RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
     END IF;
+    -- A BEFORE ROW trigger that returns NULL silently skips its row, so with
+    -- the escape hatch open the row must be handed back for the UPDATE or
+    -- DELETE to happen. Statement-level calls ignore the return value.
+    IF TG_LEVEL = 'ROW' THEN
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        END IF;
+        RETURN NEW;
+    END IF;
     RETURN NULL;
 END;
 $$;
@@ -358,7 +424,7 @@ $$;
 -- Name: FUNCTION prevent_audit_log_mutation(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
+COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Trigger body that makes audit_logs append-only even for the table owner. It runs per statement on audit_logs (UPDATE, DELETE, TRUNCATE), per row on every partition through the row trigger PostgreSQL clones from audit_logs (UPDATE, DELETE), and per statement on each partition for TRUNCATE, which ensure_audit_logs_truncate_guards() adds. A statement that names a partition fires only that partition''s triggers. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
 
 
 --
@@ -492,6 +558,106 @@ BEGIN
     WHERE email = user_email;
 END;
 $$;
+
+
+--
+-- Name: reconcile_room_holds(bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reconcile_room_holds(p_room_id bigint DEFAULT NULL::bigint) RETURNS TABLE(room_id bigint, room_number character varying, old_status character varying, new_status character varying)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_room RECORD;
+    v_desired VARCHAR(20);
+    v_in_house BOOLEAN;
+    v_arrival_id BIGINT;
+    v_arrival_in DATE;
+    v_arrival_out DATE;
+    v_reason TEXT;
+BEGIN
+    -- A reservation holds its room from its arrival day only. A room reads
+    -- reserved (reserved_dirty while it still needs cleaning) when a
+    -- room-holding booking has check_in_date <= CURRENT_DATE <= check_out_date;
+    -- future stays stay on the timeline and never mark the room. Occupied,
+    -- cleaning, maintenance and out_of_order rooms are never touched, except
+    -- that an available or reserved room with a guest in house reads occupied.
+    -- Idempotent: rooms already in the right state are skipped.
+    FOR v_room IN
+        SELECT r.id, r.room_number, r.status
+        FROM public.rooms r
+        WHERE r.is_active = true
+          AND r.status IN ('available', 'reserved', 'dirty', 'reserved_dirty')
+          AND (p_room_id IS NULL OR r.id = p_room_id)
+        ORDER BY r.id
+        FOR UPDATE OF r
+    LOOP
+        SELECT EXISTS (
+            SELECT 1 FROM public.bookings b
+            WHERE b.room_id = v_room.id
+              AND b.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+              AND b.check_in_date <= CURRENT_DATE
+              AND b.check_out_date >= CURRENT_DATE
+        ) INTO v_in_house;
+
+        v_arrival_id := NULL;
+        v_arrival_in := NULL;
+        v_arrival_out := NULL;
+        SELECT b.id, b.check_in_date, b.check_out_date
+          INTO v_arrival_id, v_arrival_in, v_arrival_out
+          FROM public.bookings b
+         WHERE b.room_id = v_room.id
+           AND b.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+           AND b.check_in_date <= CURRENT_DATE
+           AND b.check_out_date >= CURRENT_DATE
+         ORDER BY b.check_in_date, b.id
+         LIMIT 1;
+
+        IF v_room.status IN ('available', 'reserved') AND v_in_house THEN
+            v_desired := 'occupied';
+            v_reason := 'Guest in house';
+        ELSIF v_room.status IN ('available', 'reserved') THEN
+            v_desired := CASE WHEN v_arrival_id IS NULL THEN 'available' ELSE 'reserved' END;
+        ELSE
+            v_desired := CASE WHEN v_arrival_id IS NULL THEN 'dirty' ELSE 'reserved_dirty' END;
+        END IF;
+
+        IF v_desired <> v_room.status THEN
+            IF v_desired IN ('reserved', 'reserved_dirty') THEN
+                v_reason := 'Arrival day - Booking #' || v_arrival_id;
+            ELSIF v_desired IN ('available', 'dirty') THEN
+                v_reason := 'No arrival today - reservation hold released';
+            END IF;
+
+            INSERT INTO public.room_status_change_log (room_id, from_status, to_status, trigger_source, booking_id, reason)
+            VALUES (v_room.id, v_room.status, v_desired, 'reconcile_room_holds', v_arrival_id, v_reason);
+
+            UPDATE public.rooms AS r
+               SET status = v_desired,
+                   status_notes = v_reason,
+                   reserved_start_date = CASE WHEN v_desired IN ('reserved', 'reserved_dirty')
+                       THEN v_arrival_in::timestamp AT TIME ZONE 'UTC' END,
+                   reserved_end_date = CASE WHEN v_desired IN ('reserved', 'reserved_dirty')
+                       THEN v_arrival_out::timestamp AT TIME ZONE 'UTC' END,
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE r.id = v_room.id;
+
+            room_id := v_room.id;
+            room_number := v_room.room_number;
+            old_status := v_room.status;
+            new_status := v_desired;
+            RETURN NEXT;
+        END IF;
+    END LOOP;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION reconcile_room_holds(p_room_id bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reconcile_room_holds(p_room_id bigint) IS 'Recomputes the reservation hold of one room (or every active room when p_room_id is NULL): a room is reserved/reserved_dirty only on the arrival day of a room-holding booking, otherwise available/dirty. Occupied, cleaning, maintenance and out_of_order rooms are left alone. Returns the rooms it changed.';
 
 
 --
@@ -772,7 +938,8 @@ BEGIN
     -- of the sync_room_status_with_booking() trigger: housekeeping and
     -- maintenance states (dirty, cleaning, reserved_dirty, maintenance,
     -- out_of_order) are never overridden; only the booking-derived states
-    -- (available, occupied, reserved) are recomputed.
+    -- (available, occupied, reserved) are recomputed. A reservation holds its
+    -- room from its arrival day only, as in reconcile_room_holds().
     FOR v_room IN
         SELECT r.id, r.room_number, r.status
         FROM rooms r
@@ -797,7 +964,8 @@ BEGIN
               FROM bookings b
              WHERE b.room_id = v_room.id
                AND b.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-               AND b.check_out_date > CURRENT_DATE
+               AND b.check_in_date <= CURRENT_DATE
+               AND b.check_out_date >= CURRENT_DATE
              ORDER BY b.check_in_date
              LIMIT 1;
             IF FOUND THEN
@@ -886,7 +1054,6 @@ CREATE FUNCTION public.sync_room_status_with_booking() RETURNS trigger
     AS $$
 DECLARE
     v_current_room_status VARCHAR(20);
-    v_next_status VARCHAR(20);
     v_has_other_current_stay BOOLEAN;
 BEGIN
     -- Skip room status changes for back-dated stays that have already ended.
@@ -917,41 +1084,20 @@ BEGIN
         PERFORM update_room_status(NEW.room_id, 'dirty',
             'Guest checked out - Needs cleaning - Booking #' || NEW.id,
             NULL, CURRENT_TIMESTAMP, NULL);
+        -- A guest arriving today keeps the room held while it is cleaned.
+        PERFORM reconcile_room_holds(NEW.room_id);
 
-    ELSIF NEW.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-          AND NOT v_has_other_current_stay
-          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
-        PERFORM update_room_status(NEW.room_id, 'reserved',
-            CASE
-                WHEN NEW.check_in_date::date = CURRENT_DATE
-                    THEN 'Same-day reservation - Booking #' || NEW.id
-                ELSE 'Future reservation - Booking #' || NEW.id
-            END,
-            NULL, NEW.check_in_date, NEW.check_out_date);
+    ELSIF NEW.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation') THEN
+        -- A reservation holds its room from its arrival day only; future
+        -- stays leave the room alone and never overwrite an in-house stay.
+        PERFORM reconcile_room_holds(NEW.room_id);
 
-    ELSIF NEW.status IN ('no_show', 'voided')
-          AND v_current_room_status IN ('occupied', 'reserved') THEN
-        SELECT CASE
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = NEW.room_id
-                  AND id != NEW.id
-                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
-                  AND check_in_date <= CURRENT_DATE
-                  AND check_out_date >= CURRENT_DATE
-            ) THEN 'occupied'
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = NEW.room_id
-                  AND id != NEW.id
-                  AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-                  AND check_out_date > CURRENT_DATE
-            ) THEN 'reserved'
-            ELSE 'available'
-        END INTO v_next_status;
-
-        PERFORM update_room_status(NEW.room_id, v_next_status,
-            'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
+    ELSIF NEW.status IN ('no_show', 'voided') THEN
+        IF v_current_room_status = 'occupied' AND NOT v_has_other_current_stay THEN
+            PERFORM update_room_status(NEW.room_id, 'available',
+                'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
+        END IF;
+        PERFORM reconcile_room_holds(NEW.room_id);
     END IF;
 
     RETURN NEW;
@@ -1245,6 +1391,7 @@ CREATE TABLE public.booking_channels (
     abbreviation character varying(8),
     code character varying(40),
     integration_mode character varying(20) DEFAULT 'manual'::character varying NOT NULL,
+    settlement_payment_methods text[],
     CONSTRAINT booking_channels_channel_type_check CHECK (((channel_type)::text = ANY ((ARRAY['direct'::character varying, 'ota'::character varying, 'corporate'::character varying, 'walk_in'::character varying, 'phone'::character varying, 'website'::character varying, 'channel_manager'::character varying, 'other'::character varying])::text[]))),
     CONSTRAINT booking_channels_integration_mode_check CHECK (((integration_mode)::text = ANY ((ARRAY['manual'::character varying, 'channel_manager'::character varying, 'api'::character varying])::text[]))),
     CONSTRAINT booking_channels_default_commission_scope_check CHECK (((default_commission_scope)::text = ANY ((ARRAY['per_booking'::character varying, 'per_night'::character varying])::text[]))),
@@ -1252,6 +1399,13 @@ CREATE TABLE public.booking_channels (
     CONSTRAINT booking_channels_default_commission_value_check CHECK ((default_commission_value >= (0)::numeric)),
     CONSTRAINT booking_channels_percentage_range CHECK ((((default_commission_type)::text <> 'percentage'::text) OR ((default_commission_value >= (0)::numeric) AND (default_commission_value <= (100)::numeric))))
 );
+
+
+--
+-- Name: COLUMN booking_channels.settlement_payment_methods; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.booking_channels.settlement_payment_methods IS 'Payment-method labels the room charge (payment_type booking) of a booking on this channel may be recorded with; NULL/empty = not an online-settled channel';
 
 
 --
@@ -4072,6 +4226,10 @@ CREATE TABLE public.payments (
     processed_by bigint,
     idempotency_key character varying(160),
     idempotency_fingerprint character varying(64),
+    void_reason text,
+    voided_at timestamp with time zone,
+    voided_by bigint,
+    void_reversal_date date,
     CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying, 'deposit_forfeited'::character varying])::text[]))),
     CONSTRAINT payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
@@ -4125,6 +4283,13 @@ COMMENT ON TABLE public.payment_receipt_requests IS 'Guest receipt upload reques
 --
 
 COMMENT ON COLUMN public.payments.payment_gateway IS 'Payment gateway used (stripe, paypal, etc.)';
+
+
+--
+-- Name: COLUMN payments.void_reversal_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.void_reversal_date IS 'Business date a reversing journal line posts on when a payment is voided after night audit closed its own day; NULL when the void simply removed it from an open day';
 
 
 --
@@ -7886,6 +8051,13 @@ CREATE INDEX idx_payments_transaction ON public.payments USING btree (transactio
 
 
 --
+-- Name: idx_payments_void_reversal_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_void_reversal_date ON public.payments USING btree (void_reversal_date) WHERE (void_reversal_date IS NOT NULL);
+
+
+--
 -- Name: idx_points_transactions_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8555,6 +8727,20 @@ ALTER INDEX public.idx_audit_logs_user_id ATTACH PARTITION public.audit_logs_def
 --
 
 CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_logs FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
+
+
+--
+-- Name: audit_logs trg_audit_logs_append_only_row; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_append_only_row BEFORE DELETE OR UPDATE ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION public.prevent_audit_log_mutation();
+
+
+--
+-- Name: audit_logs_default trg_audit_logs_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON public.audit_logs_default FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
 
 
 --
@@ -9942,6 +10128,14 @@ ALTER TABLE ONLY public.payments
 
 
 --
+-- Name: payments payments_voided_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_voided_by_fkey FOREIGN KEY (voided_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: points_transactions points_transactions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10613,7 +10807,8 @@ ALTER TABLE ONLY public.vouchers
     ADD CONSTRAINT vouchers_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
--- The partition function is defined above. Pre-create this month plus the next 11.
+-- The partition function is defined above. Pre-create this month plus the next 11,
+-- then give each new partition its TRUNCATE guard.
 DO $$
 DECLARE
     base_month date := date_trunc('month', CURRENT_DATE)::date;
@@ -10624,6 +10819,7 @@ BEGIN
             (base_month + make_interval(months => offset_month))::date
         );
     END LOOP;
+    PERFORM public.ensure_audit_logs_truncate_guards();
 END;
 $$;
 
@@ -10824,7 +11020,9 @@ END
 $function$;
 REVOKE ALL ON FUNCTION public.transfer_import_ddl(text,text,text,text) FROM PUBLIC;
 
--- Keep the existing function unchanged: older catalog entries verify its exact definition.
+-- Keep the runtime capability aligned with the current partition upkeep
+-- algorithm. The definer owns the required DDL rights; the application role
+-- receives EXECUTE only through the deployment grant.
 CREATE OR REPLACE FUNCTION public.maintain_audit_partition(p_month date)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
@@ -10833,6 +11031,8 @@ DECLARE
     start_date date := date_trunc('month', p_month)::date;
     end_date date := (date_trunc('month', p_month) + INTERVAL '1 month')::date;
     part_name text := format('audit_logs_%s', to_char(start_date, 'YYYY_MM'));
+    late_month boolean;
+    partition_row record;
 BEGIN
     IF p_month IS NULL OR NOT isfinite(p_month) THEN
         RAISE EXCEPTION 'Invalid partition month' USING ERRCODE = '22023';
@@ -10841,32 +11041,55 @@ BEGIN
         SELECT 1 FROM pg_class
         WHERE relname = part_name AND relnamespace = 'public'::regnamespace
     ) THEN
-        IF EXISTS (
+        late_month := EXISTS (
             SELECT 1
             FROM public.audit_logs_default
             WHERE created_at >= start_date::timestamptz
               AND created_at < end_date::timestamptz
-            LIMIT 1
-        ) THEN
-            LOCK TABLE public.audit_logs IN ACCESS EXCLUSIVE MODE;
-            CREATE TEMP TABLE audit_logs_default_rows AS TABLE public.audit_logs_default;
-            ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default;
-            DROP TABLE public.audit_logs_default;
-            EXECUTE format(
-                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-                part_name, start_date, end_date
-            );
-            CREATE TABLE public.audit_logs_default PARTITION OF public.audit_logs DEFAULT;
+        );
+        IF late_month THEN
+            EXECUTE 'ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default';
+        END IF;
+        EXECUTE format(
+            'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+            part_name, start_date, end_date
+        );
+        IF late_month THEN
+            WITH moved AS (
+                DELETE FROM public.audit_logs_default
+                WHERE created_at >= start_date::timestamptz
+                  AND created_at < end_date::timestamptz
+                RETURNING *
+            )
             INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE
-                TABLE pg_temp.audit_logs_default_rows;
-            DROP TABLE pg_temp.audit_logs_default_rows;
-        ELSE
-            EXECUTE format(
-                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-                part_name, start_date, end_date
-            );
+            SELECT * FROM moved;
+            EXECUTE 'ALTER TABLE public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT';
         END IF;
     END IF;
+    -- TRUNCATE statement triggers are not cloned onto partitions. Keep this
+    -- DDL inside the pinned SECURITY DEFINER capability so hotel_app does not
+    -- need direct trigger privileges or EXECUTE on an invoker helper.
+    FOR partition_row IN
+        SELECT partition_schema.nspname AS schema_name,
+               partition_table.relname AS table_name
+        FROM pg_inherits AS link
+        JOIN pg_class AS partition_table ON partition_table.oid = link.inhrelid
+        JOIN pg_namespace AS partition_schema
+          ON partition_schema.oid = partition_table.relnamespace
+        WHERE link.inhparent = 'public.audit_logs'::regclass
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pg_trigger AS guard
+              WHERE guard.tgrelid = partition_table.oid
+                AND guard.tgname = 'trg_audit_logs_no_truncate'
+          )
+        ORDER BY partition_table.relname
+    LOOP
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation()',
+            partition_row.schema_name, partition_row.table_name
+        );
+    END LOOP;
 END
 $function$;
 REVOKE ALL ON FUNCTION public.maintain_audit_partition(date) FROM PUBLIC;

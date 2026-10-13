@@ -1618,10 +1618,9 @@ async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
         .unwrap();
 
     let delete_pool = pool.clone();
-    let delete =
-        tokio::spawn(
-            async move { payments::delete_payment(&delete_pool, actor_id, payment_id).await },
-        );
+    let delete = tokio::spawn(async move {
+        payments::delete_payment(&delete_pool, actor_id, payment_id, Some("duplicate entry")).await
+    });
     wait_for_advisory_waiter(&pool).await;
 
     let create_pool = pool.clone();
@@ -3531,7 +3530,7 @@ async fn refund_deposit_and_revert_round_trip() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 0}),
+        serde_json::json!({"payment_method": "cash", "amount": 0, "note": "deposit returned at checkout"}),
     )
     .await;
     assert!(
@@ -3543,7 +3542,7 @@ async fn refund_deposit_and_revert_round_trip() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await
     .expect("refunding a deposit should succeed");
@@ -3565,7 +3564,8 @@ async fn refund_deposit_and_revert_round_trip() {
     );
     assert_eq!(
         refund.get("notes").unwrap().as_str().unwrap(),
-        "Keycard deposit refund"
+        "Keycard deposit refund — deposit returned at checkout",
+        "the mandatory refund note is appended to the refund marker"
     );
     let refund_payment_id = refund.get("id").unwrap().as_i64().unwrap();
 
@@ -3582,7 +3582,7 @@ async fn refund_deposit_and_revert_round_trip() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 30.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 30.0, "note": "deposit returned at checkout"}),
     )
     .await;
     assert!(
@@ -3590,9 +3590,14 @@ async fn refund_deposit_and_revert_round_trip() {
         "refunding a deposit twice on the same booking must be rejected: {duplicate:?}"
     );
 
-    let revert = payments::revert_deposit_refund(&pool, actor_id, booking_id)
-        .await
-        .expect("reverting the refund should succeed");
+    let revert = payments::revert_deposit_refund(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("refund keyed on wrong booking"),
+    )
+    .await
+    .expect("reverting the refund should succeed");
     assert_eq!(
         revert.get("reverted_payment_id").unwrap().as_i64().unwrap(),
         refund_payment_id
@@ -3622,7 +3627,13 @@ async fn refund_deposit_and_revert_round_trip() {
 
     assert!(audit_log_exists(&pool, "payment_refund_reverted", refund_payment_id).await);
 
-    let revert_again = payments::revert_deposit_refund(&pool, actor_id, booking_id).await;
+    let revert_again = payments::revert_deposit_refund(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("refund keyed on wrong booking"),
+    )
+    .await;
     assert!(
         matches!(revert_again, Err(ApiError::BadRequest(_))),
         "reverting when there is no outstanding refund must be rejected: {revert_again:?}"
@@ -3634,7 +3645,7 @@ async fn refund_deposit_and_revert_round_trip() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await;
     assert!(
@@ -3723,14 +3734,14 @@ async fn refund_deposit_uses_ledger_deposit_without_double_counting() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 75.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 75.0, "note": "deposit returned at checkout"}),
     )
     .await;
     let refund = payments::refund_deposit(
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -3808,7 +3819,7 @@ async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -3836,7 +3847,7 @@ async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 999.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 999.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -3919,7 +3930,7 @@ async fn refund_deposit_ignores_booking_columns_without_a_payment_row() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 9999.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 9999.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -3946,14 +3957,14 @@ async fn refund_deposit_ignores_booking_columns_without_a_payment_row() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 9999.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 9999.0, "note": "deposit returned at checkout"}),
     )
     .await;
     let at_ceiling = payments::refund_deposit(
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -4092,7 +4103,7 @@ async fn forfeit_deposit_full_amount_zeroes_the_refundable_ceiling() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "deposit returned at checkout"}),
     )
     .await;
 
@@ -4220,7 +4231,7 @@ async fn forfeit_deposit_partial_leaves_the_remainder_refundable() {
         &pool,
         actor_id,
         booking_id,
-        serde_json::json!({"payment_method": "cash", "amount": 30.0}),
+        serde_json::json!({"payment_method": "cash", "amount": 30.0, "note": "deposit returned at checkout"}),
     )
     .await
     .expect("the 30.00 still held after the partial forfeit must be refundable");
@@ -4461,12 +4472,13 @@ async fn record_payment_rejects_refund_type_and_nonpositive_amounts() {
     );
 }
 
-/// Deleting a payment voids it — the row survives with status 'void', is
-/// excluded from payment totals, and a posted (`completed`) payment requires
-/// `payments:manage`. Refund markers and terminal rows can never be voided
-/// through this path.
+/// Deleting a payment voids it — the row survives with status 'void' and is
+/// excluded from payment totals. Since patch 0020 a posted (`completed`)
+/// payment is voidable under the route's `payments:delete` ("Void payments")
+/// gate alone — a receptionist, who holds no `payments:manage`, can void it.
+/// Refund markers and terminal rows can never be voided through this path.
 #[tokio::test]
-async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
+async fn delete_payment_voids_completed_rows_for_the_front_desk() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -4483,20 +4495,28 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
     .unwrap();
     let payment_id = original["id"].as_i64().unwrap();
 
-    // The recording actor holds no role, so voiding a posted payment must be
-    // refused — the route gate is payments:delete but the ledger gate is
-    // payments:manage.
-    let unauthorized = payments::delete_payment(&pool, actor_id, payment_id).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let holds_manage =
+        hotel_app_be::core::auth::AuthService::check_permission(&pool, actor_id, "payments:manage")
+            .await
+            .unwrap_or(false);
+    let holds_void =
+        hotel_app_be::core::auth::AuthService::check_permission(&pool, actor_id, "payments:delete")
+            .await
+            .unwrap_or(false);
     assert!(
-        matches!(unauthorized, Err(ApiError::Forbidden(_))),
-        "voiding a posted payment without payments:manage must be refused: {unauthorized:?}"
+        !holds_manage,
+        "the receptionist role must not hold payments:manage"
     );
-
-    grant_role(&pool, actor_id, "manager").await;
-    let voided = payments::delete_payment(&pool, actor_id, payment_id).await;
+    assert!(
+        holds_void,
+        "the receptionist role holds payments:delete (Void payments)"
+    );
+    let voided =
+        payments::delete_payment(&pool, actor_id, payment_id, Some("keyed in error")).await;
     assert!(
         voided.is_ok(),
-        "a manager must be able to void a posted payment: {voided:?}"
+        "a receptionist must be able to void a posted payment: {voided:?}"
     );
 
     let (status, processed_by): (String, Option<i64>) =
@@ -4513,7 +4533,8 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    let revoid = payments::delete_payment(&pool, actor_id, payment_id).await;
+    let revoid =
+        payments::delete_payment(&pool, actor_id, payment_id, Some("keyed in error")).await;
 
     // Refund markers are owned by the refund workflow — never voidable here.
     let refund_row_id: i64 = sqlx::query_scalar(
@@ -4525,7 +4546,8 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    let refund_void = payments::delete_payment(&pool, actor_id, refund_row_id).await;
+    let refund_void =
+        payments::delete_payment(&pool, actor_id, refund_row_id, Some("keyed in error")).await;
 
     let void_audit = audit_log_exists(&pool, "payment_voided", payment_id).await;
     cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
@@ -4602,7 +4624,8 @@ async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
             .unwrap();
         let deposit_id =
             insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
-        let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
+        let voided =
+            payments::delete_payment(&pool, actor_id, deposit_id, Some("keyed in error")).await;
         let row_status = fetch_payment_status(&pool, deposit_id).await;
         let mirror: bool =
             sqlx::query_scalar("SELECT COALESCE(deposit_paid, false) FROM bookings WHERE id = $1")
@@ -4631,7 +4654,8 @@ async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
             .unwrap();
         let deposit_id =
             insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
-        let void = payments::delete_payment(&pool, actor_id, deposit_id).await;
+        let void =
+            payments::delete_payment(&pool, actor_id, deposit_id, Some("keyed in error")).await;
         match void {
             Err(ApiError::BadRequest(message)) => assert!(
                 message.contains("refund") && message.contains("forfeit"),
@@ -4648,17 +4672,25 @@ async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
         );
     }
 
-    // Un-forfeit stays a manage-gated void.
+    // Un-forfeit stays a manage-gated void — the front desk is refused.
     sqlx::query("UPDATE bookings SET status = 'checked_in' WHERE id = $1")
         .bind(booking_id)
         .execute(&pool)
         .await
         .unwrap();
-    grant_role(&pool, actor_id, "manager").await;
     let forfeit_id =
         insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
             .await;
-    let unforfeit = payments::delete_payment(&pool, actor_id, forfeit_id).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let desk_unforfeit =
+        payments::delete_payment(&pool, actor_id, forfeit_id, Some("keyed in error")).await;
+    assert!(
+        matches!(desk_unforfeit, Err(ApiError::Forbidden(_))),
+        "un-forfeiting without payments:manage must be refused: {desk_unforfeit:?}"
+    );
+    grant_role(&pool, actor_id, "manager").await;
+    let unforfeit =
+        payments::delete_payment(&pool, actor_id, forfeit_id, Some("keyed in error")).await;
     assert!(
         unforfeit.is_ok(),
         "a deposit_forfeited row must stay voidable by payments:manage: {unforfeit:?}"
@@ -4718,7 +4750,8 @@ async fn delete_completed_deposit_stays_voidable_before_check_in() {
     let deposit_id =
         insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
 
-    let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
+    let voided =
+        payments::delete_payment(&pool, actor_id, deposit_id, Some("keyed in error")).await;
     let status = fetch_payment_status(&pool, deposit_id).await;
     let void_audit = audit_log_exists(&pool, "payment_voided", deposit_id).await;
 
@@ -5492,7 +5525,13 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
             .unwrap();
     }
 
-    let first = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let first = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("guest did pay the deposit"),
+    )
+    .await;
     let first_id = first
         .as_ref()
         .ok()
@@ -5505,7 +5544,13 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
     .await
     .unwrap();
 
-    let second = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let second = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("guest did pay the deposit"),
+    )
+    .await;
     let second_id = second
         .as_ref()
         .ok()
@@ -5528,9 +5573,21 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
         .execute(&pool)
         .await
         .unwrap();
-    let on_checked_out = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let on_checked_out = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("guest did pay the deposit"),
+    )
+    .await;
 
-    let drained = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let drained = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("guest did pay the deposit"),
+    )
+    .await;
     let audit = audit_log_exists(&pool, "deposit_void_reverted", newer).await;
 
     cleanup(
@@ -5570,4 +5627,405 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
         audit,
         "the revert must write a deposit_void_reverted audit row"
     );
+}
+
+/// Journal lines for one fixture booking on one business date.
+async fn booking_journal_lines(
+    pool: &PgPool,
+    day: chrono::NaiveDate,
+    booking_id: i64,
+) -> Vec<(String, Decimal, Decimal, Option<String>)> {
+    let booking_number = format!("BK-PAY-{booking_id}");
+    hotel_app_be::modules::night_audit::repository::generate_journal_sections(pool, day, false)
+        .await
+        .into_iter()
+        .flat_map(|section| section.entries)
+        .filter(|entry| entry.booking_number == booking_number)
+        .map(|entry| {
+            (
+                entry.entry_type,
+                entry.debit,
+                entry.credit,
+                entry.description,
+            )
+        })
+        .collect()
+}
+
+/// Mark `day` as closed by the night audit; returns the run id when this test
+/// inserted it (so only that row is cleaned up afterwards).
+async fn close_night_audit_day(pool: &PgPool, day: &str) -> Option<i64> {
+    sqlx::query_scalar(
+        "INSERT INTO night_audit_runs (audit_date, status) VALUES ($1::date, 'completed') \
+         ON CONFLICT (audit_date) DO NOTHING RETURNING id",
+    )
+    .bind(day)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+async fn reopen_night_audit_day(pool: &PgPool, run_id: Option<i64>) {
+    if let Some(run_id) = run_id {
+        sqlx::query("DELETE FROM night_audit_runs WHERE id = $1")
+            .bind(run_id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+}
+
+/// A void (and a refund revert / deposit restore) must carry a staff reason:
+/// missing or too-short reasons are refused and leave the row untouched; a
+/// valid one is trimmed, stored on the row with the actor and time, and
+/// copied into the `payment_voided` audit row written in the same
+/// transaction. A refund needs a note too.
+#[tokio::test]
+async fn void_requires_a_reason_and_records_it_on_the_row_and_audit() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (941_910, 941_911, 941_912, 941_913, 941_914);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "manager").await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-941914-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+
+    let missing = payments::delete_payment(&pool, actor_id, payment_id, None).await;
+    let blank = payments::delete_payment(&pool, actor_id, payment_id, Some("   ")).await;
+    let too_short = payments::delete_payment(&pool, actor_id, payment_id, Some(" ab ")).await;
+    let status_after_refusals = fetch_payment_status(&pool, payment_id).await;
+    let refusal_audit = audit_log_exists(&pool, "payment_voided", payment_id).await;
+
+    let voided =
+        payments::delete_payment(&pool, actor_id, payment_id, Some("  Payment keyed twice  "))
+            .await;
+    let row: (String, Option<String>, Option<i64>, bool) = sqlx::query_as(
+        "SELECT status, void_reason, voided_by, voided_at IS NOT NULL FROM payments WHERE id = $1",
+    )
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let audit_reason: Option<String> = sqlx::query_scalar(
+        "SELECT details->>'reason' FROM audit_logs \
+         WHERE action = 'payment_voided' AND resource_type = 'payment' AND resource_id = $1 \
+         ORDER BY id DESC LIMIT 1",
+    )
+    .bind(payment_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .flatten();
+    let entries = PaymentRepository::list_payment_entries(&pool, booking_id)
+        .await
+        .unwrap();
+    let listed = entries.iter().find(|entry| entry.id == payment_id).cloned();
+
+    // Refund + revert reasons.
+    insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+    let refund_without_note = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+    )
+    .await;
+    let refund = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0, "note": "keycard returned"}),
+    )
+    .await;
+    let revert_without_reason =
+        payments::revert_deposit_refund(&pool, actor_id, booking_id, None).await;
+    let revert = payments::revert_deposit_refund(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("Refund keyed on the wrong booking"),
+    )
+    .await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    for (label, result) in [
+        ("missing", &missing),
+        ("blank", &blank),
+        ("too short", &too_short),
+    ] {
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(_))),
+            "a {label} void reason must be refused: {result:?}"
+        );
+    }
+    assert_eq!(
+        status_after_refusals, "completed",
+        "a refused void must not touch the row"
+    );
+    assert!(!refusal_audit, "a refused void must not write an audit row");
+    assert!(
+        voided.is_ok(),
+        "a manager void with a reason must succeed: {voided:?}"
+    );
+    assert_eq!(row.0, "void");
+    assert_eq!(
+        row.1.as_deref(),
+        Some("Payment keyed twice"),
+        "the reason is stored trimmed"
+    );
+    assert_eq!(row.2, Some(actor_id), "the void names its actor");
+    assert!(row.3, "the void is timestamped");
+    assert_eq!(
+        audit_reason.as_deref(),
+        Some("Payment keyed twice"),
+        "the audit row carries the reason"
+    );
+    let listed = listed.expect("the voided row stays listed on the folio");
+    assert_eq!(listed.void_reason.as_deref(), Some("Payment keyed twice"));
+    assert!(listed.voided_at.is_some());
+    assert_eq!(listed.voided_by_name.as_deref(), Some("Payment Test Actor"));
+
+    assert!(
+        matches!(refund_without_note, Err(ApiError::BadRequest(_))),
+        "a refund without a note must be refused: {refund_without_note:?}"
+    );
+    assert!(
+        refund.is_ok(),
+        "a refund with a note must succeed: {refund:?}"
+    );
+    assert!(
+        matches!(revert_without_reason, Err(ApiError::BadRequest(_))),
+        "a refund revert without a reason must be refused: {revert_without_reason:?}"
+    );
+    assert!(
+        revert.is_ok(),
+        "a refund revert with a reason must succeed: {revert:?}"
+    );
+}
+
+/// Voiding a payment whose business day the night audit already closed must
+/// not move that day's figures: the original journal line stays on the
+/// closed day and a reversing line (same account, opposite side) posts on
+/// the first open business date. Restoring a deposit cancelled that way is
+/// refused — it would rewrite a closed day.
+#[tokio::test]
+async fn void_on_a_closed_night_audit_day_posts_a_reversal_instead() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (941_920, 941_921, 941_922, 941_923, 941_924);
+    let closed_day = chrono::NaiveDate::from_ymd_opt(2020, 1, 15).unwrap();
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "manager").await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-941924-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+    let deposit_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("40.00"), actor_id).await;
+    // Midday UTC is the same calendar date in every hotel timezone we ship.
+    sqlx::query("UPDATE payments SET created_at = '2020-01-15 04:00:00+00' WHERE id = ANY($1)")
+        .bind(vec![payment_id, deposit_id])
+        .execute(&pool)
+        .await
+        .unwrap();
+    let run_id = close_night_audit_day(&pool, "2020-01-15").await;
+
+    let closed_before = booking_journal_lines(&pool, closed_day, booking_id).await;
+    let voided =
+        payments::delete_payment(&pool, actor_id, payment_id, Some("Payment keyed twice")).await;
+    let closed_after = booking_journal_lines(&pool, closed_day, booking_id).await;
+    let reversal_date: Option<chrono::NaiveDate> =
+        sqlx::query_scalar("SELECT void_reversal_date FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let reversal_lines = match reversal_date {
+        Some(day) => booking_journal_lines(&pool, day, booking_id).await,
+        None => Vec::new(),
+    };
+
+    let deposit_void =
+        payments::delete_payment(&pool, actor_id, deposit_id, Some("Deposit never taken")).await;
+    // While the reversal's own day is still open, restoring only removes
+    // that open-day reversal — the closed day keeps its original line — so
+    // it is allowed. Once the night audit closes the reversal day too, a
+    // restore would rewrite a closed day and is refused.
+    let deposit_reversal_date: Option<chrono::NaiveDate> =
+        sqlx::query_scalar("SELECT void_reversal_date FROM payments WHERE id = $1")
+            .bind(deposit_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let reversal_run_id = match deposit_reversal_date {
+        Some(day) => close_night_audit_day(&pool, &day.to_string()).await,
+        None => None,
+    };
+    let restore = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("Guest did pay the deposit"),
+    )
+    .await;
+    let deposit_status = fetch_payment_status(&pool, deposit_id).await;
+
+    reopen_night_audit_day(&pool, reversal_run_id).await;
+    let reopen_restore = payments::revert_deposit_void(
+        &pool,
+        actor_id,
+        booking_id,
+        Some("Guest did pay the deposit"),
+    )
+    .await;
+    let closed_after_restore = booking_journal_lines(&pool, closed_day, booking_id).await;
+    reopen_night_audit_day(&pool, run_id).await;
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(voided.is_ok(), "the void must succeed: {voided:?}");
+    assert!(
+        reopen_restore.is_ok(),
+        "with the reversal day still open the restore is allowed: {reopen_restore:?}"
+    );
+    assert_eq!(
+        closed_after_restore, closed_before,
+        "restoring the deposit leaves the closed day as it was"
+    );
+    assert!(
+        closed_before.iter().any(|line| line.1 == d("100.00")),
+        "the closed day must carry the payment line: {closed_before:?}"
+    );
+    assert_eq!(
+        closed_before, closed_after,
+        "a void must not change a closed day's journal"
+    );
+    let reversal_date = reversal_date.expect("a closed-day void records its reversal date");
+    assert!(
+        reversal_date > closed_day,
+        "the reversal posts on an open day"
+    );
+    let original_line = closed_before
+        .iter()
+        .find(|line| line.1 == d("100.00"))
+        .unwrap();
+    let reversal = reversal_lines
+        .iter()
+        .find(|line| {
+            line.3
+                .as_deref()
+                .is_some_and(|desc| desc == "Void of 2020-01-15 entry: Payment keyed twice")
+        })
+        .unwrap_or_else(|| panic!("a reversal line must post: {reversal_lines:?}"));
+    assert_eq!(
+        reversal.0, original_line.0,
+        "the reversal hits the same account"
+    );
+    assert_eq!(reversal.1, Decimal::ZERO);
+    assert_eq!(
+        reversal.2,
+        d("100.00"),
+        "the reversal credits the original debit"
+    );
+
+    assert!(
+        deposit_void.is_ok(),
+        "the deposit void must succeed: {deposit_void:?}"
+    );
+    match restore {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("night audit"),
+            "the refusal must explain the closed day, got: {message}"
+        ),
+        other => panic!("restoring a closed-day deposit void must be refused, got: {other:?}"),
+    }
+    assert_eq!(
+        deposit_status, "void",
+        "a refused restore leaves the row void"
+    );
+}
+
+/// A receptionist (payments:approve since patch 0020, no payments:manage)
+/// approves a guest's bank-transfer claim: the payment is stamped with the
+/// approver and time, the payment_approved audit row names them, and the
+/// booking folio lists "approved by" with the approver's full name.
+#[tokio::test]
+async fn receptionist_approval_is_stamped_and_listed_on_the_folio() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (941_930, 941_931, 941_932, 941_933, 941_934);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("300.00"),
+        actor_id,
+    )
+    .await;
+
+    let approved = payments::approve_payment(&pool, actor_id, payment_id).await;
+    let stamp: (String, Option<i64>, bool) = sqlx::query_as(
+        "SELECT status, processed_by, processed_at IS NOT NULL FROM payments WHERE id = $1",
+    )
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let audit_actor: Option<i64> = sqlx::query_scalar(
+        "SELECT user_id FROM audit_logs WHERE action = 'payment_approved' \
+         AND resource_type = 'payment' AND resource_id = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(payment_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .flatten();
+    let listed = PaymentRepository::list_payment_entries(&pool, booking_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.id == payment_id);
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        approved.is_ok(),
+        "a receptionist approval must succeed: {approved:?}"
+    );
+    assert_eq!(stamp.0, "completed");
+    assert_eq!(stamp.1, Some(actor_id), "processed_by names the approver");
+    assert!(stamp.2, "processed_at is stamped");
+    assert_eq!(
+        audit_actor,
+        Some(actor_id),
+        "the audit row names the approver"
+    );
+    let listed = listed.expect("the approved payment is on the folio");
+    assert_eq!(
+        listed.approved_by_name.as_deref(),
+        Some("Payment Test Actor")
+    );
+    assert!(listed.approved_at.is_some());
 }

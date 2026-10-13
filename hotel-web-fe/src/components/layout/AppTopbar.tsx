@@ -15,9 +15,10 @@ import { UserMenu } from './UserMenu';
  * The staff shell's 56px header: breadcrumbs on the left (current page title
  * below `sm`, where the trail does not fit); command-palette trigger,
  * notification bell, language, account menu and a one-tap sign-out on the
- * right. Phones slim the right side to a search icon, the bell and the
- * avatar — Sign Out lives inside the account menu there, and language in
- * the bottom nav's More sheet. Below `sm` navigation lives in the bottom bar
+ * right. Phones slim the right side to a search icon, the bell, the same
+ * language globe as desktop (icon-only menu), the avatar and the one-tap
+ * sign-out icon; the page title gives way with an ellipsis so all five
+ * controls fit a 320px bar. Below `sm` navigation lives in the bottom bar
  * and from `sm` up in the sidebar rail, so the header carries no menu button
  * at any width.
  */
@@ -125,10 +126,12 @@ export const AppTopbar: React.FC = () => {
         <SearchIcon fontSize="small" />
       </IconButton>
       <NotificationCenter />
-      {/* Language and one-tap sign-out stay ≥sm — on phones Sign Out lives in
-          the account menu, language in the More sheet, and four controls are
-          all a 320px bar can afford. */}
-      <Box sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}>
+      {/* Language globe at every width: the same icon-menu switcher as
+          desktop (same `setLocale`, same persistence), so phones reach it
+          from the bar instead of the More sheet. With the one-tap sign-out
+          icon below, the phone bar carries five icons; the title above is
+          the only flexible item and ellipsizes on a 320px screen. */}
+      <Box sx={{ display: 'inline-flex', flexShrink: 0 }}>
         <LanguageSwitcher color="inherit" size="small" />
       </Box>
       <UserMenu variant="avatar" />
@@ -139,7 +142,6 @@ export const AppTopbar: React.FC = () => {
           sx={{
             flexShrink: 0,
             color: 'text.secondary',
-            display: { xs: 'none', sm: 'inline-flex' },
           }}
         >
           <LogoutIcon fontSize="small" />

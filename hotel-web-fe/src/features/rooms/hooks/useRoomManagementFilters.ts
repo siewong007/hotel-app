@@ -70,17 +70,17 @@ export function useRoomManagementFilters({
   ), [rooms]);
 
   // Derive every room's status info once per data change. This also hoists the
-  // check-in-time setting read out of deriveRoomStatusInfo — the default reads
-  // localStorage on every call, so calling it per room per render was O(rooms).
+  // new-reservation-time setting read out of deriveRoomStatusInfo — the default
+  // reads localStorage on every call, so calling it per room per render was O(rooms).
   const statusInfoByRoom = useMemo(() => {
-    const checkInTime = getHotelSetting('check_in_time');
+    const visibleFrom = getHotelSetting('new_reservation_visible_time');
     const map = new Map<string, RoomManagementStatusInfo>();
     for (const room of rooms) {
       map.set(room.id, deriveRoomStatusInfo({
         room,
         booking: roomBookings.get(room.id),
         reservedBooking: reservedBookings.get(room.id),
-        checkInTime,
+        visibleFrom,
       }) as RoomManagementStatusInfo);
     }
     return map;

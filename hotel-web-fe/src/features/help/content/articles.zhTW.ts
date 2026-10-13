@@ -174,7 +174,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
     keywords: ['到店', '入住', '前臺', '提前入住', '客人到達'],
     routePath: '/bookings',
     requiredPermissions: ['bookings:update'],
-    lastReviewed: '2026-10-04',
+    lastReviewed: '2026-10-12',
     relatedSlugs: ['check-out-a-guest', 'find-a-reservation', 'housekeeping-maintenance'],
     blocks: [
       { type: 'paragraph', text: '當預訂狀態為已確認或待確認且到達入住日期後，即可辦理入住。“入住”操作位於預訂本身。' },
@@ -189,6 +189,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
       },
       { type: 'callout', tone: 'info', title: '提前入住', body: '早於配置的入住時間（飯店設定 → 入住時間，預設 15:00）到達會彈出提前入住提示，而不是硬性阻止。' },
       { type: 'callout', tone: 'warning', body: '在到達日期之前不會出現“入住”按鈕——這是有意設計。如果客人提前一天到達，請先修改預訂日期。' },
+      { type: 'callout', tone: 'important', title: '線上預訂線上結算', body: '線上預訂（Booking.com、Agoda、Traveloka、Expedia）的房費只能以該平台的付款方式記錄，官網直訂只能使用銀行轉帳或 PayPal——付款方式會預設並鎖定，並標示「已透過……結算」。現金押金不受影響。沒有預訂渠道的線上預訂須先設定渠道，才能記錄房費付款。' },
     ],
   },
   {
@@ -434,7 +435,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
     keywords: ['退款', '押金', '退錢', '退還押金', '撤銷退款', '沒收'],
     routePath: '/bookings',
     requiredPermissions: ['payments:refund'],
-    lastReviewed: '2026-10-05',
+    lastReviewed: '2026-10-12',
     featured: true,
     relatedSlugs: ['check-out-a-guest', 'review-payment-approvals', 'payment-problems'],
     blocks: [
@@ -449,6 +450,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
       },
       { type: 'callout', tone: 'important', title: '復原退款受限', body: '復原押金退款會重新開放該押金供再次退款，且需要 payments:manage——前檯無法自行迴圈退款/復原。確認前請再次核對。' },
       { type: 'callout', tone: 'tip', body: '如果看不到退款按鈕，說明您缺少 payments:refund——請找經理，而不是用手動調整繞過。' },
+      { type: 'callout', tone: 'important', title: '線上預訂退回原付款方式', body: '退款方式會預設為收取押金時的付款方式。線上預訂會鎖定為該方式——押金不能透過其他付款方式退回。' },
     ],
   },
   {

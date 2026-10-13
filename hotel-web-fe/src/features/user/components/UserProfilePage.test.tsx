@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UserProfile } from '../../../types';
@@ -27,7 +27,11 @@ vi.mock('../../../components/common/ConfirmProvider', () => ({
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ hasPermission: () => true, user: { id: '1', username: 'reception' } }),
+  useAuth: () => ({
+    hasPermission: () => true,
+    user: { id: '1', username: 'reception' },
+    roles: ['receptionist'],
+  }),
 }));
 
 vi.mock('../hooks/useProfileQueries', () => ({
@@ -77,11 +81,33 @@ describe('UserProfilePage', () => {
 
   afterEach(cleanup);
 
-  it('renders the profile tabs', () => {
+  it('renders the identity header and every section on one page', () => {
     renderPage();
-    expect(screen.getByRole('tab', { name: /Profile/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Passkeys/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Devices/i })).toBeTruthy();
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.getByText('@reception')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Account details' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Security' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Change Password' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Registered Passkeys/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Signed-in devices' })).toBeTruthy();
+    expect(screen.getByTestId('twofactor-setup')).toBeTruthy();
+  });
+
+  it('shows account details read-only until Edit Profile is pressed', () => {
+    renderPage();
+    expect(screen.queryByRole('textbox', { name: 'Full Name' })).toBeNull();
+    expect(screen.getAllByText('desk@hotel.test').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Profile' }));
+    expect((screen.getByRole('textbox', { name: 'Full Name' }) as HTMLInputElement).value).toBe(
+      'Front Desk',
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+  });
+
+  it('shows each role as a chip in the header', () => {
+    renderPage();
+    expect(screen.getByText('Receptionist')).toBeTruthy();
   });
 
   it('shows an error when the profile fails to load', () => {

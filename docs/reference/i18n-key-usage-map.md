@@ -553,6 +553,8 @@ candidates — see `i18n-coverage-inventory.md`.
 - `admin:system.jobs.names.night_audit` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.payment_receipts` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.pre_arrival_reminders` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.room_arrival_holds` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.session_retention` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.unpaid_hold_release` — *(dynamic or unreferenced)*
 - `admin:system.jobs.noFailures` — `src/features/admin/system/JobsPage.tsx`
 - `admin:system.jobs.noRuns` — `src/features/admin/system/SystemHealthPage.tsx`
@@ -602,10 +604,12 @@ candidates — see `i18n-coverage-inventory.md`.
 - `auth:deactivation.reasonPlaceholder` — `src/features/user/components/AccountDeactivation.tsx`
 - `auth:deactivation.reasonPrompt` — `src/features/user/components/AccountDeactivation.tsx`
 - `auth:deactivation.title` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:devices.browserOnOs` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.current` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.empty` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.lastActive` — `src/features/user/components/profile/sessionLocation.ts`
 - `auth:devices.lastActiveAt` — `src/features/user/components/profile/sessionLocation.ts`
+- `auth:devices.osDevice` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.revoke` — `src/features/user/components/UserProfilePage.tsx`, `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.revokeFailed` — `src/features/user/components/UserProfilePage.tsx`
 - `auth:devices.revokeMessage` — `src/features/user/components/UserProfilePage.tsx`
@@ -613,6 +617,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `auth:devices.revoked` — `src/features/user/components/UserProfilePage.tsx`
 - `auth:devices.subtitle` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.title` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.type.automated` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.desktop` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.laptop` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.mobile` — `src/features/user/components/profile/deviceIcons.tsx`
@@ -1292,6 +1297,9 @@ candidates — see `i18n-coverage-inventory.md`.
 - `bookings:release.successAudit` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
 - `bookings:release.title` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
 - `bookings:release.warning` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:settlementLock.missingChannel` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
+- `bookings:settlementLock.settledVia` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
+- `bookings:settlementLock.unconfigured` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
 - `bookings:summary.arrivals` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
 - `bookings:summary.arrivalsDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
 - `bookings:summary.arrivalsShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
@@ -2354,6 +2362,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.actions.printInvoice` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.actions.printPreview` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.actions.proceed` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.approvedBy` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.line` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.outstanding` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.paid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
@@ -2377,17 +2386,21 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.confirm.cancelDeposit.messageVoid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.cancelDeposit.messageWaive` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.cancelDeposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.contactLine` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.errors.processCheckout` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/hooks/useCheckoutFlow.ts`
 - `finance:checkout.errors.saveRates` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.errors.settleBalanceFirst` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.errors.updatePayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.errors.voidPayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.field.duration` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.field.guestName` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.field.idIc` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
@@ -2450,6 +2463,13 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.total.collect` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.total.refund` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.total.refundTo` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voidPayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.by` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.chip` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.heading` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.noReason` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.reason` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.reversal` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:deposit.ariaLabel` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.cancel.hint` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.cancel.noRefundWarning` — `src/features/invoices/components/DepositSection.tsx`
@@ -2505,8 +2525,9 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:deposit.options.requiresPermission` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.prompt` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.fixedNote` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.lockedToOriginal` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.method` — `src/features/invoices/components/DepositSection.tsx`
-- `finance:deposit.refund.noteOptional` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.note` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.referenceOptional` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.submit` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.strip.cancelled` — `src/features/invoices/components/DepositSection.tsx`
@@ -2855,6 +2876,9 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:ledger.voidDialog.voidEntry` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
 - `finance:ledger.voidDialog.voiding` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
 - `finance:ledger.voidDialog.warning` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:reason.helper` — `src/features/invoices/components/ReasonDialog.tsx`
+- `finance:reason.label` — `src/features/invoices/components/ReasonDialog.tsx`
+- `finance:reason.tooShort` — `src/features/invoices/components/ReasonDialog.tsx`
 - `finance:title` — *(dynamic or unreferenced)*
 
 ### `guestPortal`

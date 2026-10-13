@@ -33,6 +33,7 @@ import {
   Close as CloseIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Block as VoidIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails, CustomerLedger } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -47,6 +48,8 @@ import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import DepositSection, { DEPOSIT_STATUS_CHIP } from './DepositSection';
+import { getSettlementLock, isSettlementLocked } from '../../bookings/utils/settlementLock';
+import ReasonDialog from './ReasonDialog';
 import type { DepositForfeitInput, DepositRefundInput } from './DepositSection';
 import { formatHotelDate, formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
@@ -182,6 +185,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
 
+  // Reason-gated actions: voiding a payment, reverting a deposit refund and
+  // restoring a cancelled deposit all require a staff reason (the backend
+  // rejects them without one), so each opens the ReasonDialog first.
+  const [reasonPrompt, setReasonPrompt] = useState<
+    | { kind: 'void'; payment: CheckoutPaymentRecord }
+    | { kind: 'revertRefund' }
+    | { kind: 'restoreDeposit' }
+    | null
+  >(null);
+
   // Deposit waive state — the local flag bridges the gap between a
   // successful waive-path cancel and the booking-mirror refetch (the hook
   // derives `mirrorDue` off the booking prop, which lags one invalidation).
@@ -252,6 +265,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     (payment) => payment.payment_status === 'completed' && isDepositLikePayment(payment),
   );
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
+  // Voided rows stay on the folio as a record (never deleted) — shown muted
+  // with who voided them, when and why, and excluded from every total.
+  const voidedPayments = payments.filter((payment) => payment.payment_status === 'void');
 
   // Deposit resolution — derivation (collected/refunded/forfeited/remaining,
   // status enum) and the mutations all live in the hook; the modal keeps the
@@ -289,6 +305,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     : hasPermission('bookings:update');
   const canRevertDepositRefund = hasPermission('payments:manage');
   const canRestoreDeposit = hasPermission('payments:delete');
+  // Every void — posted payments included — rides payments:delete ("Void
+  // payments", held by reception); only un-forfeiting a completed
+  // deposit_forfeited row still needs payments:manage. City-ledger payments
+  // are deleted on the ledger under ledgers:manage. The button only renders
+  // for users the backend would allow.
+  const canVoidPayment = (payment: CheckoutPaymentRecord): boolean => {
+    if (isLedgerView) return hasPermission('ledgers:manage');
+    if (payment.payment_status === 'completed' && payment.payment_type === 'deposit_forfeited') {
+      return hasPermission('payments:manage');
+    }
+    return hasPermission('payments:delete');
+  };
 
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
@@ -425,39 +453,63 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   };
 
-  const handleDeletePayment = async (paymentId: number) => {
+  // City-ledger receipts delete the ledger payment (the ledger owns its own
+  // reversal rules); booking payments are voided with a reason instead.
+  const handleDeleteLedgerPayment = async (paymentId: number) => {
+    if (!ledger) return;
     const accepted = await confirm({
-      title: t('checkout.confirm.deletePayment.title'),
-      message: t('checkout.confirm.deletePayment.message'),
-      confirmText: t('checkout.confirm.deletePayment.confirmText'),
+      title: t('ledger.confirm.deletePayment.title'),
+      message: t('ledger.confirm.deletePayment.message'),
+      confirmText: t('ledger.confirm.deletePayment.confirmText'),
       severity: 'error',
     });
     if (!accepted) return;
     try {
       setDeletingPaymentId(paymentId);
-      if (isLedgerView && ledger) {
-        await LedgerService.deleteLedgerPayment(ledger.id, paymentId);
-        await reloadPayments();
-        onLedgerPaymentsChanged?.();
-        return;
-      }
-      // Check if this is a refund payment before deleting
-      const deletedPayment = payments.find(p => p.id === paymentId);
-      await InvoicesService.deletePayment(paymentId);
-      setPayments(prev => prev.filter(p => p.id !== paymentId));
-      invalidateInvoiceState();
-      // Reset depositRefunded if a refund payment was deleted — voided
-      // refund rows no longer count, so detection is the row status alone.
-      if (deletedPayment?.payment_status === 'refunded') {
-        setDepositRefunded(false);
-      }
-      // Deleting a deposit_forfeited row (the un-forfeit escape hatch)
-      // re-opens the deposit as refundable — no flag to clear here since
-      // the resolution re-derives `pending` from the rows on the next render.
+      await LedgerService.deleteLedgerPayment(ledger.id, paymentId);
+      await reloadPayments();
+      onLedgerPaymentsChanged?.();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.deletePayment'));
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.voidPayment'));
     } finally {
       setDeletingPaymentId(null);
+    }
+  };
+
+  const handleVoidPaymentClick = (payment: CheckoutPaymentRecord) => {
+    if (isLedgerView) {
+      void handleDeleteLedgerPayment(payment.id);
+      return;
+    }
+    setReasonPrompt({ kind: 'void', payment });
+  };
+
+  const handleVoidPayment = async (payment: CheckoutPaymentRecord, reason: string) => {
+    try {
+      setDeletingPaymentId(payment.id);
+      setError(null);
+      await InvoicesService.voidPayment(payment.id, reason);
+      // Reload rather than drop the row locally: the voided row stays on the
+      // folio (with its reason/actor/time) and the balance recomputes.
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.voidPayment'));
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
+
+  const handleReasonConfirm = (reason: string) => {
+    const prompt = reasonPrompt;
+    setReasonPrompt(null);
+    if (!prompt) return;
+    if (prompt.kind === 'void') {
+      void handleVoidPayment(prompt.payment, reason);
+    } else if (prompt.kind === 'revertRefund') {
+      void revertRefund(reason);
+    } else {
+      void restoreDeposit(reason);
     }
   };
 
@@ -496,19 +548,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   };
 
-  const handleRevertDepositRefund = async () => {
-    const accepted = await confirm({
-      title: t('checkout.confirm.revertRefund.title'),
-      message: t('checkout.confirm.revertRefund.message'),
-      confirmText: t('checkout.confirm.revertRefund.confirmText'),
-      severity: 'warning',
-    });
-    if (!accepted) return;
-    await revertRefund();
+  const handleRevertDepositRefund = () => {
+    setReasonPrompt({ kind: 'revertRefund' });
   };
 
   const handleRestoreDeposit = () => {
-    void restoreDeposit();
+    setReasonPrompt({ kind: 'restoreDeposit' });
   };
 
   const handleConfirmCheckout = async () => {
@@ -1282,6 +1327,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 readOnly={readOnly}
                 noDepositLabel={booking?.company_id ? t('deposit.cityLedgerNa') : undefined}
                 hotelSettings={hotelSettings}
+                refundMethodLocked={isSettlementLocked(getSettlementLock(booking))}
                 onRefund={handleRefundDeposit}
                 onForfeit={handleForfeitDeposit}
                 onCancel={handleCancelDeposit}
@@ -1426,6 +1472,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             }}>
                               {formatPaymentDateTime(p)}
                             </Typography>
+                            {p.approved_by_name && (
+                              <Typography
+                                variant="caption"
+                                data-testid="payment-approved-by"
+                                sx={{ color: "text.secondary", display: 'block' }}
+                              >
+                                {t('checkout.approvedBy', {
+                                  name: p.approved_by_name,
+                                  at: p.approved_at ? formatHotelDateTime(p.approved_at) : '—',
+                                })}
+                              </Typography>
+                            )}
                           </Grid>
                           <Grid size={3}>
                             <Typography variant="caption" sx={{
@@ -1449,19 +1507,25 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               >
                                 <EditIcon fontSize="small" />
                               </Button>
-                              <Button
-                                size="small"
-                                color="error"
-                                sx={{ minWidth: 'auto', p: 0.5 }}
-                                onClick={() => handleDeletePayment(p.id)}
-                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
-                              >
-                                {deletingPaymentId === p.id ? (
-                                  <CircularProgress size={16} />
-                                ) : (
-                                  <DeleteIcon fontSize="small" />
-                                )}
-                              </Button>
+                              {canVoidPayment(p) && (
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  sx={{ minWidth: 'auto', p: 0.5 }}
+                                  onClick={() => handleVoidPaymentClick(p)}
+                                  disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
+                                  aria-label={isLedgerView ? t('ledger.confirm.deletePayment.confirmText') : t('checkout.voidPayment')}
+                                  title={isLedgerView ? t('ledger.confirm.deletePayment.confirmText') : t('checkout.voidPayment')}
+                                >
+                                  {deletingPaymentId === p.id ? (
+                                    <CircularProgress size={16} />
+                                  ) : isLedgerView ? (
+                                    <DeleteIcon fontSize="small" />
+                                  ) : (
+                                    <VoidIcon fontSize="small" />
+                                  )}
+                                </Button>
+                              )}
                             </Box>)}
                           </Grid>
                         </Grid>)
@@ -1578,140 +1642,86 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               )}
 
-              {/* Refund records */}
+              {/* Refund records — immutable (the backend rejects edits and
+                  voids of them); a mistaken refund is corrected with
+                  "Revert refund" on the deposit strip, which needs a reason. */}
               {refundedPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   {refundedPayments.map((p, idx) => (
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border-subtle)', bgcolor: 'var(--hotel-success-bg)' }}>
-                      {editingPayment?.id === p.id ? (
-                        <Box>
-                          <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid size={{ xs: 12, sm: 4 }}>
-                              <TextField
-                                label={t('common:field.amount')}
-                                type="number"
-                                size="small"
-                                fullWidth
-                                value={editAmount || ''}
-                                onChange={(e) => setEditAmount(toMoneyNumber(e.target.value))}
-                                slotProps={{
-                                  input: {
-                                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                                  }
-                                }}
-                              />
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 4 }}>
-                              <FormControl fullWidth size="small">
-                                <InputLabel>{t('checkout.field.method')}</InputLabel>
-                                <Select
-                                  value={editMethod}
-                                  label={t('checkout.field.method')}
-                                  onChange={(e) => setEditMethod(e.target.value)}
-                                >
-                                  {hotelSettings.payment_methods.map((method) => (
-                                    <MenuItem key={method} value={method}>{method}</MenuItem>
-                                  ))}
-                                </Select>
-                              </FormControl>
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 4 }}>
-                              <TextField
-                                label={t('checkout.field.refundDate')}
-                                type="date"
-                                size="small"
-                                fullWidth
-                                value={editDate}
-                                onChange={(e) => setEditDate(e.target.value)}
-                                slotProps={{
-                                  inputLabel: { shrink: true }
-                                }}
-                              />
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 6 }}>
-                              <TextField
-                                label={t('checkout.field.reference')}
-                                size="small"
-                                fullWidth
-                                value={editReference}
-                                onChange={(e) => setEditReference(e.target.value)}
-                              />
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 6 }}>
-                              <TextField
-                                label={t('common:field.notes')}
-                                size="small"
-                                fullWidth
-                                value={editNotes}
-                                onChange={(e) => setEditNotes(e.target.value)}
-                              />
-                            </Grid>
-                          </Grid>
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                            <Button
-                              size="small"
-                              onClick={handleCancelEdit}
-                              disabled={updatingPayment}
-                            >{t('common:actions.cancel')}</Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              onClick={handleUpdatePayment}
-                              disabled={updatingPayment || !isPositiveMoney(editAmount)}
-                            >
-                              {updatingPayment ? t('common:state.saving') : t('common:actions.save')}
-                            </Button>
-                          </Box>
-                        </Box>
-                      ) : (
-                        <Grid container sx={{
-                          alignItems: "center"
-                        }}>
-                          <Grid size={5}>
-                            <Typography variant="body2" sx={{ color: 'var(--hotel-success)' }}>
-                              {t('deposit.refundLine', { method: formatStatusLabel(p.payment_method, '') })}
-                            </Typography>
-                            <Typography variant="caption" sx={{
-                              color: "text.secondary"
-                            }}>
-                              {formatPaymentDateTime(p)}
-                            </Typography>
-                          </Grid>
-                          <Grid size={2}>
-                            <Chip label={t('deposit.chipRefunded')} size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
-                          </Grid>
-                          <Grid sx={{ textAlign: 'right' }} size={3}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
-                              -{formatCurrency(toMoneyNumber(p.total_amount))}
-                            </Typography>
-                          </Grid>
-                          <Grid sx={{ textAlign: 'right' }} size={2}>
-                            {!readOnly && (<Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                              <Button
-                                size="small"
-                                sx={{ minWidth: 'auto', p: 0.5 }}
-                                onClick={() => handleStartEdit(p)}
-                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
-                              >
-                                <EditIcon fontSize="small" />
-                              </Button>
-                              <Button
-                                size="small"
-                                color="error"
-                                sx={{ minWidth: 'auto', p: 0.5 }}
-                                onClick={() => handleDeletePayment(p.id)}
-                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
-                              >
-                                {deletingPaymentId === p.id ? (
-                                  <CircularProgress size={16} />
-                                ) : (
-                                  <DeleteIcon fontSize="small" />
-                                )}
-                              </Button>
-                            </Box>)}
-                          </Grid>
+                      <Grid container sx={{
+                        alignItems: "center"
+                      }}>
+                        <Grid size={5}>
+                          <Typography variant="body2" sx={{ color: 'var(--hotel-success)' }}>
+                            {t('deposit.refundLine', { method: formatStatusLabel(p.payment_method, '') })}
+                          </Typography>
+                          <Typography variant="caption" sx={{
+                            color: "text.secondary"
+                          }}>
+                            {formatPaymentDateTime(p)}
+                          </Typography>
                         </Grid>
-                      )}
+                        <Grid size={2}>
+                          <Chip label={t('deposit.chipRefunded')} size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                        </Grid>
+                        <Grid sx={{ textAlign: 'right' }} size={3}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
+                            -{formatCurrency(toMoneyNumber(p.total_amount))}
+                          </Typography>
+                        </Grid>
+                        <Grid size={2} />
+                      </Grid>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Voided rows — kept as a record, shown struck through with
+                  who voided them, when and why; never counted in a total. */}
+              {voidedPayments.length > 0 && (
+                <Box sx={{ p: 0 }} data-testid="voided-payments">
+                  <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'var(--hotel-surface-sunken)', borderBottom: '1px solid var(--hotel-border-subtle)' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('checkout.voided.heading')}</Typography>
+                  </Box>
+                  {voidedPayments.map((p, idx) => (
+                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border-subtle)', opacity: 0.75 }}>
+                      <Grid container sx={{ alignItems: 'center' }}>
+                        <Grid size={4}>
+                          <Typography variant="body2" sx={{ textDecoration: 'line-through' }}>
+                            {formatStatusLabel(p.payment_method, '')}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {formatPaymentDateTime(p)}
+                          </Typography>
+                        </Grid>
+                        <Grid size={6}>
+                          <Chip label={t('checkout.voided.chip')} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                            {p.void_reason
+                              ? t('checkout.voided.reason', { reason: p.void_reason })
+                              : t('checkout.voided.noReason')}
+                          </Typography>
+                          {(p.voided_by_name || p.voided_at) && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                              {t('checkout.voided.by', {
+                                name: p.voided_by_name || '—',
+                                at: p.voided_at ? formatHotelDateTime(p.voided_at) : '—',
+                              })}
+                            </Typography>
+                          )}
+                          {p.void_reversal_date && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                              {t('checkout.voided.reversal', { date: formatHotelDate(p.void_reversal_date) })}
+                            </Typography>
+                          )}
+                        </Grid>
+                        <Grid sx={{ textAlign: 'right' }} size={2}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', textDecoration: 'line-through' }}>
+                            {formatCurrency(toMoneyNumber(p.total_amount))}
+                          </Typography>
+                        </Grid>
+                      </Grid>
                     </Box>
                   ))}
                 </Box>
@@ -2191,6 +2201,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         isLateCheckout={isLateCheckout}
         formatBookingStatus={formatBookingStatus}
         formatCurrency={formatCurrency}
+      />
+      <ReasonDialog
+        open={reasonPrompt !== null}
+        title={reasonPrompt?.kind === 'void'
+          ? t('checkout.confirm.voidPayment.title')
+          : reasonPrompt?.kind === 'revertRefund'
+            ? t('checkout.confirm.revertRefund.title')
+            : t('checkout.confirm.restoreDeposit.title')}
+        message={reasonPrompt?.kind === 'void'
+          ? t('checkout.confirm.voidPayment.message', {
+            amount: formatCurrency(toMoneyNumber(reasonPrompt.payment.total_amount)),
+          })
+          : reasonPrompt?.kind === 'revertRefund'
+            ? t('checkout.confirm.revertRefund.message')
+            : t('checkout.confirm.restoreDeposit.message')}
+        confirmText={reasonPrompt?.kind === 'void'
+          ? t('checkout.confirm.voidPayment.confirmText')
+          : reasonPrompt?.kind === 'revertRefund'
+            ? t('checkout.confirm.revertRefund.confirmText')
+            : t('checkout.confirm.restoreDeposit.confirmText')}
+        severity={reasonPrompt?.kind === 'void' ? 'error' : 'warning'}
+        onConfirm={handleReasonConfirm}
+        onCancel={() => setReasonPrompt(null)}
       />
     </Dialog>
   );

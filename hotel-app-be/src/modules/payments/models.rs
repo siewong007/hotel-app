@@ -271,6 +271,24 @@ pub struct PaymentEntryRow {
     pub created_at: DateTime<Utc>,
     #[sqlx(default)]
     pub(crate) idempotency_fingerprint: Option<String>,
+    /// Why, when and by whom the row was voided — only the booking payment
+    /// list selects these; every other reader leaves them `None`.
+    #[sqlx(default)]
+    pub void_reason: Option<String>,
+    #[sqlx(default)]
+    pub voided_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub voided_by_name: Option<String>,
+    /// Business date the reversing journal line posts on when the void
+    /// landed after the night audit closed the payment's own day.
+    #[sqlx(default)]
+    pub void_reversal_date: Option<chrono::NaiveDate>,
+    /// Staff who approved this payment claim (bank transfer / receipt
+    /// review) and when — from the `payment_approved` audit row.
+    #[sqlx(default)]
+    pub approved_by_name: Option<String>,
+    #[sqlx(default)]
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl PaymentEntryRow {
@@ -286,6 +304,12 @@ impl PaymentEntryRow {
             "notes": self.notes,
             "payment_date": self.payment_date,
             "created_at": self.created_at,
+            "void_reason": self.void_reason,
+            "voided_at": self.voided_at,
+            "voided_by_name": self.voided_by_name,
+            "void_reversal_date": self.void_reversal_date,
+            "approved_by_name": self.approved_by_name,
+            "approved_at": self.approved_at,
         })
     }
 }
@@ -376,6 +400,13 @@ pub struct RecordPaymentRequest {
     pub payment_date: Option<String>,
     #[serde(default)]
     pub idempotency_key: String,
+}
+
+/// Body of a void / refund-revert / deposit-restore request: the staff
+/// reason is mandatory and lands on the row and in the audit log.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct PaymentReasonRequest {
+    pub reason: Option<String>,
 }
 
 /// Update payment request

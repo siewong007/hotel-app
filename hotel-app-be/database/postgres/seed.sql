@@ -231,6 +231,10 @@ VALUES
     ('require_two_factor_roles'),
     ('service_tax_rate'),
     ('session_timeout'),
+    ('session_idle_days'),
+    ('session_max_active_per_user'),
+    ('session_purge_expired_days'),
+    ('session_purge_revoked_days'),
     ('support_categories'),
     ('support_enabled'),
     ('support_first_response_high_minutes'),
@@ -524,7 +528,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('payments:create', 'payments', 'create', 'Process payments', true),
 ('payments:read', 'payments', 'read', 'View payment information', true),
 ('payments:update', 'payments', 'update', 'Update payments', true),
-('payments:delete', 'payments', 'delete', 'Delete payment records', true),
+('payments:delete', 'payments', 'delete', 'Void payments (reason required; the record is kept and audited)', true),
 ('payments:refund', 'payments', 'refund', 'Refund and revert deposit payments', true),
 ('payments:manage', 'payments', 'manage', 'Full payment management', true),
 ('ledgers:read', 'ledgers', 'read', 'View customer ledger entries and payments', true),
@@ -636,7 +640,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptio
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'navigation_support:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
-    'payments:update', 'payments:delete', 'payments:refund',
+    'payments:update', 'payments:refund', 'payments:delete', 'payments:approve',
     'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
     'services:read', 'services:create', 'reviews:read', 'settings:read',
     'analytics:read', 'reports:execute', 'teams:read'
@@ -908,6 +912,13 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
 ('max_login_attempts', '5', 'number', 'security', 'Maximum failed login attempts before lockout', false),
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
+-- Session retention (patch 0017): the hourly sweep deletes sessions expired or
+-- revoked longer ago than these, and sign-in trims an account to the cap.
+-- 0 switches a policy off.
+('session_purge_expired_days', '7', 'number', 'security', 'Days an expired sign-in session is kept before it is deleted automatically. 0 keeps expired sessions forever.', false),
+('session_purge_revoked_days', '7', 'number', 'security', 'Days a signed-out or revoked session is kept before it is deleted automatically. 0 keeps them forever.', false),
+('session_max_active_per_user', '10', 'number', 'security', 'Most signed-in devices one account may have. Signing in on another device signs out the least recently used one. 0 means no limit.', false),
+('session_idle_days', '0', 'number', 'security', 'Days without activity after which a signed-in device is signed out automatically. 0 turns this off (sessions still expire 30 days after their last use).', false),
 ('enable_2fa', 'false', 'boolean', 'security', 'Enable two-factor authentication', false),
 ('enable_email_verification', 'true', 'boolean', 'security', 'Require email verification', false),
 -- Both ship EMPTY, which means "use hotel_name". They used to ship the product
@@ -961,20 +972,20 @@ WHERE system_settings.value_type IS DISTINCT FROM EXCLUDED.value_type
 -- ============================================================================
 
 INSERT INTO booking_channels
-    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active, abbreviation, code)
+    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active, abbreviation, code, settlement_payment_methods)
 VALUES
-    ('Direct', 'direct', 'none', 0, 'per_booking', true, NULL, 'direct'),
-    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true, NULL, 'walk_in'),
-    ('Phone', 'phone', 'none', 0, 'per_booking', true, NULL, 'phone'),
-    ('Direct Website', 'website', 'none', 0, 'per_booking', true, 'DW', 'direct_website'),
-    ('Booking.com', 'ota', 'none', 0, 'per_booking', true, 'B.C', 'booking_com'),
-    ('Agoda', 'ota', 'none', 0, 'per_booking', true, 'A.C', 'agoda'),
-    ('Traveloka', 'ota', 'none', 0, 'per_booking', true, 'T.C', 'traveloka'),
-    ('Expedia', 'ota', 'none', 0, 'per_booking', true, 'E.C', 'expedia'),
-    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true, 'H.C', 'hotels_com'),
-    ('Airbnb', 'ota', 'none', 0, 'per_booking', true, 'AB', 'airbnb'),
-    ('Trip.com', 'ota', 'none', 0, 'per_booking', true, 'TR', 'trip_com'),
-    ('Other OTA', 'ota', 'none', 0, 'per_booking', true, 'OT', 'other_ota')
+    ('Direct', 'direct', 'none', 0, 'per_booking', true, NULL, 'direct', NULL),
+    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true, NULL, 'walk_in', NULL),
+    ('Phone', 'phone', 'none', 0, 'per_booking', true, NULL, 'phone', NULL),
+    ('Direct Website', 'website', 'none', 0, 'per_booking', true, 'DW', 'direct_website', ARRAY['Bank Transfer', 'PayPal']),
+    ('Booking.com', 'ota', 'none', 0, 'per_booking', true, 'B.C', 'booking_com', ARRAY['Booking.com']),
+    ('Agoda', 'ota', 'none', 0, 'per_booking', true, 'A.C', 'agoda', ARRAY['Agoda.com']),
+    ('Traveloka', 'ota', 'none', 0, 'per_booking', true, 'T.C', 'traveloka', ARRAY['Traveloka']),
+    ('Expedia', 'ota', 'none', 0, 'per_booking', true, 'E.C', 'expedia', ARRAY['Expedia.com']),
+    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true, 'H.C', 'hotels_com', NULL),
+    ('Airbnb', 'ota', 'none', 0, 'per_booking', true, 'AB', 'airbnb', NULL),
+    ('Trip.com', 'ota', 'none', 0, 'per_booking', true, 'TR', 'trip_com', NULL),
+    ('Other OTA', 'ota', 'none', 0, 'per_booking', true, 'OT', 'other_ota', NULL)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

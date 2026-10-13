@@ -67,6 +67,7 @@ function renderSection({ resolution, ...props }: RenderOptions = {}) {
       readOnly={props.readOnly ?? false}
       noDepositLabel={props.noDepositLabel}
       hotelSettings={props.hotelSettings ?? { payment_methods: ['Cash', 'Bank Transfer', 'E-Wallet', 'Other'] }}
+      refundMethodLocked={props.refundMethodLocked}
       onRefund={props.onRefund ?? mocks.onRefund}
       onForfeit={props.onForfeit ?? mocks.onForfeit}
       onCancel={props.onCancel ?? mocks.onCancel}
@@ -180,7 +181,7 @@ describe('DepositSection — guided deposit resolution', () => {
     expect(screen.queryByRole('button', { name: 'Review forfeiture' })).toBeNull();
   });
 
-  it('runs the refund with the chosen method plus optional reference and note', async () => {
+  it('runs the refund with the chosen method, optional reference and the required note', async () => {
     renderSection();
     fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
 
@@ -199,12 +200,53 @@ describe('DepositSection — guided deposit resolution', () => {
     });
   });
 
-  it('omits blank reference/note from the refund input and defaults to the first configured method', () => {
-    renderSection();
+  it('presets the refund method to the tender the deposit was collected with', () => {
+    renderSection({ resolution: { method: 'bank_transfer' } });
     fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Refund RM50.00' }));
+    expect(mocks.onRefund).toHaveBeenCalledWith(expect.objectContaining({ method: 'Bank Transfer' }));
+  });
 
-    expect(mocks.onRefund).toHaveBeenCalledWith({ method: 'Cash', reference: undefined, note: undefined });
+  it('locks the refund to the original tender on an online booking', () => {
+    renderSection({ refundMethodLocked: true, resolution: { method: 'Cash' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    const combobox = screen.getByRole('combobox', { name: /refund method/i });
+    expect(combobox.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText(/can only be refunded to its original method \(Cash\)/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Refund RM50.00' }));
+    expect(mocks.onRefund).toHaveBeenCalledWith(expect.objectContaining({ method: 'Cash' }));
+  });
+
+  it('pre-fills a default note so a normal refund submits without typing', () => {
+    renderSection();
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    const note = screen.getByLabelText(/^Note \(required\)/i) as HTMLTextAreaElement;
+    expect(note.value).toBe('Normal deposit refund - no damages or charges');
+    const refundButton = screen.getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    expect(refundButton.disabled).toBe(false);
+    fireEvent.click(refundButton);
+    expect(mocks.onRefund).toHaveBeenCalledWith({
+      method: 'Cash',
+      reference: undefined,
+      note: 'Normal deposit refund - no damages or charges',
+    });
+  });
+
+  it('requires a refund note, omits a blank reference and defaults to the first configured method', () => {
+    renderSection();
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    const refundButton = screen.getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    // Cleared note → the refund cannot be submitted.
+    fireEvent.change(screen.getByLabelText(/^Note \(required\)/i), { target: { value: '' } });
+    expect(refundButton.disabled).toBe(true);
+    fireEvent.click(refundButton);
+    expect(mocks.onRefund).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/^Note \(required\)/i), { target: { value: '  key back  ' } });
+    expect(refundButton.disabled).toBe(false);
+    fireEvent.click(refundButton);
+
+    expect(mocks.onRefund).toHaveBeenCalledWith({ method: 'Cash', reference: undefined, note: 'key back' });
   });
 
   it('walks the forfeit flow: reason required, review split, then destructive submit', async () => {

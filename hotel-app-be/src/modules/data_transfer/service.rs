@@ -946,7 +946,7 @@ mod tests {
 
     #[test]
     fn ddl_capability_allowlist_matches_transfer_tables() {
-        let sql = include_str!("../../../database/postgres/patches/0017_runtime_capabilities.sql");
+        let sql = include_str!("../../../database/postgres/patches/0024_runtime_capabilities.sql");
         let allowlist = sql
             .split_once("p_schema || '.' || p_table = ANY(ARRAY[")
             .expect("DDL capability table allowlist must be present")
