@@ -1,12 +1,14 @@
 // Far field: every OSM building outside the Farley ring (extruded, one merged
 // mesh), plus procedural terrace-house rows along residential streets where
 // OSM has no footprints — instanced, low detail, red/grey roofs — so the
-// establishing shot reads as Sibu's low-rise estates.
+// establishing shot reads as Sibu's low-rise estates. Their walls carry a
+// procedural window grid that lights up as night falls (shaders.cityWindows).
 import * as THREE from 'three';
 import { site, pts, FARLEY_IDS } from '../data/site';
 import { rectClear } from './spatial';
 import { POINTS } from './layout';
 import { mergeAll, paint, prism, rng, sectorInstances, sectorOf } from './geom';
+import { cityWindows } from './shaders';
 
 const ROWS_R = 2300;
 /** Quarters around the hotel, a mesh each per kind (geom.sectorInstances):
@@ -42,7 +44,7 @@ export class FarField {
       const mx = ring.reduce((a, v) => a + v.x, 0) / ring.length, mz = ring.reduce((a, v) => a + v.y, 0) / ring.length;
       geos[sectorOf(mx - c.x, mz - c.z, SECTORS)].push(g);
     }
-    const osmMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
+    const osmMat = cityWindows(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }), { share: 0.36 });
     geos.forEach((list, k) => {
       if (!list.length) return;
       const mesh = new THREE.Mesh(mergeAll(list, ['position', 'normal', 'color']), osmMat);
@@ -89,7 +91,7 @@ export class FarField {
     const roofShape = new THREE.Shape([new THREE.Vector2(-0.56, 0), new THREE.Vector2(0.56, 0), new THREE.Vector2(0, 0.28)]);
     const roof = new THREE.ExtrudeGeometry(roofShape, { depth: 1, bevelEnabled: false });
     roof.translate(0, 0, -0.5).rotateY(Math.PI / 2).translate(0, 0.72, 0);
-    const rowBodies = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), Math.max(1, rows.length));
+    const rowBodies = new THREE.InstancedMesh(body, cityWindows(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), { share: 0.42 }), Math.max(1, rows.length));
     const rowRoofs = new THREE.InstancedMesh(roof, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }), Math.max(1, rows.length));
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();

@@ -8,6 +8,8 @@ export const GLOBAL = {
   uTime: { value: 0 },
   uDusk: { value: 0 }, // 0 golden hour … 1 blue hour; drives city lights
   uLights: { value: 0 }, // 0..1 practical lights (signage, windows, lamps)
+  uWet: { value: 0 }, // 0..1 rain on the roads (atmosphere look; World.update)
+  uCity: { value: 0 }, // 0..1 the town's own windows at night (cityWindows)
 };
 
 const NOISE = /* glsl */ `
@@ -24,7 +26,7 @@ function addCommon(shader: THREE.WebGLProgramParametersWithUniforms, worldVaryin
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vW = (modelMatrix * vec4(transformed, 1.0)).xyz;\n  #ifdef USE_INSTANCING\n  vW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;\n  #endif\n  #ifdef USE_BATCHING\n  vW = (modelMatrix * batchingMatrix * vec4(transformed, 1.0)).xyz;\n  #endif');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec3 vW;\nuniform float uTime; uniform float uDusk; uniform float uLights;\n${NOISE}`);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec3 vW;\nuniform float uTime; uniform float uDusk; uniform float uLights; uniform float uWet; uniform float uCity;\n${NOISE}`);
   }
 }
 
@@ -38,7 +40,9 @@ function patch(mat: THREE.Material, key: string, fn: (s: THREE.WebGLProgramParam
   mat.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|${key}`;
 }
 
-/** Weathered asphalt: patches, stains, fine grain; roughness varies with it. */
+/** Weathered asphalt: patches, stains, fine grain; roughness varies with it.
+ *  Wet (uWet, rain): darker, and smooth enough to mirror the sky, most of all
+ *  where the noise puts standing water. */
 export function asphalt(mat: THREE.MeshStandardMaterial, scale = 1): THREE.MeshStandardMaterial {
   patch(mat, `asphalt${scale}`, (s) => {
     addCommon(s);
@@ -48,9 +52,16 @@ export function asphalt(mat: THREE.MeshStandardMaterial, scale = 1): THREE.MeshS
         float patches = smoothstep(0.35, 0.75, fbm3(q * 0.18));
         float grain = vnoise(vW.xz * 7.0) * 0.6 + vnoise(vW.xz * 19.0) * 0.4;
         float stain = smoothstep(0.62, 0.9, fbm3(q * 0.9 + 11.0));
-        diffuseColor.rgb *= mix(0.86, 1.13, patches) * (0.9 + 0.2 * grain) * (1.0 - 0.28 * stain);`)
+        diffuseColor.rgb *= mix(0.86, 1.13, patches) * (0.9 + 0.2 * grain) * (1.0 - 0.28 * stain);
+        float puddle = smoothstep(0.56, 0.74, fbm3(vW.xz * 0.06 + 23.0));
+        diffuseColor.rgb *= 1.0 - uWet * (0.3 + 0.2 * puddle);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor * (0.92 + 0.12 * grain) - 0.25 * stain, 0.35, 1.0);`);
+        roughnessFactor = clamp(roughnessFactor * (0.92 + 0.12 * grain) - 0.25 * stain, 0.35, 1.0);
+        roughnessFactor = mix(roughnessFactor, mix(0.36, 0.12, puddle), uWet * 0.9);`)
+      // standing water mirrors more of the sky than its roughness alone gives
+      // at the film's steeper angles (no screen-space reflections: the sky only)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        reflectedLight.indirectSpecular *= 1.0 + uWet * (0.4 + 1.6 * puddle);`);
   });
   return mat;
 }
@@ -191,8 +202,11 @@ export function interiorWindows(mat: THREE.MeshPhysicalMaterial | THREE.MeshStan
   return mat;
 }
 
-/** Procedural lit windows for massing (far field, mid rows): a window grid
- *  in local metres (needs aLocal = local-space position in metres). */
+/** Procedural lit windows for massing (the far field's houses and blocks): a
+ *  window grid in local metres, lit by uCity (the town at night). Where a
+ *  window is smaller than a couple of pixels the grid would shimmer, so it
+ *  dissolves into its average: the walls glow evenly instead. By day the walls
+ *  are left as they were. */
 export function cityWindows(mat: THREE.MeshStandardMaterial, opts: { floor?: number; bay?: number; sill?: number; share?: number } = {}): THREE.MeshStandardMaterial {
   const floor = opts.floor ?? 3.2, bay = opts.bay ?? 3.0, share = opts.share ?? 0.45;
   patch(mat, `cityWin${floor}${bay}${share}`, (s) => {
@@ -218,10 +232,14 @@ export function cityWindows(mat: THREE.MeshStandardMaterial, opts: { floor?: num
           vec2 f = vec2(fract(u / ${bay.toFixed(2)}), fract((vLocalM.y - 0.9) / ${floor.toFixed(2)}));
           float win = step(0.2, f.x) * step(f.x, 0.8) * step(0.25, f.y) * step(f.y, 0.7) * step(0.5, vLocalM.y);
           float rnd = h12(cell + vInst * 1.37);
-          float on = step(rnd, ${share.toFixed(2)}) * uLights;
-          vec3 lampCol = mix(vec3(1.0, 0.72, 0.42), vec3(0.85, 0.9, 1.0), step(0.75, h12(cell * 3.1 + vInst)));
-          totalEmissiveRadiance += lampCol * win * on * wallish * 1.6;
-          diffuseColor.rgb *= 1.0 - win * wallish * 0.55;
+          float on = step(rnd, ${share.toFixed(2)});
+          // cells per pixel: 1 when a window spans a few pixels, 0 when it is under one
+          float aa = 1.0 - smoothstep(0.25, 0.6, max(fwidth(u / ${bay.toFixed(2)}), fwidth(vLocalM.y / ${floor.toFixed(2)})));
+          float winA = mix(0.27 * step(0.5, vLocalM.y), win, aa);
+          float onA = mix(${share.toFixed(2)}, on, aa);
+          vec3 lampCol = mix(vec3(1.0, 0.72, 0.42), vec3(0.85, 0.9, 1.0), step(0.75, h12(cell * 3.1 + vInst)) * aa);
+          totalEmissiveRadiance += lampCol * winA * onA * wallish * uCity * 1.6;
+          diffuseColor.rgb *= 1.0 - winA * wallish * 0.5 * uCity;
         }`);
   });
   return mat;

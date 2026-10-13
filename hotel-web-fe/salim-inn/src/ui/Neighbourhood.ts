@@ -4,8 +4,11 @@
 //   float over the buildings as markers that open the same card.
 //   Chapter 7 — "Getting here" chips and each place's walking time in the
 //   copy; floating labels on the places and on the walking rings.
+//   Both — the hotel's own marker (its brand mark and name) over the hotel,
+//   placed first so the others give way to it.
 // Everything a marker or label says is also in the copy, so the floating
-// layer is aria-hidden and pointer-only.
+// layer is aria-hidden and pointer-only. A category's marker carries its icon;
+// while its card is open the other markers step back.
 import * as THREE from 'three';
 import { groupsWith, openingText, walkLabel, type Dish, type Place, type PlaceGroup } from '../data/neighbourhood';
 import { RING_MINUTES } from '../world/WalkRings';
@@ -14,9 +17,27 @@ import { copy, count, fill } from '../content';
 interface Placed { place: Place; world: THREE.Vector3 | null; walk: string }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+// 24 px line icons for the category markers, drawn, not fetched
+const ICONS: Record<PlaceGroup, string> = {
+  groceries: '<path d="M4 9.5h16l-1.6 9.5H5.6z"/><path d="M8.5 9.5 11 4.5M15.5 9.5 13 4.5"/>',
+  food: '<path d="M5 10h11v3.5a5.5 5.5 0 0 1-5.5 5.5A5.5 5.5 0 0 1 5 13.5z"/><path d="M16 11.2h1.3a2.4 2.4 0 0 1 0 4.8h-1.7"/><path d="M8.5 4.5V7M12 4.5V7"/>',
+  health: '<path d="M10 4.5h4V10h5.5v4H14v5.5h-4V14H4.5v-4H10z"/>',
+  services: '<path d="M15 4.6a4.2 4.2 0 0 0-5.2 5.3l-5.3 5.3 2.8 2.8 5.3-5.3a4.2 4.2 0 0 0 5.3-5.2l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+};
+const icon = (paths: string) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+/** The brand mark's house and S (index.html's logo), for the hotel's pin. */
+const BRAND_MARK = '<svg viewBox="4 3 64 78" width="18" height="22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 26 36 7l28 19"/><path d="M19 23v54h36V23M36 7v70"/><path d="M26 43c0-9 20-9 20 0s-20 8-20 17 20 9 20 0"/><path d="M12 76h48"/></svg>';
+
+type Box = { x0: number; x1: number; y0: number; y1: number };
+const overlaps = (a: Box, list: Box[]) => list.some((b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1);
 const telOf = (phone: string) => `+60${phone.replace(/\D/g, '').replace(/^0/, '')}`;
 
 export interface NeighbourhoodHosts { ch2: HTMLElement; ch7: HTMLElement; ch2Title?: HTMLElement | null }
+
+/** Where things are: `door` measures the walks, `hotel` (over the roof) holds
+ *  the hotel's marker. */
+export interface NeighbourhoodGeo { door: THREE.Vector3; hotel?: THREE.Vector3; anchorOf: (p: Place) => THREE.Vector3 | null; titleFor?: (list: Place[]) => string }
 
 export class Neighbourhood {
   private placed: Placed[];
@@ -27,6 +48,7 @@ export class Neighbourhood {
   private layer: HTMLElement;
   private placeLabels: { el: HTMLElement; world: THREE.Vector3 }[] = [];
   private ringLabels: HTMLElement[] = [];
+  private hotel: { el: HTMLElement; world: THREE.Vector3; size?: { w: number; h: number } } | null = null;
   private open: PlaceGroup | null = null;
   private v = new THREE.Vector3();
   private widths = new WeakMap<HTMLElement, number>();
@@ -37,7 +59,7 @@ export class Neighbourhood {
   private copyStale = true;
 
   /** `menu`: the must-try dishes, listed under the food card's places. */
-  constructor(list: Place[], hosts: NeighbourhoodHosts, geo: { door: THREE.Vector3; anchorOf: (p: Place) => THREE.Vector3 | null; titleFor?: (list: Place[]) => string }, menu: Dish[] = []) {
+  constructor(list: Place[], hosts: NeighbourhoodHosts, geo: NeighbourhoodGeo, menu: Dish[] = []) {
     this.menu = menu;
     const c = copy.neighbourhood;
     this.placed = list.map((place) => {
@@ -80,13 +102,22 @@ export class Neighbourhood {
     this.layer = document.createElement('div');
     this.layer.className = 'nb-layer';
     this.layer.setAttribute('aria-hidden', 'true');
+    if (geo.hotel) {
+      // label above, pin below, its tip on the point
+      const el = document.createElement('div');
+      el.className = 'nb-hotel';
+      el.innerHTML = `<div class="nb-hotel__in"><span class="nb-hotel__label">${esc(c.hotel)}</span><span class="nb-hotel__pin">${BRAND_MARK}</span></div>`;
+      this.layer.appendChild(el);
+      this.hotel = { el, world: geo.hotel.clone() };
+    }
     for (const g of this.groups) {
       if (!g.world) continue;
       const m = document.createElement('button');
       m.type = 'button';
       m.tabIndex = -1;
       m.className = 'nb-marker';
-      m.innerHTML = `<span class="nb-marker__dot"></span><span class="nb-marker__label">${esc(g.label)}</span>`;
+      m.dataset.group = g.key;
+      m.innerHTML = `<span class="nb-marker__dot">${icon(ICONS[g.key])}</span><span class="nb-marker__label">${esc(g.label)}</span>`;
       m.addEventListener('click', () => this.toggle(g.key));
       this.layer.appendChild(m);
       this.markers.set(g.key, m);
@@ -114,6 +145,7 @@ export class Neighbourhood {
     const c = copy.neighbourhood;
     for (const [k, b] of this.chips) b.setAttribute('aria-expanded', String(k === this.open));
     for (const [k, m] of this.markers) m.classList.toggle('is-open', k === this.open);
+    this.layer.classList.toggle('has-open', this.open !== null);
     const g = this.groups.find((x) => x.key === this.open);
     this.card.hidden = !g;
     this.copyStale = true;
@@ -161,6 +193,26 @@ export class Neighbourhood {
     if (over > 0) this.card.style.maxHeight = `${Math.max(160, this.card.offsetHeight - over - 4)}px`;
   }
 
+  /** The hotel's marker, centred over its point with the pin's tip on it;
+   *  its box, or null when it is not on screen. */
+  private placeHotel(camera: THREE.PerspectiveCamera, a: number, W: number, H: number, top: number, bottom: number, left: number): Box | null {
+    const h = this.hotel;
+    if (!h) return null;
+    const el = h.el;
+    if (a < 0.01) { el.style.opacity = '0'; el.style.visibility = 'hidden'; return null; }
+    this.v.copy(h.world).project(camera);
+    const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
+    const inner = el.firstElementChild as HTMLElement;
+    const size = h.size ?? (h.size = { w: inner.offsetWidth, h: inner.offsetHeight }); // measured once: no layout per frame
+    const box = { x0: x - size.w / 2, x1: x + size.w / 2, y0: y - size.h, y1: y };
+    const on = this.v.z < 1 && box.x0 > left && box.x1 < W - 8 && box.y0 > top && y < bottom;
+    el.style.visibility = on ? 'visible' : 'hidden';
+    if (!on) return null;
+    el.style.opacity = a.toFixed(3);
+    el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    return box;
+  }
+
   /** Project the markers and labels; chapter windows decide what shows. */
   update(camera: THREE.PerspectiveCamera, p: number, W: number, H: number, rings: { centre: THREE.Vector3; radii: readonly number[]; look: THREE.Vector3 }): void {
     const ch2 = THREE.MathUtils.smoothstep(p, 0.15, 0.18) * (1 - THREE.MathUtils.smoothstep(p, 0.325, 0.345));
@@ -194,25 +246,26 @@ export class Neighbourhood {
     // before it stays hidden (its chip is in the copy)
     if (phone && ch2 > 0.01 && this.copyStale) this.measureCopy();
     const markerBottom = phone ? Math.min(bottom, this.copyTop - 12) : bottom;
-    const taken: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    // the hotel first, in both chapters: whatever would cover it gives way
+    const hotelBox = this.placeHotel(camera, phone && this.open ? 0 : Math.max(ch2, ch7), W, H, top, ch2 >= ch7 ? markerBottom : bottom, left);
+    const taken: Box[] = hotelBox ? [hotelBox] : [];
     for (const g of this.groups) {
       const m = this.markers.get(g.key);
       if (!m || !g.world) continue;
       const at = put(m, g.world, phone && this.open ? 0 : ch2, markerBottom);
       if (!at) continue;
-      const box = { x0: at.x - 9, x1: at.x + at.width, y0: at.y - 18, y1: at.y + 18 };
-      const covers = taken.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1);
-      if (covers) m.style.visibility = 'hidden';
+      const box = { x0: at.x - 13, x1: at.x + at.width, y0: at.y - 18, y1: at.y + 18 };
+      if (overlaps(box, taken)) m.style.visibility = 'hidden';
       else taken.push(box);
     }
     // chapter 7's labels: one that would cover a label placed before it stays
     // hidden (a clinic shares the hardware shop's point; the list has both)
-    const labelled: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    const labelled: Box[] = hotelBox ? [hotelBox] : [];
     for (const l of this.placeLabels) {
       const at = put(l.el, l.world, ch7);
       if (!at) continue;
       const box = { x0: at.x, x1: at.x + at.width, y0: at.y - 24, y1: at.y + 24 };
-      if (labelled.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) l.el.style.visibility = 'hidden';
+      if (overlaps(box, labelled)) l.el.style.visibility = 'hidden';
       else labelled.push(box);
     }
     // ring labels sit on each ring, on the side facing the view

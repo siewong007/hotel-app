@@ -25,7 +25,8 @@ import { dishes, neighbourhoodTitle, places } from './data/neighbourhood';
 import { copy } from './content';
 import { atmosphere, type Sky } from './atmosphere';
 
-const SKIES: readonly Sky[] = ['clear', 'partly', 'overcast', 'fog', 'lightRain', 'rain', 'heavyRain', 'thunder'];
+// ('other' names no condition: the film as designed, whatever today's weather)
+const SKIES: readonly Sky[] = ['clear', 'partly', 'overcast', 'fog', 'lightRain', 'rain', 'heavyRain', 'thunder', 'other'];
 import type { BuildStep } from './content/en';
 import { placeAnchor } from './world/placeAnchors';
 import { POINTS } from './world/layout';
@@ -78,6 +79,7 @@ async function boot(): Promise<void> {
   const placeList = places({ includeUnverified: PREVIEW_PLACES });
   const nb = new Neighbourhood(placeList, { ch2: el('nb-ch2'), ch7: el('nb-ch7'), ch2Title: el('chapter-2-title') }, {
     door: POINTS.lobbyDoor,
+    hotel: POINTS.pin,
     anchorOf: placeAnchor,
     titleFor: PREVIEW_PLACES ? (list) => neighbourhoodTitle(list, copy.neighbourhood) : undefined,
   }, dishes({ includeUnverified: PREVIEW_PLACES }));
@@ -225,7 +227,8 @@ async function boot(): Promise<void> {
   // The atmosphere (atmosphere/index.ts): Sibu's weather over the scripted
   // dusk, or the visitor's chosen mode — taken at once for the first frame,
   // eased in by the world after that. perf/ tooling can ask for a sky's look
-  // (?debug=1&wxlook=heavyRain) while the header keeps the real reading.
+  // (?debug=1&wxlook=heavyRain), or for none (wxlook=other: the posters),
+  // while the header keeps the real reading.
   const lookAs = DEBUG ? params.get('wxlook') : null;
   if (lookAs && SKIES.includes(lookAs as Sky)) atmosphere.lookAs = lookAs as Sky;
   world.setAtmosphere(atmosphere.look(), true);
@@ -264,7 +267,7 @@ async function boot(): Promise<void> {
     renderer.gl.toneMappingExposure = timeline.exposure() * world.exposureScale();
     post.setDof(dofWeight(p), rig.focus);
     post.setSplit(gradeSplit(p));
-    post.setWeather(world.look.cloud, world.look.rain);
+    post.setWeather(world.look.cloud, world.look.rain, world.look.night);
   };
   // Start-up calibration (brief §8 tiers): detect-gpu names a tier from a
   // benchmark table; before the preloader leaves, that tier is timed on the
@@ -419,7 +422,7 @@ async function boot(): Promise<void> {
     // a settled new sky: its reflections re-baked, and the sun's shadows
     // redrawn once (the low tier keeps its map otherwise)
     if (world.rebakeSky(renderer.gl)) renderer.gl.shadowMap.needsUpdate = true;
-    post.setWeather(world.look.cloud, world.look.rain);
+    post.setWeather(world.look.cloud, world.look.rain, world.look.night);
     nb.update(camera, p, innerWidth, innerHeight, { centre: POINTS.lobbyDoor, radii: world.walkRings.radii, look: rig.lookTarget });
     renderer.gl.toneMappingExposure = timeline.exposure() * world.exposureScale();
     const h = camera.position.y;

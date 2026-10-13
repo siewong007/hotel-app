@@ -18,6 +18,7 @@ const nb: Copy['neighbourhood'] = {
   call: '致電',
   unverified: '尚未核實',
   ring: '約{{min}}分鐘',
+  hotel: '砂林酒店',
   placeOne: '1處',
   placeMany: '{{n}}處',
   groups: { groceries: '超市與日用品', food: '餐飲與咖啡館', health: '藥房與診所', services: '日常服務' },
