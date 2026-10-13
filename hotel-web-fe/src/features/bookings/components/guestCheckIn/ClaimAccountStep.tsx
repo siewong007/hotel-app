@@ -204,7 +204,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
           </Button>
         )}
         <Box sx={{ flexGrow: 1 }} />
-        <Button variant="text" onClick={onSkip} disabled={submitting}>
+        <Button variant="outlined" onClick={onSkip} disabled={submitting} data-testid="claim-account-skip">
           {t('checkin.skipForNow')}
         </Button>
         <Button type="submit" variant="contained" disabled={submitting}>

@@ -59,7 +59,10 @@ pub async fn issue_step_up(
 ) -> Result<StepUpResponse, ApiError> {
     let user_id = extract_user_id(access_claims)?;
 
-    let stored_hash = AuthRepository::password_hash(pool, user_id).await.ok();
+    let stored_hash = AuthRepository::password_hash(pool, user_id)
+        .await
+        .ok()
+        .flatten();
     let password_ok = match stored_hash.as_deref() {
         Some(hash) => AuthService::verify_password(&request.password, hash)
             .await

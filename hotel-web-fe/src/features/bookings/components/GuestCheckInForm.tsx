@@ -42,6 +42,8 @@ import { formatStatusLabel } from '../../../utils/formatters';
 import { formatHotelDate } from '../../../utils/date';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 import { getValidPortalToken } from '../../guestPortal/api/portalTokenStore';
+import { useAuth } from '../../../auth/AuthContext';
+import { usePortalSessionBootstrap } from '../../guestPortal/hooks/usePortalSessionBootstrap';
 import { ClaimAccountStep } from './guestCheckIn/ClaimAccountStep';
 import { PreCheckInDetailsStep } from './guestCheckIn/PreCheckInDetailsStep';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
@@ -71,7 +73,18 @@ export const GuestCheckInForm: React.FC = () => {
   const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
   const [receiptSubmitted, setReceiptSubmitted] = useState(false);
 
-  const [portalToken, setPortalTokenState] = useState<string | null>(() => getValidPortalToken());
+  // Portal session minted in this visit (claim-account) or kept in this tab.
+  const [claimedPortalToken, setPortalTokenState] = useState<string | null>(() =>
+    getValidPortalToken(),
+  );
+  // A guest already signed in to their account (password or Google) gets a
+  // portal session from that login, so the wizard must not ask them to
+  // register again just because this tab has no stored portal token.
+  const { isAuthenticated, user } = useAuth();
+  const isSignedInGuest = isAuthenticated && user?.user_type === 'guest';
+  const portalBootstrap = usePortalSessionBootstrap();
+  const portalToken = claimedPortalToken ?? (isSignedInGuest ? portalBootstrap.token : null);
+  const [hasAccount, setHasAccount] = useState(false);
   const [activeStep, setActiveStep] = useState<StepId | null>(null);
   const [detailsSaved, setDetailsSaved] = useState(false);
   const [accountNotice, setAccountNotice] = useState<string | null>(null);
@@ -91,6 +104,7 @@ export const GuestCheckInForm: React.FC = () => {
         setReceiptRequestPaymentId(response.receipt_request_payment_id ?? null);
         setReceiptRequestMessage(response.receipt_request_message ?? null);
         setReceiptAlreadyUploaded(Boolean(response.receipt_uploaded));
+        setHasAccount(Boolean(response.has_account));
 
         if (!options?.keepStep) {
           // Start where the guest actually has something to do: money first
@@ -140,11 +154,14 @@ export const GuestCheckInForm: React.FC = () => {
     const list: { id: StepId; label: string }[] = [];
     if (paymentStepRelevant) list.push({ id: 'payment', label: t('checkin.form.steps.payment') });
     list.push({ id: 'details', label: t('checkin.form.steps.details') });
-    if (!portalToken) list.push({ id: 'account', label: t('checkin.form.steps.account') });
+    // Only offer "create account" to a guest who has none and is not signed in.
+    if (!portalToken && !isSignedInGuest && !hasAccount) {
+      list.push({ id: 'account', label: t('checkin.form.steps.account') });
+    }
     list.push({ id: 'identity', label: t('checkin.form.steps.identity') });
     list.push({ id: 'done', label: t('checkin.form.steps.done') });
     return list;
-  }, [paymentStepRelevant, portalToken, t]);
+  }, [paymentStepRelevant, portalToken, isSignedInGuest, hasAccount, t]);
 
   const stepIndex = steps.findIndex((step) => step.id === activeStep);
 
@@ -471,8 +488,20 @@ export const GuestCheckInForm: React.FC = () => {
                 </Stack>
               </>
             ) : (
-              <Alert severity="info" role="alert">
-                {t('checkin.form.identityNeedsAccount')}
+              <Alert
+                severity="info"
+                role="alert"
+                action={
+                  hasAccount && !isSignedInGuest ? (
+                    <Button color="inherit" size="small" onClick={() => navigate('/login')}>
+                      {t('checkin.form.signIn')}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {hasAccount && !isSignedInGuest
+                  ? t('checkin.form.identityNeedsSignIn')
+                  : t('checkin.form.identityNeedsAccount')}
               </Alert>
             )}
           </Box>

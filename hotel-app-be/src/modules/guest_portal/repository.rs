@@ -50,6 +50,22 @@ impl GuestPortalRepository {
         Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
+    /// Whether the guest already has a usable portal login: an active,
+    /// non-deleted guest account with a password or a linked Google identity.
+    /// The login-disabled anchor front-desk eKYC creates does not count, so
+    /// it can still be claimed.
+    pub async fn guest_has_account(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM users WHERE guest_id = $1 \
+             AND user_type::text = 'guest' AND is_active = true AND deleted_at IS NULL \
+             AND (password_hash IS NOT NULL OR google_subject IS NOT NULL))",
+        )
+        .bind(guest_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
     /// Outstanding receipt request for a token-authenticated booking.
     pub async fn find_booking_receipt_request(
         pool: &DbPool,

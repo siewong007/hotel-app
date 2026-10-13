@@ -27,6 +27,10 @@ use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use validator::Validate;
 
+/// Login refusal for an account with no password (created via Google sign-in).
+/// The frontend matches this exact text to show a translated message.
+pub const GOOGLE_SIGN_IN_ONLY_MESSAGE: &str = "This account uses Google sign-in";
+
 /// Re-authenticate an already-authenticated user before a high-value account
 /// change (currently: registering a passkey).
 ///
@@ -39,7 +43,10 @@ pub(crate) async fn ensure_step_up(
     password: Option<&str>,
     totp_code: Option<&str>,
 ) -> Result<(), ApiError> {
-    let stored_hash = AuthRepository::password_hash(pool, user_id).await.ok();
+    let stored_hash = AuthRepository::password_hash(pool, user_id)
+        .await
+        .ok()
+        .flatten();
 
     if let (Some(supplied), Some(hash)) = (password, stored_hash.as_deref())
         && AuthService::verify_password(supplied, hash)
@@ -294,7 +301,13 @@ pub async fn login(
 
     ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent).await?;
 
-    let password_hash = AuthRepository::password_hash(pool, user.id).await?;
+    let Some(password_hash) = AuthRepository::password_hash(pool, user.id).await? else {
+        // Passwordless account (Google sign-in): no password can ever match,
+        // so say how to sign in instead of failing (or counting an attempt).
+        return Err(ApiError::Unauthorized(
+            GOOGLE_SIGN_IN_ONLY_MESSAGE.to_string(),
+        ));
+    };
 
     let valid = AuthService::verify_password(&req.password, &password_hash)
         .await

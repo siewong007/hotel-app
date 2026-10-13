@@ -481,6 +481,7 @@ async fn portal_response(
 
     let (receipt_request_payment_id, receipt_request_message, receipt_uploaded) =
         GuestPortalRepository::find_booking_receipt_request(pool, booking.id).await?;
+    let has_account = GuestPortalRepository::guest_has_account(pool, booking.guest_id).await?;
 
     Ok(GuestPortalBookingResponse {
         booking: booking.into(),
@@ -489,6 +490,7 @@ async fn portal_response(
         receipt_request_payment_id,
         receipt_request_message,
         receipt_uploaded,
+        has_account,
     })
 }
 

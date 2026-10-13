@@ -166,6 +166,8 @@ export interface GuestPortalBookingSummary {
   receipt_request_payment_id?: number | null;
   receipt_request_message?: string | null;
   receipt_uploaded?: boolean;
+  /** The booking's guest already has a portal login (password or Google). */
+  has_account?: boolean;
 }
 
 export interface GuestPortalPagedResponse<T> {

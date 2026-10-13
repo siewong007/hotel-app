@@ -171,8 +171,9 @@ impl AuthRepository {
             .map_err(ApiError::from)
     }
 
-    pub async fn password_hash(pool: &DbPool, user_id: i64) -> Result<String, ApiError> {
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+    /// `None` for passwordless accounts (e.g. created through Google sign-in).
+    pub async fn password_hash(pool: &DbPool, user_id: i64) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar::<_, Option<String>>("SELECT password_hash FROM users WHERE id = $1")
             .bind(user_id)
             .fetch_one(pool)
             .await

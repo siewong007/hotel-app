@@ -48,6 +48,8 @@ export class GuestPortalService {
     receipt_request_payment_id?: number | null;
     receipt_request_message?: string | null;
     receipt_uploaded?: boolean;
+    /** The booking's guest already has a portal login (password or Google). */
+    has_account?: boolean;
   }> {
     return await api.get('guest-portal/booking', { headers: bookingTokenHeaders(token) }).json();
   }
