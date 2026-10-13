@@ -461,7 +461,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
     keywords: ['付款核准', '收據', '付款憑證', '核准付款', '拒絕付款', '銀行轉賬'],
     routePath: '/payment-approvals',
     requiredPermissions: ['payments:approve'],
-    lastReviewed: '2026-10-04',
+    lastReviewed: '2026-10-13',
     relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
     blocks: [
       { type: 'paragraph', text: '「付款核准」列出已提交的付款憑證及其預訂、賓客、金額、方式和收據。每個條目在您處理後從「已提交」變為「已稽核」。' },
@@ -475,6 +475,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
       },
       { type: 'callout', tone: 'warning', body: '拒絕線上付款會觸發發給客人的付款挽回郵件流程——只在憑證確實有誤時拒絕。' },
       { type: 'callout', tone: 'tip', body: '按提交時間從舊到新處理佇列：客人的入住可能正等著您的稽核。' },
+      { type: 'callout', tone: 'important', title: '網站銀行轉帳的緊急紅色提示列', body: '只要有客人透過網站提交的銀行轉帳在等待，擁有付款核准權限的員工會在每個頁面看到紅色提示列，並彈出列出每筆申請的視窗（訂單、客人、金額、提交時間、已等待時長、收據）。它沒有關閉按鈕——只有所有申請都處理完畢後才會消失。請先核對酒店銀行帳戶，然後點擊「確認收款並核准」，或填寫原因「拒絕」。不要讓申請無人處理：它會被自動作為未付款釋放。' },
     ],
   },
   {

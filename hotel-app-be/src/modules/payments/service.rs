@@ -2936,6 +2936,15 @@ pub async fn list_pending_payments(
     Ok(PendingPaymentPage { items, total })
 }
 
+/// Reception urgent alert: every guest bank-transfer claim still pending.
+/// Capped at 100 rows; `total` carries the true count for the badge.
+pub async fn list_urgent_bank_transfer_claims(
+    pool: &DbPool,
+) -> Result<PendingPaymentPage, ApiError> {
+    let (items, total) = PaymentRepository::list_urgent_bank_transfer_claims(pool, 100).await?;
+    Ok(PendingPaymentPage { items, total })
+}
+
 /// Staff history of resolved guest payment claims.
 pub async fn list_payment_approval_history(
     pool: &DbPool,

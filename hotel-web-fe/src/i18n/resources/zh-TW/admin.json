@@ -954,5 +954,21 @@
       "uptimeHours": "{{hours}} 小時 {{minutes}} 分",
       "uptimeMinutes": "{{minutes}} 分"
     }
+  },
+  "urgentTransfer": {
+    "banner": "緊急：{{count}} 筆客人銀行轉帳等待確認收款。請立即核對銀行帳戶並核准或拒絕——未處理的申請將自動作為未付款釋放。",
+    "review": "立即處理",
+    "title": "緊急：客人銀行轉帳待確認（{{count}}）",
+    "explain": "客人已在網站上透過銀行轉帳付款並正在等待。請確認款項已到達酒店帳戶後核准，或填寫原因拒絕。在所有申請處理完畢前，此提醒會顯示在每個頁面上。",
+    "submitted": "提交時間",
+    "waiting": "已等待",
+    "waitingMinutes": "{{minutes}} 分鐘",
+    "waitingHours": "{{hours}} 小時 {{minutes}} 分鐘",
+    "waitingDays": "{{days}} 天 {{hours}} 小時",
+    "viewReceipt": "查看收據",
+    "noReceipt": "未上傳收據",
+    "confirmApprove": "確認收款並核准",
+    "minimise": "最小化",
+    "minimiseHint": "在所有申請處理完畢前，紅色提示列會一直顯示。"
   }
 }

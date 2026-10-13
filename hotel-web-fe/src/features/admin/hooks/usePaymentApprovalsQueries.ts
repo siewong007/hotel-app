@@ -87,3 +87,24 @@ export function useRequestPaymentReceipt() {
     onSuccess: () => invalidatePaymentApprovalDependencies(queryClient),
   });
 }
+
+/** Poll interval for the urgent bank-transfer alert. */
+export const URGENT_CLAIMS_POLL_MS = 30_000;
+
+/**
+ * Guest bank-transfer claims awaiting approval — drives the sticky urgent
+ * banner shown on every staff page. Polls even in a background tab so the
+ * banner is already up when reception switches back. Lives under the
+ * payment-approvals key, so approve/reject invalidation refreshes it.
+ */
+export function useUrgentTransferClaims(enabled: boolean) {
+  return useQuery({
+    queryKey: [...queryKeys.paymentApprovals.all, 'urgent-claims'],
+    queryFn: () => PaymentApprovalsService.listUrgentClaims(),
+    enabled,
+    staleTime: 10_000,
+    refetchInterval: URGENT_CLAIMS_POLL_MS,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
+}

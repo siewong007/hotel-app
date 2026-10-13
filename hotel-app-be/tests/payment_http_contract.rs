@@ -687,3 +687,44 @@ async fn receptionist_can_void_and_approve_but_not_revert_refunds() {
         "approve passes the payments:approve gate: {approve_body}"
     );
 }
+
+/// Reception's non-dismissable urgent alert reads this feed. A receptionist
+/// (holds `payments:approve`) gets the list; an anonymous caller is refused;
+/// every row returned is a still-pending guest bank-transfer claim.
+#[tokio::test]
+async fn receptionist_reads_urgent_bank_transfer_claims() {
+    let Some(fixture) = HttpFixture::new().await else {
+        return;
+    };
+    let get = |authorization: Option<String>| {
+        let app = fixture.app.clone();
+        async move {
+            let mut builder = Request::builder()
+                .method("GET")
+                .uri("/api/admin/payments/urgent-claims");
+            if let Some(value) = authorization {
+                builder = builder.header(header::AUTHORIZATION, value);
+            }
+            let request = builder
+                .body(Body::empty())
+                .expect("HTTP request must build");
+            let response = app.oneshot(request).await.expect("router response");
+            let status = response.status();
+            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (status, String::from_utf8_lossy(&body).to_string())
+        }
+    };
+    let (status, body) = get(Some(fixture.authorization.clone())).await;
+    let (anon_status, _) = get(None).await;
+    fixture.cleanup().await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(anon_status, StatusCode::UNAUTHORIZED);
+    let parsed: Value = serde_json::from_str(&body).expect("JSON body");
+    let items = parsed["items"].as_array().expect("items array");
+    assert!(parsed["total"].as_i64().unwrap() >= items.len() as i64);
+    for item in items {
+        assert_eq!(item["status"], "pending");
+        assert_eq!(item["payment_method"], "bank_transfer");
+    }
+}

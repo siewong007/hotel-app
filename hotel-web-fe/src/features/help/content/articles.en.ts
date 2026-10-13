@@ -463,7 +463,7 @@ export const ARTICLES_EN: HelpArticle[] = [
     keywords: ['payment approval', 'receipt', 'proof of payment', 'approve payment', 'reject payment', 'bank transfer'],
     routePath: '/payment-approvals',
     requiredPermissions: ['payments:approve'],
-    lastReviewed: '2026-10-04',
+    lastReviewed: '2026-10-13',
     relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
     blocks: [
       { type: 'paragraph', text: 'Payment Approvals lists submitted payment proofs with the booking, guest, amount, method and receipt. Each item moves from Submitted to Reviewed once you act on it.' },
@@ -477,6 +477,7 @@ export const ARTICLES_EN: HelpArticle[] = [
       },
       { type: 'callout', tone: 'warning', body: 'Rejected online payments trigger the payment-recovery email flow to the guest — reject only when the proof is genuinely wrong.' },
       { type: 'callout', tone: 'tip', body: 'Work the queue oldest-first: a guest’s check-in can be waiting on your review.' },
+      { type: 'callout', tone: 'important', title: 'Urgent red bar for website bank transfers', body: 'While any guest website bank transfer is waiting, staff who can approve payments see a red bar on every page and a pop-up listing each claim (booking, guest, amount, time submitted, how long it has waited, receipt). It has no close button — it clears only when every claim is resolved. Check the hotel bank account, then use Confirm receipt & approve, or Reject with a reason. Do not leave a claim unanswered: it is released as unpaid automatically.' },
     ],
   },
   {
