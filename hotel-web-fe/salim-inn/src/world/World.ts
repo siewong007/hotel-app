@@ -2,7 +2,7 @@
 // scene state (route draw, pin, dusk lights, door, interior lights, culling).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { Atmosphere } from './Sky';
+import { Atmosphere, CLOUD_ALT } from './Sky';
 import { Ground } from './Ground';
 import { Roads } from './Roads';
 import { FarleyBlocks } from './FarleyBlocks';
@@ -17,6 +17,8 @@ import { Hotspots } from './Hotspots';
 import { StreetLights } from './StreetLights';
 import { CornerCanopy } from './CornerCanopy';
 import { WalkRings } from './WalkRings';
+import { Rain } from './Rain';
+import { NO_WEATHER, type Look } from '../atmosphere';
 import { Lobby } from '../interiors/Lobby';
 import { ReservationCounter } from '../interiors/ReservationCounter';
 import { Corridor } from '../interiors/Corridor';
@@ -75,6 +77,7 @@ const SEEN: Record<string, [number, number][]> = {
   room: [[0.46, 0.56], [0.78, 0.97]],
 };
 const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => p >= a && p <= b);
+const LOOK_KEYS = Object.keys(NO_WEATHER) as (keyof Look)[];
 /** Beyond this (metres from the room's centre) the room seen from outside
  *  drops its en-suite and beds (RoomBuilder.setFar). */
 const ROOM_FAR = 30;
@@ -153,6 +156,12 @@ export class World {
   private downOn = 0;
   /** Debug/calibration: force the time of day (0 golden hour … 1 blue hour). */
   duskOverride: number | null = null;
+  /** The atmosphere as drawn, eased toward `lookTarget` (setAtmosphere). */
+  readonly look: Look = { ...NO_WEATHER };
+  private lookTarget: Look = { ...NO_WEATHER };
+  /** The sky the reflections were last baked from (rebakeSky). */
+  private bakedSky = '';
+  rain!: Rain;
   /** World-y threshold below which the hero's windows are lit. */
   readonly salimLevels = { value: 99 };
 
@@ -224,6 +233,12 @@ export class World {
     this.hotspots = new Hotspots();
     this.walkRings = new WalkRings(POINTS.lobbyDoor);
     s.add(this.route.group, this.hotspots.group, this.walkRings.group);
+    // rain for the atmosphere: none on the low tier or under reduced motion
+    // (the overcast light carries the weather there); a line set, so it is
+    // outside the measured visibility (only meshes are)
+    const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.rain = new Rain(still ? 0 : tier.name === 'high' ? 6000 : tier.name === 'medium' ? 3500 : 0);
+    s.add(this.rain.lines);
 
     // The interior's frame: built after the first frame (buildInterior), but
     // placed now, last in the scene, so its meshes come after the exterior's
@@ -347,11 +362,13 @@ export class World {
    *  first use. Roots holding lights would count them twice: pass lightless
    *  roots (the exterior's, the interior parts' content groups). */
   private compileRoot(renderer: THREE.WebGLRenderer, camera: THREE.Camera, target: THREE.WebGLRenderTarget, root: THREE.Object3D, interiorLights: boolean): Promise<unknown> {
-    const was = this.interior.visible;
+    const was = this.interior.visible, raining = this.rain.lines.visible;
     renderer.setRenderTarget(target);
     this.interior.visible = interiorLights;
+    this.rain.lines.visible = true; // compiled with the rest, though it may never fall
     const done = renderer.compileAsync(root, camera, this.scene);
     this.interior.visible = was;
+    this.rain.lines.visible = raining;
     renderer.setRenderTarget(null);
     return done;
   }
@@ -437,6 +454,7 @@ export class World {
 
   applyTier(t: Tier): void {
     this.atmosphere.setShadowResolution(t.shadowMap);
+    this.rain.enabled = t.name !== 'low';
     this.trees.setFarVisible(t.farTrees && !this.inside);
     this.trees.setLodScale(t.lodScale);
     this.parking.setLodScale(t.lodScale);
@@ -456,8 +474,36 @@ export class World {
     return this.room && p > DOOR_OPEN[1] && p < 0.9 ? this.room.bedCentre(this.subjectAt) : null;
   }
 
+  /** The atmosphere to draw (atmosphere/index.ts). It is eased in over a few
+   *  seconds, so weather and mode changes never cut; `snap` takes it at once
+   *  (the first frame). */
+  setAtmosphere(target: Look, snap = false): void {
+    Object.assign(this.lookTarget, target);
+    if (snap) Object.assign(this.look, target);
+  }
+
+  /** Daylight is brighter than the dusk the chapters' exposures were set for. */
+  exposureScale(): number {
+    return 1 - 0.18 * this.look.day;
+  }
+
+  /** Re-bakes the sky's reflections once the atmosphere has settled on a new
+   *  sky: a few milliseconds, a handful of times a visit at most. True when
+   *  it did (the sun may have moved: DAY lifts it). */
+  rebakeSky(renderer: THREE.WebGLRenderer): boolean {
+    const t = this.lookTarget, l = this.look;
+    for (const k of LOOK_KEYS) if (Math.abs(t[k] - l[k]) > 0.02) return false;
+    const sky = [l.day, l.night, l.cloud, l.rain, l.storm].map((v) => v.toFixed(2)).join(',');
+    if (sky === this.bakedSky) return false;
+    this.bakedSky = sky;
+    this.atmosphere.bakeEnvironment(renderer);
+    return true;
+  }
+
   /** Scene state for timeline progress p. */
   update(p: number, dt: number, camera: THREE.PerspectiveCamera, focus: THREE.Vector3, tier: Tier): void {
+    const ease = 1 - Math.exp(-dt / 0.9); // ~95 % in under 3 s
+    for (const k of LOOK_KEYS) this.look[k] += (this.lookTarget[k] - this.look[k]) * ease;
     this.atmosphere.update(dt, camera, focus);
     this.parking.update(camera.position);
     this.trees.update(camera.position);
@@ -479,12 +525,14 @@ export class World {
     // chapter 7: walking-time rings from the hotel door
     this.walkRings.setProgress(p);
 
-    // dusk: the film runs from golden hour to blue hour
-    const d = this.duskOverride ?? duskAt(p);
+    // dusk: the film runs from golden hour to blue hour, unless a manual
+    // atmosphere pins the hour (DAY, SUNSET, NIGHT); then the weather on top
+    const d = THREE.MathUtils.lerp(this.duskOverride ?? duskAt(p), this.look.duskTo, this.look.pin);
     GLOBAL.uDusk.value = d;
     GLOBAL.uLights.value = THREE.MathUtils.clamp(0.2 + d * 1.35, 0, 1);
     GLOBAL.uTime.value += dt;
     this.atmosphere.setDusk(d);
+    this.atmosphere.setWeather(this.look);
     // indoors the low sun through the entrance glazing drew a hard, bright
     // patch across the lobby wall; the interior is lit by its own lamps.
     // Upstairs it goes out: nothing indoors casts into its map (buildInterior)
@@ -492,6 +540,10 @@ export class World {
     // through the room window unshadowed and lit the wardrobe's chrome pull
     // like a lamp
     const indoors = ramp(p, 0.556, 0.582) * (1 - ramp(p, 0.878, 0.9));
+    // rain falls from the cloud deck down: none round the camera above it
+    // (the opening looks down on the deck), thinning out as it climbs to it
+    const belowCloud = 1 - ramp(camera.position.y, CLOUD_ALT - 300, CLOUD_ALT - 50);
+    this.rain.update(dt, camera, this.look.rain * (1 - indoors) * belowCloud);
     this.atmosphere.sun.intensity *= 1 - (0.85 + 0.15 * ramp(p, 0.72, 0.75)) * indoors;
     // doorway (ch. 4 → 5) and window (ch. 7): the environment dips to nothing,
     // swaps between the dusk sky and the room, and comes back up

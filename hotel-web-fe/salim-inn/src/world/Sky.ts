@@ -9,7 +9,7 @@ import * as THREE from 'three';
 const SUN_AZIMUTH = 262; // compass degrees (the key light, a touch south of west so WNW facades rake)
 const SKY_SUN_ELEVATION = 2.2; // the visible sun disc / glow
 const LIGHT_ELEVATION = 19; // the key light is lifted for readable shadows at golden hour
-const CLOUD_ALT = 1100;
+export const CLOUD_ALT = 1100;
 
 /** The dusk look, golden hour (…0) → blue hour (…1). Mutable so look-dev
  *  renders can try variants (perf/look.ts --variants). */
@@ -19,6 +19,22 @@ export const LOOK = {
   skyI: [1.0, 0.55], envI: [0.8, 0.46],
   fog: [[0.36, 0.32, 0.38], [0.2, 0.19, 0.27]],
 };
+
+/** The sky dome's colours: the art-directed dusk, a clear day (DAY) and an
+ *  overcast lid the weather pulls either toward. */
+type SkyColours = Record<'uZenith' | 'uUpper' | 'uHorizonSun' | 'uHorizonAnti' | 'uBelt' | 'uShadow' | 'uGround' | 'uGlow', number>;
+const DUSK_SKY: SkyColours = { uZenith: 0x1d2c55, uUpper: 0x4f6699, uHorizonSun: 0xf7a86f, uHorizonAnti: 0xa99bb6, uBelt: 0xd9a2a9, uShadow: 0x5b6a92, uGround: 0x7d7887, uGlow: 0xffb775 };
+const DAY_SKY: SkyColours = { uZenith: 0x2f6cc0, uUpper: 0x6a9bd8, uHorizonSun: 0xdfe9f0, uHorizonAnti: 0xc4d6e8, uBelt: 0xc4d6e8, uShadow: 0xb7cbe0, uGround: 0x9aa4a6, uGlow: 0xfff1d6 };
+/** An overcast sky at any hour: grey, its warmth a hint of the hour. */
+const GREY_SKY: SkyColours = { uZenith: 0x4a5160, uUpper: 0x646b78, uHorizonSun: 0x9a948e, uHorizonAnti: 0x868891, uBelt: 0x868891, uShadow: 0x737985, uGround: 0x75777d, uGlow: 0x9a948e };
+/** NIGHT: past the blue hour into a deep emerald-charcoal, no sun left in it. */
+const NIGHT_SKY: SkyColours = { uZenith: 0x0a1716, uUpper: 0x13282a, uHorizonSun: 0x2c3f3b, uHorizonAnti: 0x1f3031, uBelt: 0x1f3031, uShadow: 0x18292b, uGround: 0x1b2625, uGlow: 0x2c3f3b };
+
+const SKY_KEYS = Object.keys(DUSK_SKY) as (keyof SkyColours)[];
+const colours = (c: SkyColours) => Object.fromEntries(SKY_KEYS.map((k) => [k, new THREE.Color(c[k])])) as Record<keyof SkyColours, THREE.Color>;
+
+/** What setWeather reads (atmosphere/index.ts Look, eased by World). */
+export interface WeatherLook { day: number; night: number; cloud: number; rain: number; storm: number; haze: number }
 
 function dirFrom(azimuthDeg: number, elevationDeg: number): THREE.Vector3 {
   const az = THREE.MathUtils.degToRad(azimuthDeg);
@@ -77,6 +93,17 @@ export class Atmosphere {
   private shadowSize = 120;
   private tmpC = new THREE.Color();
   private scene: THREE.Scene;
+  /** The key light's elevation setDusk chose (setWeather lifts it by day). */
+  private duskEl = LIGHT_ELEVATION;
+  /** The haze's density × this (setWeather; update applies it). */
+  private fogMul = 1;
+  private envRT: THREE.WebGLRenderTarget | null = null;
+  private palette = {
+    dusk: colours(DUSK_SKY),
+    day: colours(DAY_SKY),
+    grey: colours(GREY_SKY),
+    night: colours(NIGHT_SKY),
+  };
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -88,14 +115,14 @@ export class Atmosphere {
       fog: false,
       uniforms: {
         uSunDir: { value: dirFrom(SUN_AZIMUTH + 3, SKY_SUN_ELEVATION) },
-        uZenith: { value: col(0x1d2c55) },
-        uUpper: { value: col(0x4f6699) },
-        uHorizonSun: { value: col(0xf7a86f) },
-        uHorizonAnti: { value: col(0xa99bb6) },
-        uBelt: { value: col(0xd9a2a9) },
-        uShadow: { value: col(0x5b6a92) },
-        uGround: { value: col(0x7d7887) },
-        uGlow: { value: col(0xffb775) },
+        uZenith: { value: col(DUSK_SKY.uZenith) },
+        uUpper: { value: col(DUSK_SKY.uUpper) },
+        uHorizonSun: { value: col(DUSK_SKY.uHorizonSun) },
+        uHorizonAnti: { value: col(DUSK_SKY.uHorizonAnti) },
+        uBelt: { value: col(DUSK_SKY.uBelt) },
+        uShadow: { value: col(DUSK_SKY.uShadow) },
+        uGround: { value: col(DUSK_SKY.uGround) },
+        uGlow: { value: col(DUSK_SKY.uGlow) },
         uIntensity: { value: 1.0 },
       },
       vertexShader: SKY_VERT,
@@ -135,6 +162,9 @@ export class Atmosphere {
         uSunDir: { value: this.sunDir.clone() },
         uCam: { value: new THREE.Vector3() },
         uOpacity: { value: 1 },
+        uCover: { value: 0 },
+        uGrey: { value: 0 },
+        uDim: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vWorld;
@@ -144,7 +174,7 @@ export class Atmosphere {
           gl_Position = projectionMatrix * viewMatrix * w;
         }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime; uniform vec3 uSunDir; uniform vec3 uCam; uniform float uOpacity;
+        uniform float uTime; uniform vec3 uSunDir; uniform vec3 uCam; uniform float uOpacity; uniform float uCover; uniform float uGrey; uniform float uDim;
         varying vec3 vWorld;
         float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
         float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
@@ -154,7 +184,8 @@ export class Atmosphere {
           vec2 q = vWorld.xz * 0.0011 + vec2(uTime * 0.006, uTime * 0.002);
           vec2 warp = vec2(fbm(q + 3.1), fbm(q + 7.9));
           float n = fbm(q + warp * 1.4);
-          float cover = smoothstep(0.58, 0.82, n);
+          // a sparse dusk deck; cloud closes it into an overcast lid
+          float cover = smoothstep(mix(0.58, 0.16, uCover), mix(0.82, 0.6, uCover), n);
           float dcam = length(vWorld - uCam);
           float farFade = 1.0 - smoothstep(3500.0, 9000.0, dcam);
           float hole = smoothstep(700.0, 1800.0, length(vWorld.xz - vec2(40.0, -60.0)));
@@ -165,6 +196,8 @@ export class Atmosphere {
           vec3 warm = vec3(1.0, 0.78, 0.6);
           vec3 cool = vec3(0.66, 0.62, 0.74);
           vec3 col = mix(cool, warm, 0.35 + 0.65 * thick) * 1.15;
+          col = mix(col, vec3(0.52, 0.54, 0.58) * (0.8 + 0.3 * thick), uGrey);
+          col *= 1.0 - uDim; // a storm's heavy deck, or no sun left to light it
           gl_FragColor = vec4(col, a);
           #include <colorspace_fragment>
         }`,
@@ -183,6 +216,7 @@ export class Atmosphere {
     const L = THREE.MathUtils.lerp;
     const k = LOOK;
     const el = L(k.sunEl[0], k.sunEl[1], d);
+    this.duskEl = el;
     this.sunDir.copy(dirFrom(SUN_AZIMUTH, el));
     this.sun.intensity = L(k.sunI[0], k.sunI[1], d);
     this.sun.color.setRGB(1, L(k.sunG[0], k.sunG[1], d), L(k.sunB[0], k.sunB[1], d));
@@ -196,21 +230,69 @@ export class Atmosphere {
     this.scene.environmentIntensity = L(k.envI[0], k.envI[1], d);
   }
 
-  /** Bake the sky into a prefiltered environment for PBR reflections. */
+  /** Lays the atmosphere over the dusk setDusk has just set (every frame,
+   *  after it): DAY's daylight, NIGHT's deeper night, and the weather —
+   *  cloud veils the sun, softens its shadows and greys the sky; rain and
+   *  storm dim it further; haze thickens the air near the ground. */
+  setWeather(w: WeatherLook): void {
+    const L = THREE.MathUtils.lerp;
+    const grey = Math.min(1, w.cloud * 0.85 + w.rain * 0.1 + w.storm * 0.1);
+    const u = this.skyMat.uniforms;
+    for (const k of SKY_KEYS) {
+      const c = u[k].value as THREE.Color;
+      c.copy(this.palette.dusk[k]).lerp(this.palette.day[k], w.day).lerp(this.palette.night[k], w.night).lerp(this.palette.grey[k], grey * (1 - 0.6 * w.night));
+    }
+    (u.uGlow.value as THREE.Color).multiplyScalar(1 - 0.92 * grey); // no sun disc through cloud
+    u.uIntensity.value = L(u.uIntensity.value, 1, w.day) * (1 - 0.12 * w.cloud - 0.15 * w.rain - 0.25 * w.storm) * (1 - 0.35 * w.night);
+    if (w.day > 0) {
+      // a high afternoon sun, white rather than gold
+      const el = L(this.duskEl, 58, w.day);
+      this.sunDir.copy(dirFrom(SUN_AZIMUTH, el));
+      u.uSunDir.value.copy(dirFrom(SUN_AZIMUTH + 3, el));
+      this.sun.color.lerp(this.tmpC.setRGB(1, 0.96, 0.9), w.day);
+      this.sun.intensity = L(this.sun.intensity, 4.4, w.day);
+    }
+    this.sun.color.lerp(this.tmpC.setRGB(0.92, 0.93, 0.95), w.cloud * 0.6).lerp(this.tmpC.setRGB(0.7, 0.84, 0.86), w.night); // moonlight
+    this.sun.intensity *= (1 - 0.78 * w.cloud) * (1 - 0.35 * w.storm) * (1 - 0.7 * w.night);
+    this.sun.shadow.intensity = 1 - 0.7 * Math.min(1, w.cloud + 0.2 * w.rain);
+    this.hemi.color.lerp(this.tmpC.setRGB(0.72, 0.8, 0.95), w.day).lerp(this.tmpC.setRGB(0.38, 0.52, 0.52), w.night).lerp(this.tmpC.setRGB(0.62, 0.65, 0.7), grey * 0.7);
+    this.hemi.groundColor.lerp(this.tmpC.setHex(0x5f5a48), w.day).lerp(this.tmpC.setHex(0x22302c), w.night);
+    // cloud trades the sun for a brighter, even sky light
+    this.hemi.intensity = L(this.hemi.intensity, 1.25, w.day) * (1 + 0.3 * w.cloud) * (1 - 0.15 * w.rain - 0.25 * w.storm) * (1 - 0.1 * w.night);
+    this.fog.color.lerp(this.tmpC.setRGB(0.66, 0.74, 0.84), w.day).lerp(this.tmpC.setRGB(0.08, 0.12, 0.12), w.night).lerp(this.tmpC.setRGB(0.42, 0.44, 0.47), grey * 0.8 * (1 - 0.6 * w.night));
+    this.fogMul = (1 - 0.15 * w.day) * (1 + 1.4 * w.haze + 0.6 * w.rain);
+    this.scene.environmentIntensity = L(this.scene.environmentIntensity, 0.95, w.day) * (1 - 0.15 * w.cloud) * (1 - 0.25 * w.night);
+    this.cloudMat.uniforms.uCover.value = Math.min(1, w.cloud * 1.1);
+    this.cloudMat.uniforms.uGrey.value = grey;
+    this.cloudMat.uniforms.uDim.value = Math.min(0.85, 0.45 * w.storm + 0.15 * w.rain + 0.72 * w.night);
+  }
+
+  /** Bake the sky into a prefiltered environment for PBR reflections (again
+   *  whenever the atmosphere settles on a new sky; World.rebake). */
   bakeEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
     const mat = this.skyMat.clone();
     mat.depthTest = true;
+    // at the sky's own brightness: cloud and night dim the reflections through
+    // the environment's intensity instead (setDusk, setWeather)
+    mat.uniforms.uIntensity.value = 1;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), mat);
     envScene.add(dome);
     const rt = pmrem.fromScene(envScene, 0.02, 0.1, 1000);
     pmrem.dispose();
     dome.geometry.dispose();
     mat.dispose();
+    const old = this.envRT;
+    this.envRT = rt;
     this.envMap = rt.texture;
-    this.scene.environment = rt.texture;
-    this.scene.environmentIntensity = 0.7;
+    if (!old) {
+      this.scene.environment = rt.texture;
+      this.scene.environmentIntensity = 0.7;
+    } else {
+      if (this.scene.environment === old.texture) this.scene.environment = rt.texture;
+      old.dispose();
+    }
     return rt.texture;
   }
 
@@ -249,7 +331,7 @@ export class Atmosphere {
     // Haze: denser near the ground, where the views are short and need the
     // depth cue; thinner from high up, where the sight lines run for kilometres.
     const h = camera.position.y;
-    this.fog.density = THREE.MathUtils.lerp(0.00024, 0.000115, THREE.MathUtils.smoothstep(h, 40, 900));
+    this.fog.density = THREE.MathUtils.lerp(0.00024, 0.000115, THREE.MathUtils.smoothstep(h, 40, 900)) * this.fogMul;
     // Cloud deck: full above it, dissolving as the camera passes through.
     const gap = Math.abs(h - CLOUD_ALT);
     this.cloudMat.uniforms.uOpacity.value = THREE.MathUtils.smoothstep(gap, 60, 260) * THREE.MathUtils.smoothstep(h, 300, 700);

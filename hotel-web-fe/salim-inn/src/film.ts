@@ -23,6 +23,9 @@ import { ROOM_VIEWS, viewToWorld } from './interiors/roomViews';
 import { ROOM_ORDER } from './interiors/roomLayouts';
 import { dishes, neighbourhoodTitle, places } from './data/neighbourhood';
 import { copy } from './content';
+import { atmosphere, type Sky } from './atmosphere';
+
+const SKIES: readonly Sky[] = ['clear', 'partly', 'overcast', 'fog', 'lightRain', 'rain', 'heavyRain', 'thunder'];
 import type { BuildStep } from './content/en';
 import { placeAnchor } from './world/placeAnchors';
 import { POINTS } from './world/layout';
@@ -219,6 +222,15 @@ async function boot(): Promise<void> {
     renderer.gl.shadowMap.needsUpdate = true;
   };
 
+  // The atmosphere (atmosphere/index.ts): Sibu's weather over the scripted
+  // dusk, or the visitor's chosen mode — taken at once for the first frame,
+  // eased in by the world after that. perf/ tooling can ask for a sky's look
+  // (?debug=1&wxlook=heavyRain) while the header keeps the real reading.
+  const lookAs = DEBUG ? params.get('wxlook') : null;
+  if (lookAs && SKIES.includes(lookAs as Sky)) atmosphere.lookAs = lookAs as Sky;
+  world.setAtmosphere(atmosphere.look(), true);
+  atmosphere.subscribe((s) => world.setAtmosphere(s.look));
+
   // Precompile every material before the preloader leaves (no first-use hitches).
   pre.set(0.84, copy.preloader.warming);
   rig.update(0, 0);
@@ -249,9 +261,10 @@ async function boot(): Promise<void> {
     rig.subject = world.subject(p);
     rig.update(p, 1 / 60);
     world.update(p, 1 / 60, camera, rig.lookTarget, tier);
-    renderer.gl.toneMappingExposure = timeline.exposure();
+    renderer.gl.toneMappingExposure = timeline.exposure() * world.exposureScale();
     post.setDof(dofWeight(p), rig.focus);
     post.setSplit(gradeSplit(p));
+    post.setWeather(world.look.cloud, world.look.rain);
   };
   // Start-up calibration (brief §8 tiers): detect-gpu names a tier from a
   // benchmark table; before the preloader leaves, that tier is timed on the
@@ -403,8 +416,12 @@ async function boot(): Promise<void> {
     rig.subject = world.subject(p);
     rig.update(p, dt, idle);
     world.update(p, dt, camera, rig.lookTarget, tier);
+    // a settled new sky: its reflections re-baked, and the sun's shadows
+    // redrawn once (the low tier keeps its map otherwise)
+    if (world.rebakeSky(renderer.gl)) renderer.gl.shadowMap.needsUpdate = true;
+    post.setWeather(world.look.cloud, world.look.rain);
     nb.update(camera, p, innerWidth, innerHeight, { centre: POINTS.lobbyDoor, radii: world.walkRings.radii, look: rig.lookTarget });
-    renderer.gl.toneMappingExposure = timeline.exposure();
+    renderer.gl.toneMappingExposure = timeline.exposure() * world.exposureScale();
     const h = camera.position.y;
     post.setAORadius(h > 150 ? 8 : h > 20 ? 3.2 : p > 0.56 && p < 0.9 ? 0.7 : 1.6);
     post.setDof(dofWeight(p), rig.focus);
