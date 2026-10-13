@@ -290,6 +290,8 @@
         "missingToken": "Token tidak sah atau tiada"
       },
       "identityNeedsAccount": "Mengesahkan identiti anda sebelum ketibaan memerlukan akaun. Anda masih boleh mendaftar masuk di kaunter hadapan.",
+      "identityNeedsSignIn": "Mengesahkan identiti sebelum ketibaan memerlukan anda log masuk. Anda sudah mempunyai akaun untuk tempahan ini — log masuk, kemudian kembali ke pautan ini. Anda masih boleh daftar masuk di kaunter hadapan.",
+      "signIn": "Log masuk",
       "loading": "Memuatkan...",
       "payment": {
         "notRequiredSubtitle": "Pembayaran tidak diperlukan untuk tempahan ini sekarang.",

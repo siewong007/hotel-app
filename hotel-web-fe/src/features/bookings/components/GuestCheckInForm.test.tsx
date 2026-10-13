@@ -14,6 +14,16 @@ const mocks = vi.hoisted(() => ({
   captureBookingAccessToken: vi.fn(),
   getValidPortalToken: vi.fn(),
   setPortalToken: vi.fn(),
+  auth: { isAuthenticated: false, user: null as null | { user_type: string } },
+  bootstrapToken: null as string | null,
+}));
+
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => mocks.auth,
+}));
+
+vi.mock('../../guestPortal/hooks/usePortalSessionBootstrap', () => ({
+  usePortalSessionBootstrap: () => ({ token: mocks.bootstrapToken }),
 }));
 
 vi.mock('../../../router', () => ({
@@ -81,6 +91,8 @@ describe('GuestCheckInForm', () => {
     mocks.searchParams = new URLSearchParams();
     mocks.captureBookingAccessToken.mockReturnValue('tok-abc');
     mocks.getValidPortalToken.mockReturnValue(null);
+    mocks.auth = { isAuthenticated: false, user: null };
+    mocks.bootstrapToken = null;
   });
 
   afterEach(() => {
@@ -270,6 +282,37 @@ describe('GuestCheckInForm', () => {
     const identity = await screen.findByTestId('identity-section');
     expect(identity.getAttribute('data-token')).toBe('existing-portal-tok');
     expect(screen.queryByRole('heading', { name: 'Create your account' })).toBeNull();
+  });
+
+  it('uses the signed-in guest account instead of asking them to register again', async () => {
+    // New tab from the emailed link: nothing in sessionStorage, but the guest
+    // is signed in (e.g. Google) and the account login bootstraps a session.
+    mocks.auth = { isAuthenticated: true, user: { user_type: 'guest' } };
+    mocks.bootstrapToken = 'bootstrapped-portal-tok';
+    mocks.getBooking.mockResolvedValue({ ...PAID_BOOKING, has_account: true });
+
+    render(<GuestCheckInForm />);
+
+    expect(await screen.findByRole('heading', { name: 'Your details' })).toBeTruthy();
+    expect(screen.queryByText('Account')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+
+    const identity = await screen.findByTestId('identity-section');
+    expect(identity.getAttribute('data-token')).toBe('bootstrapped-portal-tok');
+    expect(screen.queryByRole('heading', { name: 'Create your account' })).toBeNull();
+  });
+
+  it('hides the account step and offers sign-in when the guest already has a login', async () => {
+    mocks.getBooking.mockResolvedValue({ ...PAID_BOOKING, has_account: true });
+
+    render(<GuestCheckInForm />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }));
+
+    expect(screen.queryByRole('heading', { name: 'Create your account' })).toBeNull();
+    expect(screen.queryByTestId('identity-section')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/login');
   });
 
   it('shows why check-in is not open yet on the final step', async () => {

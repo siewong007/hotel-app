@@ -293,6 +293,8 @@
         "missingToken": "Invalid or missing token"
       },
       "identityNeedsAccount": "Verifying your identity before arrival needs an account. You can still check in at the front desk.",
+      "identityNeedsSignIn": "Verifying your identity before arrival needs you to sign in. You already have an account for this booking — sign in, then come back to this link. You can still check in at the front desk.",
+      "signIn": "Sign in",
       "loading": "Loading...",
       "payment": {
         "notRequiredSubtitle": "Payment is not required for this booking right now.",

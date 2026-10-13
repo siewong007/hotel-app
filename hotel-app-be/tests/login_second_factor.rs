@@ -501,3 +501,33 @@ async fn passkey_second_factor_token_expires() {
     ));
     cleanup(&pool, user_id).await;
 }
+
+/// A passwordless (Google sign-in) account answers a password login with a
+/// clear 401 rather than a 500 from decoding the NULL hash, and the refusal
+/// does not count toward lockout.
+#[tokio::test]
+async fn passwordless_account_password_login_is_401_not_500() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let user_id = 982_008;
+    upsert_user(&pool, user_id, false).await;
+    sqlx::query("UPDATE users SET password_hash = NULL WHERE id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        AuthRepository::password_hash(&pool, user_id).await.unwrap(),
+        None
+    );
+    match login(&pool, user_id, None).await {
+        Err(ApiError::Unauthorized(message)) => {
+            assert_eq!(message, auth_service::GOOGLE_SIGN_IN_ONLY_MESSAGE)
+        }
+        other => panic!("expected 401, got {:?}", other.map(|_| ())),
+    }
+    assert_eq!(failed_attempts(&pool, user_id).await, (0, false));
+    cleanup(&pool, user_id).await;
+}

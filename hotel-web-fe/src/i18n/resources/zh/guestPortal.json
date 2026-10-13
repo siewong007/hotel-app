@@ -293,6 +293,8 @@
         "missingToken": "令牌无效或缺失"
       },
       "identityNeedsAccount": "到店前完成身份验证需要账户。您仍可照常到前台办理入住。",
+      "identityNeedsSignIn": "到店前完成身份验证需要先登录。您已有此预订的账户——请先登录，再返回此链接。您仍可照常到前台办理入住。",
+      "signIn": "登录",
       "loading": "加载中…",
       "payment": {
         "notRequiredSubtitle": "此预订目前无需付款。",
