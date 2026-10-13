@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite';
 import { resolve } from 'node:path';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
@@ -20,6 +20,15 @@ const DEFAULT_BACKEND_TARGET = 'http://127.0.0.1:3030';
 // /hotel.rooms.v1.RoomService/ListRooms) — gRPC lives at the router root, not
 // under /api. The trailing dot keeps it from swallowing /hotel-doc pages etc.
 const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws', '/hotel.'];
+
+// The landing's weather (salim-inn/src/atmosphere/weather.ts): MET Norway's
+// forecast for the hotel. nginx.conf serves it in production from a cache that
+// follows MET's Expires; in dev it goes straight to MET. KEEP IN SYNC with
+// nginx.conf's `location = /salim-inn/weather.json` (path and User-Agent: MET's
+// terms ask for one that identifies the site).
+const WEATHER_PATH = '/salim-inn/weather.json';
+const MET_PATH = '/weatherapi/locationforecast/2.0/compact?lat=2.2655&lon=111.8625';
+const MET_USER_AGENT = 'SalimInn/1.0 https://saliminn.my';
 
 function guestHtmlFallback(): Plugin {
   const rewrite = (url: string | undefined): string | undefined => {
@@ -76,10 +85,11 @@ export default defineConfig(({ mode, command }) => {
   // port is already occupied (for example by an older container) to direct
   // Vite at the backend they actually started without changing source.
   const backendTarget = env.VITE_BACKEND_TARGET || env.VITE_API_URL || DEFAULT_BACKEND_TARGET;
-  const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [
+  const proxy: Record<string, ProxyOptions> = Object.fromEntries(PROXY_PREFIXES.map((path) => [
     path,
     { target: backendTarget, ws: path === '/api' || path === '/ws' },
   ]));
+  proxy[WEATHER_PATH] = { target: 'https://api.met.no', changeOrigin: true, rewrite: () => MET_PATH, headers: { 'User-Agent': MET_USER_AGENT } };
 
   return {
     plugins: [

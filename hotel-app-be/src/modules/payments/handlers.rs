@@ -193,6 +193,15 @@ pub async fn list_pending_payments_handler(
     ))
 }
 
+/// Staff: guest bank-transfer claims awaiting approval (urgent alert feed).
+pub async fn list_urgent_bank_transfer_claims_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<PendingPaymentPage>, ApiError> {
+    Ok(Json(
+        service::list_urgent_bank_transfer_claims(&pool).await?,
+    ))
+}
+
 pub async fn list_payment_approval_history_handler(
     State(pool): State<DbPool>,
     Query(query): Query<PendingPaymentsQuery>,

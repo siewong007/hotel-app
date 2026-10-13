@@ -30,6 +30,33 @@ export interface Copy {
   account: { signIn: string; myAccount: string; adminConsole: string; bookAnotherStay: string };
   /** Language picker aria-label. Option names are native labels — never translated. */
   lang: { aria: string };
+  /** The top bar's weather chip and its panel (ui/WeatherChip.ts). The values
+   *  come from MET Norway's forecast; these are only the words around them. */
+  weather: {
+    place: string;
+    /** The panel's title. */
+    region: string;
+    /** Read after the chip's visible text (its accessible name). */
+    hint: string;
+    loading: string;
+    unavailable: string;
+    cloud: string;
+    rain: string;
+    sunrise: string;
+    sunset: string;
+    localTime: string;
+    /** {{from}}–{{to}}: the forecast's hour the panel shows, Sibu time. */
+    forecastFor: string;
+    /** The credit MET Norway's licence asks for: {{met}} becomes the link to
+     *  MET Norway, {{licence}} the link to CC BY 4.0. */
+    source: string;
+    /** The atmosphere selector's legend and note. */
+    atmosphere: string;
+    atmosphereHint: string;
+    close: string;
+    modes: { auto: string; day: string; sunset: string; night: string; rain: string };
+    sky: { clear: string; partly: string; overcast: string; fog: string; lightRain: string; rain: string; heavyRain: string; thunder: string };
+  };
   preloader: {
     loading: string;
     warming: string;
@@ -284,6 +311,25 @@ export const en: Copy = {
     bookAnotherStay: 'Book another stay',
   },
   lang: { aria: 'Language' },
+  weather: {
+    place: 'Sibu',
+    region: 'Sibu, Sarawak',
+    hint: '— weather and atmosphere',
+    loading: 'Checking the weather in Sibu…',
+    unavailable: 'The weather in Sibu isn’t available just now.',
+    cloud: 'Cloud cover',
+    rain: 'Rain this hour',
+    sunrise: 'Sunrise',
+    sunset: 'Sunset',
+    localTime: 'Local time',
+    forecastFor: 'Forecast for {{from}}–{{to}}',
+    source: 'Weather data from {{met}} ({{licence}}), summarised',
+    atmosphere: 'Atmosphere',
+    atmosphereHint: 'Auto follows Sibu’s weather. The other modes change only how the film looks.',
+    close: 'Close',
+    modes: { auto: 'Auto', day: 'Day', sunset: 'Sunset', night: 'Night', rain: 'Rain' },
+    sky: { clear: 'Clear', partly: 'Partly cloudy', overcast: 'Overcast', fog: 'Fog', lightRain: 'Light rain', rain: 'Rain', heavyRain: 'Heavy rain', thunder: 'Thunderstorm' },
+  },
   preloader: {
     loading: 'Loading the neighbourhood',
     warming: 'Warming up the lights',

@@ -8,6 +8,7 @@ import { AppSidebar } from '../components/layout/sidebar/AppSidebar';
 import { AppTopbar } from '../components/layout/AppTopbar';
 import { MobileNavBar } from '../components/layout/MobileNavBar';
 import { MobileQuickActions } from '../components/layout/MobileQuickActions';
+import { UrgentTransferAlert } from '../features/admin/components/UrgentTransferAlert';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
 import { BootSplash, LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
@@ -157,7 +158,12 @@ export const RootLayout: React.FC = () => {
       <CommandPaletteProvider>
         <AppSidebar />
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <AppTopbar />
+          {/* Urgent guest bank-transfer bar rides on top of the topbar and
+              sticks with it: it has no close control by design. */}
+          <Box sx={{ position: 'sticky', top: 0, zIndex: (theme) => theme.zIndex.appBar + 1 }}>
+            <UrgentTransferAlert />
+            <AppTopbar />
+          </Box>
           <Container
             component="main"
             maxWidth="xl"

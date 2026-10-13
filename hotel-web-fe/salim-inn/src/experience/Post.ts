@@ -181,6 +181,13 @@ export class Post {
     if (u.value !== v) u.value = v;
   }
 
+  /** Cloud and rain take a little colour out of the grade (atmosphere look). */
+  setWeather(cloud: number, rain: number): void {
+    const u = this.grade.uniforms.get('uSat')!;
+    const v = 1.2 * (1 - 0.12 * cloud - 0.06 * rain);
+    if (Math.abs(u.value - v) > 1e-4) u.value = v;
+  }
+
   /** Scale AO to the shot: metres-wide contact shading on the street,
    *  finer in the rooms. */
   setAORadius(r: number): void {

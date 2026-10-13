@@ -66,6 +66,10 @@ pub fn routes() -> Router<DbPool> {
         // Guest-payment claim review queue (staff)
         .route("/admin/payments/pending", get(list_pending_payments))
         .route(
+            "/admin/payments/urgent-claims",
+            get(list_urgent_bank_transfer_claims),
+        )
+        .route(
             "/admin/payments/history",
             get(list_payment_approval_history),
         )
@@ -270,6 +274,16 @@ async fn list_pending_payments(
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::list_pending_payments_handler(State(pool), query).await
+}
+
+/// Gated on `payments:approve`: the alert is for the staff who can resolve
+/// it (reception/admin), not every `payments:read` holder.
+async fn list_urgent_bank_transfer_claims(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<models::PendingPaymentPage>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
+    handlers::list_urgent_bank_transfer_claims_handler(State(pool)).await
 }
 
 async fn list_payment_approval_history(

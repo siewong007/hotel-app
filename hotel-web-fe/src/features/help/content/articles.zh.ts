@@ -462,7 +462,7 @@ export const ARTICLES_ZH: HelpArticle[] = [
     keywords: ['付款审批', '收据', '付款凭证', '批准付款', '拒绝付款', '银行转账'],
     routePath: '/payment-approvals',
     requiredPermissions: ['payments:approve'],
-    lastReviewed: '2026-10-04',
+    lastReviewed: '2026-10-13',
     relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
     blocks: [
       { type: 'paragraph', text: '“付款审批”列出已提交的付款凭证及其预订、客人、金额、方式和收据。每个条目在您处理后从“已提交”变为“已审核”。' },
@@ -476,6 +476,7 @@ export const ARTICLES_ZH: HelpArticle[] = [
       },
       { type: 'callout', tone: 'warning', body: '拒绝线上付款会触发发给客人的付款挽回邮件流程——只在凭证确实有误时拒绝。' },
       { type: 'callout', tone: 'tip', body: '按提交时间从旧到新处理队列：客人的入住可能正等着您的审核。' },
+      { type: 'callout', tone: 'important', title: '网站银行转账的紧急红色提示栏', body: '只要有客人通过网站提交的银行转账在等待，拥有付款批准权限的员工会在每个页面看到红色提示栏，并弹出列出每笔申请的窗口（订单、客人、金额、提交时间、已等待时长、收据）。它没有关闭按钮——只有所有申请都处理完毕后才会消失。请先核对酒店银行账户，然后点击“确认收款并批准”，或填写原因“拒绝”。不要让申请无人处理：它会被自动作为未付款释放。' },
     ],
   },
   {

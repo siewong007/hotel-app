@@ -459,7 +459,7 @@ export const ARTICLES_MS: HelpArticle[] = [
     keywords: ['kelulusan bayaran', 'resit', 'bukti bayaran', 'lulus bayaran', 'tolak bayaran', 'pindahan bank'],
     routePath: '/payment-approvals',
     requiredPermissions: ['payments:approve'],
-    lastReviewed: '2026-10-05',
+    lastReviewed: '2026-10-13',
     relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
     blocks: [
       { type: 'paragraph', text: 'Kelulusan Pembayaran menyenaraikan bukti bayaran yang diserahkan bersama tempahan, tetamu, jumlah, kaedah dan resit. Setiap item berpindah dari Dihantar ke Disemak sebaik sahaja anda bertindak.' },
@@ -473,6 +473,7 @@ export const ARTICLES_MS: HelpArticle[] = [
       },
       { type: 'callout', tone: 'warning', body: 'Bayaran dalam talian yang ditolak mencetuskan aliran e-mel pemulihan bayaran kepada tetamu — tolak hanya apabila bukti benar-benar salah.' },
       { type: 'callout', tone: 'tip', body: 'Selesaikan giliran yang paling lama dahulu: daftar masuk tetamu mungkin menunggu semakan anda.' },
+      { type: 'callout', tone: 'important', title: 'Bar merah segera untuk pindahan bank laman web', body: 'Selagi ada pindahan bank tetamu dari laman web yang menunggu, kakitangan yang boleh meluluskan bayaran melihat bar merah di setiap halaman dan tetingkap timbul yang menyenaraikan setiap tuntutan (tempahan, tetamu, amaun, masa dihantar, tempoh menunggu, resit). Tiada butang tutup — ia hilang hanya apabila semua tuntutan diselesaikan. Semak akaun bank hotel, kemudian gunakan Sahkan penerimaan & luluskan, atau Tolak dengan sebab. Jangan biarkan tuntutan tidak dijawab: ia akan dilepaskan secara automatik sebagai belum dibayar.' },
     ],
   },
   {

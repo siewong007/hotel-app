@@ -11,6 +11,8 @@ import { lang, ready } from './content';
 import { selectLang, type LangCode } from './content/lang';
 import { applyCopy } from './applyCopy';
 import { watchPlayFit } from './ui/headerFit';
+import { atmosphere, MODES, type Mode } from './atmosphere';
+import { mountWeatherChip } from './ui/WeatherChip';
 
 // The page's copy in the visitor's language before anything else runs (the
 // English static HTML stays the no-JS and crawler baseline; applyCopy.ts).
@@ -26,10 +28,17 @@ if (picker) {
 // Play film in the top bar only while its row has room (ui/headerFit.ts)
 watchPlayFit();
 
+// Sibu's weather in the top bar, with the atmosphere selector (ui/WeatherChip.ts).
+// A shared ?atmo=night link shows that atmosphere for this visit only.
+const atmo = new URLSearchParams(location.search).get('atmo');
+if (atmo && (MODES as readonly string[]).includes(atmo)) atmosphere.setMode(atmo as Mode, false);
+copied.then(() => mountWeatherChip(atmosphere));
+
 let started = false;
 const start = () => {
   if (started) return;
   started = true;
+  atmosphere.start(); // the weather request waits for the first paint too
   copied.then(() => import('./film')).catch((err: unknown) => {
     // no film (offline mid-load, a blocked chunk): the poster and the page's
     // own sections stay, and the preloader steps aside

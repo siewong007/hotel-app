@@ -974,5 +974,21 @@
       "uptimeHours": "{{hours}}h {{minutes}}m",
       "uptimeMinutes": "{{minutes}}m"
     }
+  },
+  "urgentTransfer": {
+    "banner": "URGENT: {{count}} guest bank transfer(s) waiting for receipt confirmation. Check the bank account and approve or reject now — unanswered claims are auto-released as unpaid.",
+    "review": "Review now",
+    "title": "Urgent: guest bank transfers awaiting confirmation ({{count}})",
+    "explain": "Guests paid by bank transfer on the website and are waiting. Confirm the money has arrived in the hotel account, then approve — or reject with a reason. This alert stays on every page until every claim is resolved.",
+    "submitted": "Submitted",
+    "waiting": "Waiting",
+    "waitingMinutes": "{{minutes}} min",
+    "waitingHours": "{{hours}} h {{minutes}} min",
+    "waitingDays": "{{days}} d {{hours}} h",
+    "viewReceipt": "View receipt",
+    "noReceipt": "No receipt uploaded",
+    "confirmApprove": "Confirm receipt & approve",
+    "minimise": "Minimise",
+    "minimiseHint": "The red bar stays until all claims are resolved."
   }
 }

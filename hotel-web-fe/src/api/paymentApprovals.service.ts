@@ -33,6 +33,15 @@ export class PaymentApprovalsService {
     );
   }
 
+  /**
+   * Every guest bank-transfer claim still awaiting a staff decision, oldest
+   * first. Feeds reception's non-dismissable urgent alert; gated on
+   * `payments:approve` server-side.
+   */
+  static async listUrgentClaims(): Promise<PendingPaymentPage> {
+    return await api.get('admin/payments/urgent-claims').json<PendingPaymentPage>();
+  }
+
   static async listHistory(params: { page?: number; perPage?: number } = {}): Promise<PendingPaymentPage> {
     const searchParams: Record<string, string> = {};
     if (params.page !== undefined) searchParams.page = String(params.page);

@@ -953,5 +953,21 @@
       "uptimeHours": "{{hours}}小时 {{minutes}}分钟",
       "uptimeMinutes": "{{minutes}}分钟"
     }
+  },
+  "urgentTransfer": {
+    "banner": "紧急：{{count}} 笔客人银行转账等待确认收款。请立即核对银行账户并批准或拒绝——未处理的申请将自动作为未付款释放。",
+    "review": "立即处理",
+    "title": "紧急：客人银行转账待确认（{{count}}）",
+    "explain": "客人已在网站上通过银行转账付款并正在等待。请确认款项已到达酒店账户后批准，或填写原因拒绝。在所有申请处理完毕前，此提醒会显示在每个页面上。",
+    "submitted": "提交时间",
+    "waiting": "已等待",
+    "waitingMinutes": "{{minutes}} 分钟",
+    "waitingHours": "{{hours}} 小时 {{minutes}} 分钟",
+    "waitingDays": "{{days}} 天 {{hours}} 小时",
+    "viewReceipt": "查看收据",
+    "noReceipt": "未上传收据",
+    "confirmApprove": "确认收款并批准",
+    "minimise": "最小化",
+    "minimiseHint": "在所有申请处理完毕前，红色提示栏会一直显示。"
   }
 }
