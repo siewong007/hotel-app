@@ -11,11 +11,11 @@ import { floorFootprint } from './interiors/roomProps';
 import { ROOM_VIEWS } from './interiors/roomViews';
 import { BACK_DOORS, DOOR_W, FRONT_DOORS, PASSAGE_X, SHOWCASE_NUMBER, landingPlates, roomRanges } from './interiors/Corridor';
 import { PLAN } from './world/SalimInnBuilding';
-import { FLOOR_Y } from './config/dimensions';
+import { DIM, FLOOR_Y } from './config/dimensions';
 import { FRONT_DESK_FACTS, SITE } from './config/site';
 import { en } from './content/en';
 import { PATH } from './experience/cameraPath';
-import { salimFrame, SALIM_WIDTH } from './world/layout';
+import { salimFrame } from './world/layout';
 
 interface Rect { x0: number; x1: number; z0: number; z1: number; name: string }
 
@@ -145,29 +145,42 @@ describe('level-1 corridor (brief §4.5)', () => {
   });
 });
 
-describe('reception and stair (the owner’s photos, 2 Oct 2026, and walk-through video, 12 Oct 2026)', () => {
-  it('sets the reception against the frontage beside the entrance, its counter facing into the lobby', () => {
+describe('reception and stair (the owner’s photos, 2 Oct 2026, walk-through video, 12 Oct 2026, and placement, 13 Oct 2026)', () => {
+  it('sets the reception in the right-hand wall beside the entrance, its counter facing across the lobby', () => {
     const { lobby, door, reception: r, counter: c } = PLAN;
-    expect(r.z0).toBe(lobby.z1); // the frontage's inner face
-    expect(r.x0).toBeGreaterThan(door.x1); // beside the entrance, not across it
-    expect(r.x0).toBeGreaterThanOrEqual(lobby.x0);
-    expect(r.x1).toBeLessThanOrEqual(lobby.x1);
-    // across the alcove's mouth, its guest face towards −z
-    expect(c.length).toBeCloseTo(r.x1 - r.x0, 9);
-    expect(c.x).toBeCloseTo((r.x0 + r.x1) / 2, 9);
-    expect(c.z - c.depth / 2).toBeCloseTo(r.z1, 9);
-    expect(Math.cos(c.rotY)).toBeCloseTo(-1, 9);
+    // coming in (facing −z) it is on the right: against the right-hand wall …
+    expect(r.x1).toBe(lobby.x1);
+    expect(r.x0).toBeGreaterThan(door.x1); // … clear of the entrance's width …
+    // … and at the front, a pillar's width behind the frontage
+    expect(r.z0).toBeLessThan(lobby.z1);
+    expect(lobby.z1 - r.z0).toBeLessThan(0.5);
+    expect(r.z1).toBeGreaterThan(lobby.z0);
+    // across the alcove's mouth, its guest face towards −x (the counter's
+    // local +z, turned by rotY)
+    expect(c.length).toBeCloseTo(r.z0 - r.z1, 9);
+    expect(c.z).toBeCloseTo((r.z0 + r.z1) / 2, 9);
+    expect(c.x - c.depth / 2).toBeCloseTo(r.x0, 9);
+    expect(Math.sin(c.rotY)).toBeCloseTo(-1, 9);
   });
 
-  it('puts the stair door in the back wall, opposite the counter', () => {
-    const { lobby, reception: r, stair } = PLAN;
-    const d = stair.door;
-    expect(d.x0).toBeGreaterThanOrEqual(r.x0); // across the lobby from the counter …
-    expect(d.x1).toBeLessThanOrEqual(r.x1);
-    expect(d.x0).toBeGreaterThan(stair.well.x0); // … opening onto the three steps
-    expect(d.x1).toBeLessThan(stair.flight.x0);
-    expect(d.x1).toBeLessThanOrEqual(lobby.x1);
+  it('puts the stair door in the left-hand wall, across the lobby and behind the reception, up four steps', () => {
+    const { lobby, reception: r, stair, floor, lobbyCeiling } = PLAN;
+    const d = stair.door, e = stair.entry;
+    expect(d.z0).toBeLessThan(r.z1); // further in than the counter …
+    expect(d.z1).toBeGreaterThan(lobby.z0); // … short of the back wall …
+    expect(d.z0 - d.z1).toBeGreaterThanOrEqual(0.85);
     expect(d.h).toBeGreaterThanOrEqual(2.0);
+    // … at the top of four steps that stand in the lobby, wider than it …
+    expect(e.risers).toBe(4);
+    expect(e.z0).toBeGreaterThan(d.z0);
+    expect(e.z1).toBeLessThan(d.z1);
+    expect(e.risers * e.run).toBeLessThan(1.3);
+    // … with its head, casing and all, under the lobby's ceiling …
+    expect(e.risers * stair.rise + d.h + 0.06).toBeLessThan(lobbyCeiling);
+    expect(floor + e.risers * stair.rise + d.h).toBeLessThan(FLOOR_Y.level1 - 0.25);
+    // … onto a landing that spans it, in front of the flight
+    expect(d.z0).toBeLessThanOrEqual(stair.well.z0);
+    expect(d.z1).toBeGreaterThanOrEqual(stair.flight.z0);
   });
 
   it('climbs from the lobby floor to level 1 in equal, comfortable risers', () => {
@@ -177,15 +190,27 @@ describe('reception and stair (the owner’s photos, 2 Oct 2026, and walk-throug
     expect(stair.rise).toBeGreaterThan(0.15);
     expect(stair.rise).toBeLessThan(0.18);
     for (const run of [stair.entry.run, stair.flight.run]) expect(2 * stair.rise + run).toBeGreaterThan(0.55); // the 2R + G rule
-    // the three steps fill the space from the back wall to the landing …
-    expect(lobby.z0 - 0.2 - (stair.entry.risers - 1) * stair.entry.run).toBeCloseTo(stair.well.z1, 9);
-    // … the long flight ends on the level-1 landing, inside the block …
-    const topRiser = stair.flight.x0 + (stair.flight.risers - 1) * stair.flight.run;
-    expect(topRiser).toBeLessThan(stair.passage.x0);
-    expect(stair.top.x1).toBeLessThan(SALIM_WIDTH - 0.2);
-    // … whose passage reaches the corridor, crossing nothing on the way
-    expect(stair.passage.x1).toBeLessThanOrEqual(stair.top.x1);
-    expect(stair.well.z1).toBeLessThan(corridor.z0);
+    // the landing behind the door is the flight's width and more …
+    expect(lobby.x0 - 0.2 - stair.well.x0).toBeGreaterThanOrEqual(stair.well.x1 - stair.well.x0);
+    // … the long flight climbs away from the corridor, leaving 2 m of
+    // headroom under the level-1 slab's edge behind the corridor's back wall …
+    const edge = corridor.z0 - 0.25;
+    const under = floor + (stair.entry.risers + Math.floor((stair.flight.z0 - edge) / stair.flight.run) + 1) * stair.rise;
+    expect(FLOOR_Y.level1 - 0.25 - under).toBeGreaterThanOrEqual(2.0);
+    // … and ends on the level-1 landing, inside the block …
+    const topRiser = stair.flight.z0 - (stair.flight.risers - 1) * stair.flight.run;
+    expect(stair.top.z1).toBeLessThan(topRiser - 1.2);
+    expect(stair.top.z1).toBeGreaterThan(-DIM.salim.depth + 0.2);
+    expect(stair.well.x0).toBeGreaterThan(0.2);
+    // … whose door, in its right-hand wall, opens on a passage that runs
+    // back beside the well, past its wall, to the corridor
+    const td = stair.top.door;
+    expect(td.z0).toBeLessThan(topRiser);
+    expect(td.z1).toBeGreaterThan(stair.top.z1);
+    expect(td.z0 - td.z1).toBeGreaterThanOrEqual(0.85);
+    expect(stair.passage.x0).toBeGreaterThanOrEqual(stair.well.x1 + 0.2 - 1e-9); // its wall is 0.2 m thick
+    expect(stair.passage.x1 - stair.passage.x0).toBeGreaterThanOrEqual(1.0);
+    expect(topRiser).toBeLessThan(corridor.z0);
   });
 
   it('leaves a door height between the raised five-foot way and the entrance head', () => {

@@ -17,7 +17,7 @@ export const POSTER_DIR = '/salim-inn/posters';
 /** Bumped when a chapter's posters are re-rendered: nginx serves .jpg as
  *  immutable for a year, so a changed poster needs a new URL. Chapter 1's
  *  stays bare: index.html's first paint shares it. */
-const POSTER_REV: Partial<Record<number, number>> = { 3: 2, 4: 3, 5: 3, 6: 2 };
+const POSTER_REV: Partial<Record<number, number>> = { 3: 2, 4: 4, 5: 4, 6: 2 };
 const posterUrl = (id: number, shape: 'wide' | 'tall') => `${POSTER_DIR}/ch${id}-${shape}.jpg${POSTER_REV[id] ? `?v=${POSTER_REV[id]}` : ''}`;
 
 export function startFallback(chapters: Chapters, onPick: (code: RoomCode) => void): void {

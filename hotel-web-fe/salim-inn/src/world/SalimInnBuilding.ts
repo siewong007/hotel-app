@@ -73,26 +73,34 @@ const LOTS = (S.bayLines as readonly number[]).slice(0, -1).map((x0, i, a) => ({
 }));
 const PILASTERS = S.pilasters as readonly number[];
 
-/** The stair, from the owner's walk-through video (2026-10-12): a brown door
- *  in the lobby's back wall, three carpeted steps up (towards −z) to a
- *  landing, a right turn, and one long straight flight (towards +x, behind
- *  the cafe's lot) to level 1 — twenty risers in all. The video stops at the
- *  top of the flight, so the level-1 landing and its passage to the corridor
- *  are inferred. */
+/** The stair (the owner's walk-through video, 2026-10-12, placed by the owner
+ *  on 2026-10-13: the stairs on the left as you come in, the reception on the
+ *  right, chairs at the back): four carpeted steps up from the lobby floor to
+ *  a brown door in the lobby's left-hand wall — the party wall with the
+ *  corner lot — a landing behind it, a right turn, and one long straight
+ *  flight towards the back (−z) to level 1, twenty risers in all; at its top
+ *  a door in the right-hand wall. The video turns back there, so the passage
+ *  from that door to the corridor is inferred. */
+const XP = BW - T / 2; // the party wall's far face, on the corner lot's side
+const FLIGHT = { z0: -9.2, risers: 16, run: 0.27 };
+const TOP_RISER = FLIGHT.z0 - (FLIGHT.risers - 1) * FLIGHT.run;
 const STAIR = {
-  /** In the lobby's back wall; `h` above the lobby floor. */
-  door: { x0: 10.6, x1: 11.5, h: 2.1 },
+  /** In the lobby's left-hand wall: front jamb at z0, back jamb at z1; `h` above its sill (the landing). */
+  door: { z0: -7.9, z1: -8.8, h: 2.1 },
   rise: (Y1 - GY) / 20,
-  /** Three risers from the back wall's rear face towards −z. */
-  entry: { risers: 3, run: 0.28 },
-  /** The strip the landing and the flight share, between their side walls. */
-  well: { x0: 10.5, z0: -13.6, z1: -12.36 },
-  /** The long flight: its first riser at x0, climbing towards +x. */
-  flight: { x0: 11.6, risers: 17, run: 0.27 },
-  /** The level-1 landing runs from the flight's top riser to x1 … */
-  top: { x1: 17.4 },
-  /** … and a passage leads from it to the corridor. */
-  passage: { x0: 16.1, x1: 17.4 },
+  /** Four risers in the lobby, rising towards the door (−x) from its floor
+   *  to the landing's level, across from z0 to z1. */
+  entry: { risers: 4, run: 0.28, z0: -7.65, z1: -8.95 },
+  /** The flight's strip between its side walls; the landing behind the door
+   *  runs from the party wall back to x0, its front edge at z0. */
+  well: { x0: XP - 1.8, x1: XP - 0.56, z0: -7.8 },
+  /** The long flight: its first riser at z0, climbing towards −z. */
+  flight: FLIGHT,
+  /** The level-1 landing at its top runs back to z1, with a door in its
+   *  right-hand wall (front jamb z0, back jamb z1) … */
+  top: { z1: TOP_RISER - 1.4, door: { z0: TOP_RISER - 0.2, z1: TOP_RISER - 1.1 } },
+  /** … into a passage that runs forward beside the well to the corridor. */
+  passage: { x0: XP - 0.36, x1: XP + 0.84 },
 };
 
 /** Interior plan shared with the interior builders and the camera (local frame). */
@@ -108,14 +116,16 @@ export const PLAN = {
   showcaseBay: 1,
   showcaseRight: BW + (GROUPS[0][1] + GROUPS[1][0]) / 2,
   showcaseDoor: { x0: BW + 2.2, x1: BW + 3.2 },
-  // The reception (owner's photos, 2026-10-02): an alcove against the inside
-  // of the tiled frontage beside the entrance — white pillars either side, a
-  // striated laminate bulkhead over it, the painted mural on its back wall
-  // (the frontage's inner face) — with the counter across its mouth, facing
-  // into the lobby. The stair door is opposite it, in the back wall.
-  reception: { x0: S.entrance.x1 + 0.4, x1: 2 * BW - T / 2 - 0.3, z0: -FFW, z1: -FFW - 1.35, soffit: 2.25 },
-  // across the alcove's mouth, guest side towards −z (rotY π)
-  counter: { x: (S.entrance.x1 + 0.4 + 2 * BW - T / 2 - 0.3) / 2, z: -FFW - 1.35 + 0.325, length: 2 * BW - T / 2 - 0.3 - (S.entrance.x1 + 0.4), depth: 0.65, rotY: Math.PI },
+  // The reception (owner's photos, 2026-10-02, placed by the owner on
+  // 2026-10-13: on the right as you come in): an alcove in the lobby's
+  // right-hand wall near the front — white pillars either side, a striated
+  // laminate bulkhead over it, the painted mural on its back wall (the party
+  // wall) — with the counter across its mouth, facing across the lobby (−x).
+  // x0 is the mouth and x1 the wall; the opening runs from z0 back to z1,
+  // behind a pillar at the front corner.
+  reception: { x0: 2 * BW - T / 2 - 1.35, x1: 2 * BW - T / 2, z0: -FFW - 0.34, z1: -FFW - 0.34 - 2.35, soffit: 2.25 },
+  // across the alcove's mouth, guest side towards −x (rotY −π/2)
+  counter: { x: 2 * BW - T / 2 - 1.35 + 0.325, z: -FFW - 0.34 - 2.35 / 2, length: 2.35, depth: 0.65, rotY: -Math.PI / 2 },
   windowSill: 0.95,
   windowHead: 2.3,
   /** Above the lobby floor; the level-1 slab's underside is 3.65 m up. */
@@ -372,36 +382,40 @@ export class SalimInnBuilding {
       white.push(p);
     }
 
-    // shell: end walls, back wall, party walls (the stair passes through the
-    // second), the lobby's back wall with the stair door, and the stair's own
-    // walls on the ground floor (Corridor.ts skins them and builds level 1's)
-    const L = PLAN.lobby, stair = PLAN.stair, sw = stair.well;
-    const flightTop = stair.flight.x0 + (stair.flight.risers - 1) * stair.flight.run; // the top riser
+    // shell: end walls, back wall, party walls (the first with the stair door
+    // in it), the lobby's back wall, and the stair's own walls in the corner
+    // lot on the ground floor (Corridor.ts skins them and builds level 1's)
+    const L = PLAN.lobby, stair = PLAN.stair, sw = stair.well, sd = stair.door;
+    const topRiser = stair.flight.z0 - (stair.flight.risers - 1) * stair.flight.run;
+    const head = GY + stair.entry.risers * stair.rise + sd.h; // the stair door's head
     white.push(boxAt(0, 0, -D, T, Y1, zf), boxAt(W - T, 0, -D, W, Y1, zf), boxAt(0, 0, -D, W, Y1, -D + T));
     for (const x of (S.bayLines as readonly number[]).slice(1, -1)) {
-      if (x > sw.x0 && x < stair.top.x1) white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, sw.z0 - T), boxAt(x - T / 2, 0, sw.z1 + T, x + T / 2, Y1, zf));
-      else white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, zf));
+      if (x !== BW) {
+        white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, zf));
+        continue;
+      }
+      // round the stair door (Corridor.ts's threshold fills it under the sill)
+      white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, sd.z1), boxAt(x - T / 2, 0, sd.z0, x + T / 2, Y1, zf), boxAt(x - T / 2, head, sd.z1, x + T / 2, Y1, sd.z0));
     }
-    const zb = L.z0 - T; // the lobby back wall's rear face
     white.push(
-      boxAt(L.x0, 0, zb, stair.door.x0, Y1, L.z0),
-      boxAt(stair.door.x1, 0, zb, L.x1, Y1, L.z0),
-      boxAt(stair.door.x0, GY + stair.door.h, zb, stair.door.x1, Y1, L.z0),
-      boxAt(sw.x0 - T, 0, sw.z0 - T, sw.x0, Y1, zb), // beside the steps and the landing
-      boxAt(sw.x0 - T, 0, sw.z0 - T, stair.top.x1 + T, Y1, sw.z0), // behind the flight
-      boxAt(stair.flight.x0, 0, sw.z1, stair.top.x1 + T, Y1, sw.z1 + T), // in front of it
-      boxAt(stair.flight.x0, 0, sw.z1 + T, stair.flight.x0 + T, Y1, zb), // beside the steps
-      boxAt(stair.top.x1, 0, sw.z0, stair.top.x1 + T, Y1, sw.z1), // under the top landing's end
+      boxAt(L.x0, 0, L.z0 - T, L.x1, Y1, L.z0), // the lobby's back wall
+      boxAt(sw.x0 - T, 0, stair.top.z1 - T, sw.x0, Y1, sw.z0 + T), // the stair's outer wall
+      boxAt(sw.x0, 0, sw.z0, XP, Y1, sw.z0 + T), // in front of the landing
+      boxAt(sw.x1, 0, stair.top.z1 - T, sw.x1 + T, Y1, stair.flight.z0), // beside the flight
+      boxAt(sw.x1 + T, 0, stair.flight.z0 - T, XP, Y1, stair.flight.z0), // behind the landing, right of the flight
+      boxAt(sw.x0, 0, stair.top.z1 - T, sw.x1, Y1, stair.top.z1), // under the top landing's end
     );
 
     // ---------------------------------------------------------------- slabs
     // slab edges stop 3 cm inside the facade wall (flush faces z-fight); level
-    // 1's is open over the long flight
+    // 1's is open over the long flight, from behind the corridor's back wall
+    // to the top riser
     const zE = -0.03;
+    const vz0 = PLAN.corridor.z0 - T - 0.05;
     const slab = (y: number, open: boolean) => {
       const y0 = y - 0.25;
       if (!open) return [boxAt(0, y0, -D, W, y, zE)];
-      return [boxAt(0, y0, -D, stair.flight.x0, y, zE), boxAt(flightTop, y0, -D, W, y, zE), boxAt(stair.flight.x0, y0, -D, flightTop, y, sw.z0), boxAt(stair.flight.x0, y0, sw.z1, flightTop, y, zE)];
+      return [boxAt(0, y0, -D, sw.x0, y, zE), boxAt(sw.x1, y0, -D, W, y, zE), boxAt(sw.x0, y0, -D, sw.x1, y, topRiser), boxAt(sw.x0, y0, vz0, sw.x1, y, zE)];
     };
     white.push(...slab(Y1, true), ...slab(Y2, false));
     concrete.push(...slab(YR, false));
