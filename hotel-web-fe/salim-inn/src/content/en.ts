@@ -125,6 +125,9 @@ export interface Copy {
     unverified: string;
     /** A walking-time ring's label: `{{min}}`. */
     ring: string;
+    /** The hotel's own marker over the map (chapters 2 and 7): its name as
+     *  its sign gives it in that language. */
+    hotel: string;
     placeOne: string;
     /** `{{n}}` places. */
     placeMany: string;
@@ -227,6 +230,7 @@ const nb: Copy['neighbourhood'] = {
   call: 'Call',
   unverified: 'Not yet verified',
   ring: '{{min}} min · approx.',
+  hotel: 'Salim Inn',
   placeOne: '1 place',
   placeMany: '{{n}} places',
   groups: { groceries: 'Groceries', food: 'Food & cafés', health: 'Pharmacies & clinics', services: 'Everyday services' },

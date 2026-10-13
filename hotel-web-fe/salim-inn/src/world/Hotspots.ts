@@ -1,6 +1,8 @@
-// Gold location pin, pulse rings and light beam over Salim Inn (from V16),
-// plus the category hotspot anchors for chapter 2 (DOM labels are projected
-// onto these points by the UI).
+// Gold location pin, rings and light beam over Salim Inn (from V16), plus the
+// category hotspot anchors for chapter 2 (DOM labels are projected onto these
+// points by the UI). The rings and beam hold still: they used to pulse and
+// flicker, decoration the 2026-10-13 brief asks to take out ("eliminate
+// unnecessary decorative movement"); they fade in and out with the reveal.
 import * as THREE from 'three';
 import { BRAND } from '../config/materials';
 import { POINTS } from './layout';
@@ -25,7 +27,6 @@ export class Hotspots {
   readonly anchors: HotspotAnchor[];
   private rings: THREE.Mesh[] = [];
   private beam: THREE.Mesh;
-  private time = 0;
   private reveal = 0;
 
   constructor() {
@@ -37,7 +38,7 @@ export class Hotspots {
         new THREE.MeshBasicMaterial({ color: gold.clone().multiplyScalar(2.2), transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }),
       );
       r.position.set(base.x, 0.22, base.z);
-      r.userData.o = i * 0.8;
+      r.userData.o = 0.75 - i * 0.2; // the inner ring strongest
       r.renderOrder = 6;
       this.rings.push(r);
       this.group.add(r);
@@ -87,14 +88,9 @@ export class Hotspots {
     this.group.visible = v > 0.002;
   }
 
-  update(dt: number): void {
-    this.time += dt;
+  update(): void {
     const v = this.reveal;
-    this.rings.forEach((r) => {
-      const ph = (this.time * 0.45 + r.userData.o) % 1;
-      r.scale.setScalar(0.85 + ph * 0.5);
-      (r.material as THREE.MeshBasicMaterial).opacity = (1 - ph) * 0.75 * v;
-    });
-    (this.beam.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (0.5 + Math.sin(this.time * 1.3) * 0.08) * v;
+    for (const r of this.rings) (r.material as THREE.MeshBasicMaterial).opacity = r.userData.o * v;
+    (this.beam.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.5 * v;
   }
 }

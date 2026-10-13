@@ -364,14 +364,41 @@ html.film-live .poster { visibility: hidden; }
 .nb-marker, .nb-label, .nb-ring { position: absolute; left: 0; top: 0; will-change: transform, opacity; transition: opacity 0.3s linear; }
 .nb-marker {
   display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
-  margin: -9px 0 0 -9px;
+  margin: -13px 0 0 -13px;
 }
-.nb-marker__dot { width: 18px; height: 18px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 6px rgba(217, 181, 114, 0.28), 0 0 24px rgba(217, 181, 114, 0.6); }
+/* a gold disc with the category's icon: the same size, type and contrast for
+   every category */
+.nb-marker__dot {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: var(--ink);
+  box-shadow: 0 0 0 4px rgba(217, 181, 114, 0.24), 0 0 20px rgba(217, 181, 114, 0.45);
+  transition: box-shadow 0.3s var(--ease), opacity 0.3s var(--ease);
+}
 .nb-marker__label {
-  padding: 6px 12px; border-radius: 999px; background: rgba(6, 17, 14, 0.78); color: var(--white); font-size: 0.78rem; font-weight: 600; white-space: nowrap;
-  border: 1px solid rgba(217, 181, 114, 0.5);
+  padding: 6px 12px; border-radius: 999px; background: rgba(6, 17, 14, 0.82); color: var(--white); font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+  border: 1px solid rgba(217, 181, 114, 0.5); transition: background 0.3s var(--ease), color 0.3s var(--ease), border-color 0.3s var(--ease), opacity 0.3s var(--ease);
 }
-.nb-marker.is-open .nb-marker__label { background: var(--gold); color: var(--ink); }
+.nb-marker:hover .nb-marker__label { border-color: var(--gold); }
+/* selected: a gold label and a ringed disc; the others step back while it is open */
+.nb-marker.is-open .nb-marker__label { background: var(--gold); color: var(--ink); border-color: var(--gold); }
+.nb-marker.is-open .nb-marker__dot { box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px var(--gold), 0 0 26px rgba(217, 181, 114, 0.7); }
+.nb-layer.has-open .nb-marker:not(.is-open) > * { opacity: 0.45; }
+/* the hotel: its brand mark on a forest pin, its name above in the display
+   face; centred on its point (the pin's tip), and never in the way of a click */
+.nb-hotel { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; will-change: transform, opacity; transition: opacity 0.3s linear; }
+.nb-hotel__in { display: flex; flex-direction: column; align-items: center; gap: 5px; transform: translate(-50%, -100%); }
+.nb-hotel__label {
+  padding: 5px 14px 6px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(6, 17, 14, 0.88); color: var(--ivory);
+  font-family: var(--display); font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em; line-height: 1.1; white-space: nowrap;
+}
+.nb-hotel__pin {
+  position: relative; display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 9px; border-radius: 50%;
+  border: 1.5px solid var(--gold); background: var(--forest); color: var(--gold);
+  box-shadow: 0 0 0 5px rgba(217, 181, 114, 0.18), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.nb-hotel__pin::after {
+  content: ''; position: absolute; left: 50%; bottom: -10px; width: 0; height: 0; transform: translateX(-50%);
+  border: 6px solid transparent; border-top: 6px solid var(--gold); border-bottom-width: 0;
+}
 .nb-label {
   display: grid; gap: 1px; padding: 6px 12px; border-radius: 10px; white-space: nowrap;
   background: rgba(6, 17, 14, 0.8); border: 1px solid rgba(217, 181, 114, 0.5); color: var(--white); font-size: 0.8rem;
@@ -560,6 +587,7 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   .nb { margin-top: 12px; gap: 10px; }
   .nb-chip { min-height: 38px; padding: 0 14px; font-size: 0.76rem; }
   .nb-marker__label, .nb-label { font-size: 0.72rem; }
+  .nb-hotel__label { font-size: 0.95rem; }
   .reg-card { padding: 12px 16px 10px; }
   .reg-card__facts { font-size: 0.86rem; }
   /* the booking panel scrolls inside itself when the phone is short */

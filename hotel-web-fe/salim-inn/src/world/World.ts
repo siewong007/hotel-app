@@ -1,5 +1,6 @@
 // Builds and owns everything in the scene, and maps the master timeline onto
-// scene state (route draw, pin, dusk lights, door, interior lights, culling).
+// scene state (pin, dusk and night lights, weather, door, interior lights,
+// culling).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Atmosphere, CLOUD_ALT } from './Sky';
@@ -12,7 +13,6 @@ import { Parking } from './Parking';
 import { Vegetation, treeTableRows } from './Vegetation';
 import { carModelMakers, type CarModel } from './cars';
 import { FarField } from './FarField';
-import { RouteLine } from './RouteLine';
 import { Hotspots } from './Hotspots';
 import { StreetLights } from './StreetLights';
 import { CornerCanopy } from './CornerCanopy';
@@ -130,7 +130,6 @@ export class World {
   trees!: Vegetation;
   far!: FarField;
   lamps!: StreetLights;
-  route!: RouteLine;
   hotspots!: Hotspots;
   walkRings!: WalkRings;
   interior = new THREE.Group();
@@ -229,10 +228,9 @@ export class World {
     s.add(bakeShadowCasters([this.blocks.group, this.salim.group, this.mart.group, canopy, this.parking.group, this.far.group, this.lamps.group, this.trees.group]));
     await yieldToMain();
 
-    this.route = new RouteLine();
     this.hotspots = new Hotspots();
     this.walkRings = new WalkRings(POINTS.lobbyDoor);
-    s.add(this.route.group, this.hotspots.group, this.walkRings.group);
+    s.add(this.hotspots.group, this.walkRings.group);
     // rain for the atmosphere: none on the low tier or under reduced motion
     // (the overcast light carries the weather there); a line set, so it is
     // outside the measured visibility (only meshes are)
@@ -253,7 +251,7 @@ export class World {
     s.traverse((o) => { if ((o as THREE.Mesh).isMesh) packGroups(o as THREE.Mesh); });
     this.solids.push(this.blocks.group, this.salim.group, this.mart.group, this.parking.group, this.trees.group, this.far.osm);
     // names for the debug overlay and perf/ breakdowns
-    const named: [THREE.Object3D, string][] = [[this.ground.group, 'ground'], [this.roads.group, 'roads'], [this.blocks.group, 'farley-blocks'], [this.mart.group, 'mart'], [canopy, 'corner-canopy'], [this.parking.group, 'parking'], [this.far.group, 'far-field'], [this.lamps.group, 'street-lights'], [this.trees.group, 'trees'], [this.route.group, 'route'], [this.hotspots.group, 'hotspots'], [this.walkRings.group, 'walk-rings']];
+    const named: [THREE.Object3D, string][] = [[this.ground.group, 'ground'], [this.roads.group, 'roads'], [this.blocks.group, 'farley-blocks'], [this.mart.group, 'mart'], [canopy, 'corner-canopy'], [this.parking.group, 'parking'], [this.far.group, 'far-field'], [this.lamps.group, 'street-lights'], [this.trees.group, 'trees'], [this.hotspots.group, 'hotspots'], [this.walkRings.group, 'walk-rings']];
     for (const [o, n] of named) if (!o.name) o.name = n;
     this.zoned = named.filter(([, n]) => SEEN[n]).map(([o, n]) => [o, SEEN[n]] as [THREE.Object3D, [number, number][]]);
     this.exteriorRoots = s.children.filter((o) => o !== this.interior && !hasLight(o));
@@ -513,23 +511,24 @@ export class World {
       for (const o of this.aloftHidden) o.visible = !aloft;
     }
 
-    // chapter 2: the flying line draws; gone once we are on the ground
-    const route = ramp(p, 0.13, 0.34);
-    this.route.setProgress(route, dt);
-    this.route.setFade(1 - ramp(p, 0.36, 0.41));
-    this.route.group.visible = p > 0.125 && p < 0.42;
-
-    // chapter 3: pin + pulse rings lock on; fade as we land
+    // chapter 3: pin + rings lock on; fade as we land
     this.hotspots.setReveal(ramp(p, 0.355, 0.4) * (1 - ramp(p, 0.49, 0.53)));
-    this.hotspots.update(dt);
+    this.hotspots.update();
     // chapter 7: walking-time rings from the hotel door
     this.walkRings.setProgress(p);
 
     // dusk: the film runs from golden hour to blue hour, unless a manual
     // atmosphere pins the hour (DAY, SUNSET, NIGHT); then the weather on top
     const d = THREE.MathUtils.lerp(this.duskOverride ?? duskAt(p), this.look.duskTo, this.look.pin);
+    const { day, night } = this.look;
     GLOBAL.uDusk.value = d;
-    GLOBAL.uLights.value = THREE.MathUtils.clamp(0.2 + d * 1.35, 0, 1);
+    // practical lights follow the dusk, and stay off in DAY's sunshine
+    GLOBAL.uLights.value = THREE.MathUtils.clamp(0.2 + d * 1.35, 0, 1) * (1 - day);
+    // the town's windows: from deep in the blue hour (the film's last
+    // chapters), and all of NIGHT
+    GLOBAL.uCity.value = Math.max(night, 0.8 * ramp(d, 0.62, 0.84)) * (1 - day);
+    // rain wets the roads (and they dry as the look eases out of it)
+    GLOBAL.uWet.value = Math.min(1, this.look.rain * 1.3);
     GLOBAL.uTime.value += dt;
     this.atmosphere.setDusk(d);
     this.atmosphere.setWeather(this.look);
@@ -559,14 +558,15 @@ export class World {
       sc.environment = this.atmosphere.envMap;
       sc.environmentIntensity *= Math.min(1, envOut);
     }
-    // chapter 3: the roof sign lights up, then the windows floor by floor
-    const sign = ramp(p, 0.37, 0.43);
-    this.salimLevels.value = THREE.MathUtils.lerp(-1, 13, ramp(p, 0.4, 0.465));
+    // chapter 3: the roof sign lights up, then the windows floor by floor (at
+    // NIGHT they are lit from the start)
+    const sign = Math.max(ramp(p, 0.37, 0.43), night);
+    this.salimLevels.value = THREE.MathUtils.lerp(-1, 13, Math.max(ramp(p, 0.4, 0.465), night));
     // chapter 4: canopy downlights switch on one after another, 40 ms apart
     if (p > 0.49) this.downOn = Math.min(this.salim.downlightCount + 1, this.downOn + dt / 0.04);
     else if (p < 0.47) this.downOn = 0;
     this.salim.setDusk(sign, this.downOn);
-    this.blocks.setDusk(GLOBAL.uLights.value * ramp(p, 0.2, 0.45));
+    this.blocks.setDusk(GLOBAL.uLights.value * Math.max(ramp(p, 0.2, 0.45), night));
     this.lamps.update(ramp(d, 0.18, 0.5));
     this.mart.setDusk(GLOBAL.uLights.value);
 

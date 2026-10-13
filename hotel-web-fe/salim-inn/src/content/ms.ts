@@ -18,6 +18,7 @@ const nb: Copy['neighbourhood'] = {
   call: 'Hubungi',
   unverified: 'Belum disahkan',
   ring: '{{min}} minit · anggaran',
+  hotel: 'Salim Inn',
   placeOne: '1 tempat',
   placeMany: '{{n}} tempat',
   groups: { groceries: 'Barangan runcit', food: 'Makanan & kafe', health: 'Farmasi & klinik', services: 'Perkhidmatan harian' },

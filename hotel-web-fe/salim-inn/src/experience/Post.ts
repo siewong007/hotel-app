@@ -21,6 +21,12 @@ import {
 import { N8AOPostPass } from 'n8ao';
 import type { Tier } from '../config/quality';
 
+/** The grade's shadow tint: the dusk film's cool blue, and NIGHT's emerald.
+ *  It is added in linear light, so near black even 0.02 is a strong colour:
+ *  the cool tint turned NIGHT's dark town navy (sRGB ≈ 6, 20, 44). */
+const COOL_SHADOW = new THREE.Vector3(-0.012, 0.004, 0.022);
+const EMERALD_SHADOW = new THREE.Vector3(-0.003, 0.006, 0.0025);
+
 /** Display-referred grade after tone mapping: gentle S-curve, a touch more
  *  saturation, cool shadows / warm highlights (dusk film look). */
 class GradeEffect extends Effect {
@@ -41,7 +47,7 @@ class GradeEffect extends Effect {
       uniforms: new Map<string, THREE.Uniform>([
         ['uContrast', new THREE.Uniform(1.1)],
         ['uSat', new THREE.Uniform(1.2)],
-        ['uShadow', new THREE.Uniform(new THREE.Vector3(-0.012, 0.004, 0.022))],
+        ['uShadow', new THREE.Uniform(COOL_SHADOW.clone())],
         ['uHigh', new THREE.Uniform(new THREE.Vector3(0.02, 0.008, -0.014))],
         ['uSplit', new THREE.Uniform(1.0)],
       ]),
@@ -181,11 +187,15 @@ export class Post {
     if (u.value !== v) u.value = v;
   }
 
-  /** Cloud and rain take a little colour out of the grade (atmosphere look). */
-  setWeather(cloud: number, rain: number): void {
+  /** Cloud and rain take a little colour out of the grade, and NIGHT turns
+   *  its shadows from the dusk's blue to deep emerald; rain goes part of the
+   *  way, to a cool green-grey (brief: "deep emerald and cool blue-grey"). */
+  setWeather(cloud: number, rain: number, night = 0): void {
     const u = this.grade.uniforms.get('uSat')!;
     const v = 1.2 * (1 - 0.12 * cloud - 0.06 * rain);
     if (Math.abs(u.value - v) > 1e-4) u.value = v;
+    const toEmerald = Math.max(night, 0.6 * Math.min(1, rain * 1.2));
+    (this.grade.uniforms.get('uShadow')!.value as THREE.Vector3).copy(COOL_SHADOW).lerp(EMERALD_SHADOW, toEmerald);
   }
 
   /** Scale AO to the shot: metres-wide contact shading on the street,
