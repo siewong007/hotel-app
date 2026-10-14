@@ -268,7 +268,7 @@ jobs:
       # unsigned. The updater *.sig files are minisign signatures from
       # TAURI_SIGNING_PRIVATE_KEY, unrelated to OS trust either way.
       - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: hotel-desktop-macos-aarch64
           retention-days: 14
@@ -428,7 +428,7 @@ jobs:
           echo "launch probe result rc=$rc (124 = still running = pass)"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: hotel-desktop-linux-x86_64
           retention-days: 14
@@ -767,7 +767,7 @@ jobs:
           Write-Host "NSIS install verified at $installDir"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: hotel-desktop-windows-x86_64
           retention-days: 14
