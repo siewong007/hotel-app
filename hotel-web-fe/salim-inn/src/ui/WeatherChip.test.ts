@@ -59,6 +59,16 @@ describe('the weather chip', () => {
     expect(chipParts({ ...atmo.state(), weather: { ...hour({ symbol: 'tornado' }), sky: 'other', updatedAt: 0 } })).toMatchObject({ temp: '31°C', sky: null });
   });
 
+  it('fills the slot the page keeps for it from the first paint, rather than adding one', () => {
+    host.insertAdjacentHTML('afterbegin', '<div class="wx" aria-hidden="true"></div>');
+    const slot = host.firstElementChild;
+    const root = mountWeatherChip(atmo, host)!;
+    expect(root).toBe(slot);
+    expect(host.querySelectorAll('.wx')).toHaveLength(1);
+    expect(root.hasAttribute('aria-hidden')).toBe(false);
+    expect(root.querySelector('button.wx__chip')).not.toBeNull();
+  });
+
   it('moves on to the next hour at the minute’s tick, without a request', () => {
     const root = mountWeatherChip(atmo, host)!;
     publish({ updatedAt: Date.UTC(2026, 9, 13, 1, 24), hours: [hour(), hour({ from: Date.UTC(2026, 9, 13, 5, 0), tempC: 29.6, symbol: 'rain' })] });

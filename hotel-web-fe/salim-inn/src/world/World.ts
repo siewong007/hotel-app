@@ -78,6 +78,8 @@ const SEEN: Record<string, [number, number][]> = {
 };
 const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => p >= a && p <= b);
 const LOOK_KEYS = Object.keys(NO_WEATHER) as (keyof Look)[];
+/** What the sky's baked reflections depend on (World.rebakeSky). */
+const skySignature = (l: Look) => [l.day, l.night, l.cloud, l.rain, l.storm].map((v) => v.toFixed(2)).join(',');
 /** Beyond this (metres from the room's centre) the room seen from outside
  *  drops its en-suite and beds (RoomBuilder.setFar). */
 const ROOM_FAR = 30;
@@ -171,6 +173,7 @@ export class World {
     s.background = new THREE.Color(0x2b3346);
     this.atmosphere = new Atmosphere(s);
     this.atmosphere.bakeEnvironment(renderer);
+    this.bakedSky = skySignature(this.look); // (rebakeSky: only for a new look)
     this.atmosphere.setShadowResolution(tier.shadowMap);
     await step('Sky and light', 0.12);
 
@@ -491,7 +494,7 @@ export class World {
   rebakeSky(renderer: THREE.WebGLRenderer): boolean {
     const t = this.lookTarget, l = this.look;
     for (const k of LOOK_KEYS) if (Math.abs(t[k] - l[k]) > 0.02) return false;
-    const sky = [l.day, l.night, l.cloud, l.rain, l.storm].map((v) => v.toFixed(2)).join(',');
+    const sky = skySignature(l);
     if (sky === this.bakedSky) return false;
     this.bakedSky = sky;
     this.atmosphere.bakeEnvironment(renderer);

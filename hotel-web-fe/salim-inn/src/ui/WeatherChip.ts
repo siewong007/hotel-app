@@ -74,8 +74,10 @@ export function chipParts(s: AtmosphereState): { place: string; temp: string | n
 export function mountWeatherChip(atmo: AtmosphereController, host: HTMLElement | null = document.querySelector('.top-actions')): HTMLElement | null {
   if (!host) return null;
   const t = copy.weather;
-  const root = document.createElement('div');
+  // the slot index.html keeps for it from the first paint, else a new one
+  const root = host.querySelector<HTMLElement>(':scope > .wx') ?? document.createElement('div');
   root.className = 'wx';
+  root.removeAttribute('aria-hidden');
   root.innerHTML = `
     <button class="wx__chip" type="button" aria-expanded="false" aria-controls="wx-panel">
       <span class="wx__glyph"></span>
@@ -95,7 +97,7 @@ export function mountWeatherChip(atmo: AtmosphereController, host: HTMLElement |
       </fieldset>
       <p class="wx__source"></p>
     </div>`;
-  host.prepend(root);
+  if (!root.parentElement) host.prepend(root);
   const q = <E extends Element>(sel: string) => root.querySelector<E>(sel)!;
   const chip = q<HTMLButtonElement>('.wx__chip');
   const panel = q<HTMLElement>('.wx__panel');
