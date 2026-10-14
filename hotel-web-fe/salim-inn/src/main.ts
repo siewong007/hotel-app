@@ -12,7 +12,6 @@ import { selectLang, type LangCode } from './content/lang';
 import { applyCopy } from './applyCopy';
 import { watchPlayFit } from './ui/headerFit';
 import { atmosphere, MODES, type Mode } from './atmosphere';
-import { mountWeatherChip } from './ui/WeatherChip';
 
 // The page's copy in the visitor's language before anything else runs (the
 // English static HTML stays the no-JS and crawler baseline; applyCopy.ts).
@@ -32,13 +31,20 @@ watchPlayFit();
 // A shared ?atmo=night link shows that atmosphere for this visit only.
 const atmo = new URLSearchParams(location.search).get('atmo');
 if (atmo && (MODES as readonly string[]).includes(atmo)) atmosphere.setMode(atmo as Mode, false);
-copied.then(() => mountWeatherChip(atmosphere));
 
 let started = false;
 const start = () => {
   if (started) return;
   started = true;
-  atmosphere.start(); // the weather request waits for the first paint too
+  // the weather chip (its own small chunk) fills its slot (index.html) and
+  // asks for the weather after the first paint, which needs neither: in the
+  // first script and mounted before it, its code, DOM work and the bar's
+  // re-fit were charged to the logo's paint (Lighthouse mobile LCP 2.4 →
+  // 2.7 s, 2026-10-14)
+  Promise.all([copied, import('./ui/WeatherChip')])
+    .then(([, { mountWeatherChip }]) => mountWeatherChip(atmosphere))
+    .catch((err: unknown) => console.error(err)); // no chip: the page is whole without it
+  atmosphere.start();
   copied.then(() => import('./film')).catch((err: unknown) => {
     // no film (offline mid-load, a blocked chunk): the poster and the page's
     // own sections stay, and the preloader steps aside

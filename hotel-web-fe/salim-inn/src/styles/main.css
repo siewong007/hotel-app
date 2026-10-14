@@ -183,7 +183,11 @@ html.film-live .poster { visibility: hidden; }
   .wx__text > span::before { content: none !important; }
 }
 @media (max-width: 760px) {
-  .wx__chip { min-height: 38px; font-size: 0.74rem; }
+  /* one width in every state (loading, a reading, the time) and for the empty
+     slot before it mounts: the bar spaces its row apart, so a change of width
+     moved the language picker (a layout shift) */
+  .wx { min-width: 92px; }
+  .wx__chip { min-height: 38px; min-width: 92px; justify-content: center; font-size: 0.74rem; }
   /* under the bar, edge to edge (the bar is its containing block: it is
      promoted for Safari, above) */
   .wx__panel { position: fixed; top: calc(var(--topbar) + 6px); left: 12px; right: 12px; width: auto; max-height: calc(100dvh - var(--topbar) - 110px); overflow-y: auto; overscroll-behavior: contain; }
