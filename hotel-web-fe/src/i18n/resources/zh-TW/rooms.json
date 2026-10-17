@@ -762,7 +762,7 @@
     "round": {
       "label": "結果取整",
       "none": "不取整",
-      "nearest": "取最接近的 RM {{step}}"
+      "nearest": "取最接近的 {{amount}}"
     },
     "immediateHint": "變更將立即適用於新的預訂與報價，既有預訂維持原價。",
     "errors": {

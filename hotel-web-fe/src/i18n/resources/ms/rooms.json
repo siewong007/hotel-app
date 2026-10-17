@@ -775,7 +775,7 @@
     "round": {
       "label": "Bundarkan hasil",
       "none": "Tiada pembundaran",
-      "nearest": "RM {{step}} terdekat"
+      "nearest": "{{amount}} terdekat"
     },
     "immediateHint": "Perubahan berkuat kuasa serta-merta untuk tempahan dan sebut harga baharu. Tempahan sedia ada kekal dengan harganya.",
     "errors": {

@@ -96,7 +96,7 @@ export interface BulkPriceDialogProps {
 
 export const BulkPriceDialog = ({ open, roomTypes, onClose, onDone }: BulkPriceDialogProps) => {
   const { t, locale } = useTranslation('rooms');
-  const { format: formatCurrency } = useCurrency();
+  const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const isPhone = useIsPhone();
 
   const [step, setStep] = useState(0);
@@ -356,7 +356,7 @@ export const BulkPriceDialog = ({ open, roomTypes, onClose, onDone }: BulkPriceD
           slotProps={{
             htmlInput: { min: 0, step: '0.01', inputMode: 'decimal' },
             input: {
-              endAdornment: <InputAdornment position="end">{isPercent ? '%' : 'RM'}</InputAdornment>,
+              endAdornment: <InputAdornment position="end">{isPercent ? '%' : currencySymbol}</InputAdornment>,
             },
           }}
         />
@@ -370,7 +370,7 @@ export const BulkPriceDialog = ({ open, roomTypes, onClose, onDone }: BulkPriceD
           <MenuItem value="none">{t('bulkPrice.round.none')}</MenuItem>
           {ROUND_STEPS.map((s) => (
             <MenuItem key={s} value={String(s)}>
-              {t('bulkPrice.round.nearest', { step: s })}
+              {t('bulkPrice.round.nearest', { amount: formatCurrency(s) })}
             </MenuItem>
           ))}
         </TextField>
