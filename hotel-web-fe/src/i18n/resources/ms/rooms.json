@@ -738,5 +738,74 @@
   },
   "actions": {
     "editBookingNotes": "Sunting nota tempahan"
+  },
+  "bulkPrice": {
+    "button": "Kemas kini harga secara pukal",
+    "title": "Kemas kini harga bilik secara pukal",
+    "close": "Tutup",
+    "cancel": "Batal",
+    "back": "Kembali",
+    "next": "Seterusnya",
+    "apply": "Gunakan perubahan harga",
+    "steps": {
+      "configure": "Tetapan",
+      "preview": "Pratonton",
+      "confirm": "Sahkan"
+    },
+    "scope": {
+      "label": "Laksana kepada",
+      "all": "Semua jenis bilik",
+      "selected": "Jenis bilik terpilih"
+    },
+    "fields": {
+      "label": "Harga untuk diubah",
+      "base": "Harga asas",
+      "weekday": "Kadar hari bekerja",
+      "weekend": "Kadar hujung minggu"
+    },
+    "method": {
+      "label": "Kaedah",
+      "set_exact": "Tetapkan harga tepat",
+      "increase_percent": "Naikkan mengikut %",
+      "decrease_percent": "Turunkan mengikut %",
+      "increase_amount": "Naikkan mengikut jumlah",
+      "decrease_amount": "Turunkan mengikut jumlah"
+    },
+    "value": "Nilai",
+    "round": {
+      "label": "Bundarkan hasil",
+      "none": "Tiada pembundaran",
+      "nearest": "RM {{step}} terdekat"
+    },
+    "immediateHint": "Perubahan berkuat kuasa serta-merta untuk tempahan dan sebut harga baharu. Tempahan sedia ada kekal dengan harganya.",
+    "errors": {
+      "valuePositive": "Masukkan nombor lebih daripada sifar",
+      "decreaseTooBig": "Penurunan mestilah kurang daripada 100%"
+    },
+    "summary": "{{types}} jenis bilik dan {{fields}} harga akan berubah.",
+    "largeWarning": "Sesetengah harga berubah lebih daripada {{percent}}%. Anda perlu mengesahkannya.",
+    "noChange": "Tetapan ini tidak akan mengubah sebarang harga.",
+    "table": {
+      "roomType": "Jenis bilik",
+      "price": "Harga",
+      "old": "Semasa",
+      "new": "Baharu",
+      "change": "Perubahan"
+    },
+    "reason": "Sebab",
+    "reasonHelp": "Wajib. Disimpan dalam log audit bersama nama dan masa anda.",
+    "confirmLarge": "Saya mengesahkan perubahan melebihi {{percent}}% ini",
+    "applied": "Harga dikemas kini: {{types}} jenis bilik, {{fields}} harga.",
+    "reverted": "Kemas kini harga pukal terakhir telah dibatalkan.",
+    "last": {
+      "updated": "Kemas kini pukal terakhir oleh {{user}} pada {{when}} ({{count}} jenis bilik).",
+      "reverted": "Kemas kini pukal terakhir dibatalkan oleh {{user}} pada {{when}}.",
+      "unknownUser": "pengguna tidak diketahui"
+    },
+    "revert": {
+      "open": "Batalkan kemas kini terakhir",
+      "help": "Memulihkan harga daripada kemas kini pukal terakhir. Ditolak jika mana-mana harga itu telah diubah selepas itu.",
+      "confirm": "Batalkan kemas kini terakhir"
+    }
   }
 }

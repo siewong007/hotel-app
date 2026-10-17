@@ -725,5 +725,74 @@
   },
   "actions": {
     "editBookingNotes": "編輯預訂備註"
+  },
+  "bulkPrice": {
+    "button": "批次更新價格",
+    "title": "批次更新房價",
+    "close": "關閉",
+    "cancel": "取消",
+    "back": "返回",
+    "next": "下一步",
+    "apply": "套用價格變更",
+    "steps": {
+      "configure": "設定",
+      "preview": "預覽",
+      "confirm": "確認"
+    },
+    "scope": {
+      "label": "適用範圍",
+      "all": "所有房型",
+      "selected": "選定房型"
+    },
+    "fields": {
+      "label": "要變更的價格",
+      "base": "基本價格",
+      "weekday": "平日價格",
+      "weekend": "週末價格"
+    },
+    "method": {
+      "label": "方式",
+      "set_exact": "設為固定價格",
+      "increase_percent": "依百分比調漲",
+      "decrease_percent": "依百分比調降",
+      "increase_amount": "依金額調漲",
+      "decrease_amount": "依金額調降"
+    },
+    "value": "數值",
+    "round": {
+      "label": "結果取整",
+      "none": "不取整",
+      "nearest": "取最接近的 RM {{step}}"
+    },
+    "immediateHint": "變更將立即適用於新的預訂與報價，既有預訂維持原價。",
+    "errors": {
+      "valuePositive": "請輸入大於零的數字",
+      "decreaseTooBig": "調降幅度必須小於 100%"
+    },
+    "summary": "將變更 {{types}} 個房型的 {{fields}} 項價格。",
+    "largeWarning": "部分價格變動超過 {{percent}}%，需要您確認。",
+    "noChange": "目前設定不會變更任何價格。",
+    "table": {
+      "roomType": "房型",
+      "price": "價格",
+      "old": "目前",
+      "new": "新價格",
+      "change": "變動"
+    },
+    "reason": "原因",
+    "reasonHelp": "必填。將連同您的姓名與時間記錄在稽核日誌中。",
+    "confirmLarge": "我確認此次超過 {{percent}}% 的變動",
+    "applied": "價格已更新：{{types}} 個房型，{{fields}} 項價格。",
+    "reverted": "上一次批次價格更新已還原。",
+    "last": {
+      "updated": "上次批次更新：{{user}}，{{when}}（{{count}} 個房型）。",
+      "reverted": "上次批次更新已由 {{user}} 於 {{when}} 還原。",
+      "unknownUser": "未知使用者"
+    },
+    "revert": {
+      "open": "還原上次更新",
+      "help": "還原上次批次更新前的價格。若這些價格之後被修改過，則無法還原。",
+      "confirm": "還原上次更新"
+    }
   }
 }

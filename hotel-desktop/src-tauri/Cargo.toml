@@ -16,7 +16,10 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
-tauri-plugin-updater = "2"
+# `zip` (default) only adds Tauri-v1 zipped Windows updater bundles; v2
+# (createUpdaterArtifacts: true) ships plain .exe/.msi. Dropping it removes
+# the zip 4.x crate (RUSTSEC-2026-0367..0369, no 4.x fix, updater pins ^4).
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

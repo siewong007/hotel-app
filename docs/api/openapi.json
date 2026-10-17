@@ -1005,6 +1005,18 @@
       "GET": {},
       "PATCH": {}
     },
+    "/api/room-type-prices/bulk-preview": {
+      "POST": {}
+    },
+    "/api/room-type-prices/bulk-revert": {
+      "POST": {}
+    },
+    "/api/room-type-prices/bulk-update": {
+      "POST": {}
+    },
+    "/api/room-type-prices/last-bulk-update": {
+      "GET": {}
+    },
     "/api/room-types": {
       "GET": {},
       "POST": {}
@@ -1316,6 +1328,9 @@
     },
     {
       "name": "room-rates"
+    },
+    {
+      "name": "room-type-prices"
     },
     {
       "name": "room-types"

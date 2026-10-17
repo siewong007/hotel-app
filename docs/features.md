@@ -13,7 +13,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Email verification | Delivered | ✓ `/verify-email` | ✓ | `SKIP_EMAIL_VERIFICATION` bypass for desktop/dev |
 | RBAC roles & permissions | Delivered | ✓ `features/admin/components/rbac` | ✓ `modules/rbac` | `<resource>:<action>`; `:manage` implies all; route-layer enforcement |
 | User & team management | Delivered | ✓ `features/admin`, `features/user` | ✓ `modules/users`, `modules/teams` | |
-| Rooms & room types | Delivered | ✓ `features/rooms` (`/room-management`, `/room-config`, `/timeline`) | ✓ `modules/rooms` | Status board, room events, room-type photos |
+| Rooms & room types | Delivered | ✓ `features/rooms` (`/room-management`, `/room-config`, `/timeline`) | ✓ `modules/rooms` | Status board, room events, room-type photos, bulk room-type price update with preview, audit and one-step revert (`room-type-prices/*`) |
 | Housekeeping | Delivered | ✓ `features/housekeeping` | ✓ `modules/housekeeping` | Shared room-status dialog with rooms |
 | Maintenance | Delivered | ✓ | ✓ `modules/maintenance` | |
 | Bookings (create/check-in/checkout/void) | Delivered | ✓ `features/bookings` | ✓ `modules/bookings` | Deposits, folio, transfers; allocation race-safe (`FOR UPDATE` / `SKIP LOCKED`). A soft smoking-room preference (`bookings.smoking_preference`, patch 0009) steers allocation but never blocks a booking. Room cards show the holding stay, who created it, and the guest's requests next to staff remarks. |
