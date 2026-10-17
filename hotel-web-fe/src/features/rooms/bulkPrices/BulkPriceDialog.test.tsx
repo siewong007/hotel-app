@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../hooks/useIsPhone', () => ({ useIsPhone: () => mocks.phone }));
 vi.mock('../../../hooks/useCurrency', () => ({
-  useCurrency: () => ({ format: (n: number) => `RM${n.toFixed(2)}`, symbol: 'RM', currency: 'MYR' }),
+  useCurrency: () => ({ format: (n: number) => `€${n.toFixed(2)}`, symbol: '€', currency: 'EUR' }),
 }));
 vi.mock('./hooks', () => ({
   usePreviewBulkPrices: () => ({ mutateAsync: mocks.preview, isPending: false }),
@@ -82,6 +82,18 @@ describe('BulkPriceDialog', () => {
     expect((nextBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('uses the configured currency symbol, never a hardcoded RM', async () => {
+    renderDialog();
+    const dialog = screen.getByRole('dialog');
+    fireEvent.mouseDown(screen.getByLabelText('Method'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Increase by amount' }));
+    expect(screen.getByLabelText(/^Value/).closest('div')?.textContent).toContain('€');
+    fireEvent.mouseDown(screen.getByLabelText('Round result'));
+    expect(await screen.findByRole('option', { name: 'Nearest €5.00' })).toBeTruthy();
+    expect(screen.getByRole('listbox').textContent).not.toContain('RM');
+    expect(dialog.textContent).not.toContain('RM ');
+  });
+
   it('sends the signed value, previews, requires a reason, then applies', async () => {
     mocks.preview.mockResolvedValue(previewOf(false));
     mocks.apply.mockResolvedValue({ batch_id: 'b1', preview: previewOf(false) });
@@ -103,7 +115,7 @@ describe('BulkPriceDialog', () => {
       round_to: null,
     });
 
-    expect(await screen.findByText('RM110.00')).toBeTruthy(); // new price in the table
+    expect(await screen.findByText('€110.00')).toBeTruthy(); // new price in the table
     next();
     const apply = await screen.findByRole('button', { name: 'Apply price changes' });
     expect((apply as HTMLButtonElement).disabled).toBe(true); // reason required
