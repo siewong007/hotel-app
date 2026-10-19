@@ -1,5 +1,6 @@
 {
   "title": "Night Audit",
+  "readOnly": "You have read-only access to the night audit.",
   "tabs": {
     "aria": "Night audit tabs",
     "run": "Run Audit",

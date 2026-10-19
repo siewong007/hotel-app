@@ -51,6 +51,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { getActiveLocale, translateFor } from '../../../i18n';
 import { preparePdfDocument } from '../../../utils/pdfFont';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import {
@@ -60,9 +61,15 @@ import {
   useRunNightAudit,
 } from '../hooks/useNightAuditQueries';
 
+/** An audit's business day as the run endpoint takes it (`YYYY-MM-DD`). */
+const auditDay = (date: string) => date.split('T')[0];
 
 const NightAuditPage: React.FC = () => {
   const { t } = useTranslation('nightAudit');
+  const { hasPermission } = useAuth();
+  // The run endpoint's own gate (POST /night-audit/run). Everyone who can open
+  // this page can read previews and reports; only these staff get the controls.
+  const canRun = hasPermission('night_audit:execute');
   const isPhone = useIsPhone();
   const runAtFormatter = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
   const historyDateFormatter = dateFormatter({
@@ -558,13 +565,13 @@ const NightAuditPage: React.FC = () => {
   };
 
   // Run night audit
-  const handleRunAudit = async (force: boolean = false) => {
+  const handleRunAudit = async (force: boolean = false, date: string = auditDate) => {
     try {
       setError(null);
       setConfirmDialogOpen(false);
 
       const response = await runAuditMutation.mutateAsync({
-        audit_date: auditDate,
+        audit_date: date,
         notes: auditNotes || undefined,
         force,
       });
@@ -588,8 +595,10 @@ const NightAuditPage: React.FC = () => {
     }
   };
 
-  // Rerun night audit (for already completed audits)
-  const handleRerunAudit = async () => {
+  // Rerun a completed audit. History rows pass their own date: the date
+  // picker belongs to the Run tab, and rerunning it from an old report would
+  // run (or reset) a different day than the one on screen.
+  const handleRerunAudit = async (date: string) => {
     const accepted = await confirm({
       title: t('rerun.title'),
       message: t('rerun.message'),
@@ -597,7 +606,7 @@ const NightAuditPage: React.FC = () => {
       severity: 'warning',
     });
     if (!accepted) return;
-    await handleRunAudit(true);
+    await handleRunAudit(true, date);
   };
 
   const getStatusChip = (status: string) => {
@@ -634,6 +643,11 @@ const NightAuditPage: React.FC = () => {
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
           {success}
+        </Alert>
+      )}
+      {!canRun && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {t('readOnly')}
         </Alert>
       )}
       {/* Tabs */}
@@ -689,8 +703,7 @@ const NightAuditPage: React.FC = () => {
         ) : preview ? (
           preview.already_run ? (
             (() => {
-              const normalizeDate = (d: string) => d.split('T')[0];
-              const completedAudit = auditHistory.find(a => normalizeDate(a.audit_date) === normalizeDate(auditDate));
+              const completedAudit = auditHistory.find(a => auditDay(a.audit_date) === auditDay(auditDate));
               return completedAudit ? (
                 <CompletedReportView
                   audit={completedAudit}
@@ -714,7 +727,7 @@ const NightAuditPage: React.FC = () => {
                   }}
                   onExportPDF={() => exportAuditToPDF(completedAudit)}
                   onExportCSV={() => exportAuditToCSV(completedAudit)}
-                  onRerun={handleRerunAudit}
+                  onRerun={canRun ? () => handleRerunAudit(auditDate) : undefined}
                 />
               ) : (
                 <Alert severity="success">{t('status.completedSeeHistory')}</Alert>
@@ -725,7 +738,7 @@ const NightAuditPage: React.FC = () => {
               preview={preview}
               auditDate={auditDate}
               running={running}
-              onRun={() => setConfirmDialogOpen(true)}
+              onRun={canRun ? () => setConfirmDialogOpen(true) : undefined}
             />
           )
         ) : null}
@@ -838,7 +851,7 @@ const NightAuditPage: React.FC = () => {
                         }}
                         onExportPDF={() => exportAuditToPDF(audit)}
                         onExportCSV={() => exportAuditToCSV(audit)}
-                        onRerun={handleRerunAudit}
+                        onRerun={canRun ? () => handleRerunAudit(auditDay(audit.audit_date)) : undefined}
                       />
                     </Box>
                   </Collapse>
@@ -949,7 +962,7 @@ const NightAuditPage: React.FC = () => {
                                 }}
                                 onExportPDF={() => exportAuditToPDF(audit)}
                                 onExportCSV={() => exportAuditToCSV(audit)}
-                                onRerun={handleRerunAudit}
+                                onRerun={canRun ? () => handleRerunAudit(auditDay(audit.audit_date)) : undefined}
                               />
                             </Box>
                           </Collapse>
