@@ -55,7 +55,9 @@ export const AppSidebar: React.FC = () => {
   React.useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty(SIDEBAR_WIDTH_VAR, `${isPhone ? 0 : width}px`);
-    return () => root.style.removeProperty(SIDEBAR_WIDTH_VAR);
+    return () => {
+      root.style.removeProperty(SIDEBAR_WIDTH_VAR);
+    };
   }, [isPhone, width]);
 
   if (isPhone) return null;
