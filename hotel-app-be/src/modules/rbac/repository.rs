@@ -141,22 +141,48 @@ impl RbacRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Grant `role_id` to `user_id` on behalf of the staff member
+    /// `assigned_by`, the one place a staff-made grant is written. A role the
+    /// user already holds is left exactly as it is, so `assigned_by` and
+    /// `assigned_at` keep answering who first granted it, and when.
+    ///
+    /// Roles granted at sign-up (a guest account's `guest` role) are written
+    /// by the auth repository with no `assigned_by`: no staff member made them.
+    pub async fn grant_user_role<'e, E>(
+        executor: E,
+        user_id: i64,
+        role_id: i64,
+        assigned_by: i64,
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES ({}, {}, {}) \
+             ON CONFLICT (user_id, role_id) DO NOTHING",
+            crate::param!(1),
+            crate::param!(2),
+            crate::param!(3)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(user_id)
+            .bind(role_id)
+            .bind(assigned_by)
+            .execute(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// Assign role to user
     pub async fn assign_role_to_user(
         pool: &DbPool,
         user_id: i64,
         role_id: i64,
+        assigned_by: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        )
-        .bind(user_id)
-        .bind(role_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(())
+        Self::grant_user_role(pool, user_id, role_id, assigned_by).await
     }
 
     /// Remove role from user
@@ -175,22 +201,44 @@ impl RbacRepository {
         Ok(())
     }
 
+    /// Grant `permission_id` to `role_id` on behalf of the staff member
+    /// `granted_by`. As with [`Self::grant_user_role`], a permission the role
+    /// already holds keeps its original `granted_by` and `granted_at`.
+    async fn grant_role_permission<'e, E>(
+        executor: E,
+        role_id: i64,
+        permission_id: i64,
+        granted_by: i64,
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "INSERT INTO role_permissions (role_id, permission_id, granted_by) VALUES ({}, {}, {}) \
+             ON CONFLICT (role_id, permission_id) DO NOTHING",
+            crate::param!(1),
+            crate::param!(2),
+            crate::param!(3)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(role_id)
+            .bind(permission_id)
+            .bind(granted_by)
+            .execute(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// Assign permission to role
     pub async fn assign_permission_to_role(
         pool: &DbPool,
         role_id: i64,
         permission_id: i64,
+        granted_by: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
-        )
-        .bind(role_id)
-        .bind(permission_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(())
+        Self::grant_role_permission(pool, role_id, permission_id, granted_by).await
     }
 
     /// Remove permission from role
@@ -399,35 +447,36 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Make `permission_ids` the role's exact permission set, writing only the
+    /// difference: dropped permissions are deleted, new ones are granted by
+    /// `granted_by`, and kept ones retain their original grant. (Deleting and
+    /// re-inserting the whole set would credit every kept permission to
+    /// whoever saved last.)
     pub async fn replace_role_permissions(
         pool: &DbPool,
         role_id: i64,
         permission_ids: &[i64],
+        granted_by: i64,
     ) -> Result<(), ApiError> {
         let mut tx = pool
             .begin()
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        sqlx::query("DELETE FROM role_permissions WHERE role_id = $1")
+        let sql = format!(
+            "DELETE FROM role_permissions WHERE role_id = {} AND permission_id <> ALL({})",
+            crate::param!(1),
+            crate::param!(2)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(role_id)
+            .bind(permission_ids)
             .execute(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for permission_id in permission_ids {
-            sqlx::query(
-                r#"
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES ($1, $2)
-                ON CONFLICT (role_id, permission_id) DO NOTHING
-                "#,
-            )
-            .bind(role_id)
-            .bind(permission_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Self::grant_role_permission(&mut *tx, role_id, *permission_id, granted_by).await?;
         }
 
         tx.commit()
@@ -435,31 +484,36 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Make `role_ids` the user's exact set of direct roles, writing only the
+    /// difference: dropped roles are deleted, new ones are granted by
+    /// `assigned_by`, and kept ones retain their original grant, `expires_at`
+    /// included. (Deleting and re-inserting the whole set would credit every
+    /// kept role to whoever saved last, and quietly drop its expiry.)
     pub async fn replace_user_roles(
         pool: &DbPool,
         user_id: i64,
         role_ids: &[i64],
+        assigned_by: i64,
     ) -> Result<(), ApiError> {
         let mut tx = pool
             .begin()
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+        let sql = format!(
+            "DELETE FROM user_roles WHERE user_id = {} AND role_id <> ALL({})",
+            crate::param!(1),
+            crate::param!(2)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(user_id)
+            .bind(role_ids)
             .execute(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for role_id in role_ids {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-            )
-            .bind(user_id)
-            .bind(role_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Self::grant_user_role(&mut *tx, user_id, *role_id, assigned_by).await?;
         }
 
         tx.commit()

@@ -434,7 +434,9 @@ impl AuthRepository {
     /// Shared by registration and by `claim_guest_account` so the two paths
     /// cannot drift on what a guest account is allowed to do. `ON CONFLICT DO
     /// NOTHING` because a claimed anchor account provisioned by front-desk
-    /// eKYC may already hold the role.
+    /// eKYC may already hold the role. `assigned_by` stays NULL: the account
+    /// gets this role by signing up, not from a staff member (staff grants go
+    /// through `RbacRepository::grant_user_role`).
     async fn grant_guest_role(tx: &mut DbTransaction<'_>, user_id: i64) -> Result<(), ApiError> {
         let guest_role_id: i64 =
             sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
@@ -860,6 +862,7 @@ impl AuthRepository {
                 .fetch_one(&mut *tx)
                 .await
                 .map_err(|error| ApiError::Database(format!("Guest role not found: {error}")))?;
+        // Self-service, like `grant_guest_role`: no staff member, so no `assigned_by`.
         sqlx::query(
             "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         )
