@@ -51,17 +51,11 @@ notes are in `git log -- docs/ongoing-dev.md`.
 
 ## P2 — later
 
-- **Residue of the July 2026 user-domain audit** (re-verified 2026-10-05;
-  every other finding from it is fixed):
-  1. The `/users` and `/rbac` admin routes have no rate limiter.
-  2. `user_roles.assigned_by` is never written: all six `INSERT INTO
-     user_roles` sites omit it. "Who granted this role" depends on
-     `audit_logs` (`team_members.added_by` *is* written).
-  3. No UI creates, updates or deletes a permission, or edits a route access
-     policy. `features/admin/components/rbac/PermissionsTab/` is exported but
-     never mounted, and `AdminService.updateRouteAccessPolicy` has no caller.
-  4. `NightAuditPage`'s run control is not permission-gated in the UI. The
-     backend still enforces `night_audit:execute`.
+- **Residue of the July 2026 user-domain audit** (re-verified 2026-10-14;
+  every other finding from it is fixed): no UI creates, updates or deletes a
+  permission, or edits a route access policy.
+  `features/admin/components/rbac/PermissionsTab/` is never mounted, and
+  `AdminService.updateRouteAccessPolicy` has no caller.
 - **Phone/tablet density backlog** (from the 2026-09-14 mobile report,
   priority order). PRs #193 and #194 (2026-09-26/29) were phone (`xs`) and
   coarse-pointer passes and did not touch these:

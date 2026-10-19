@@ -26,6 +26,7 @@ const NotificationsPage: React.FC = () => {
   const feed = useDeliveryFeed(
     { tier, status: status || undefined, page },
     canReadFeed,
+    true, // this page is the feed itself, so it always polls at the open rate
   );
   const totalPages = Math.max(1, Math.ceil((feed.data?.total ?? 0) / (feed.data?.page_size ?? 20)));
 

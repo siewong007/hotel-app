@@ -140,7 +140,7 @@ pub async fn assign_role_to_user(
     input: AssignRoleInput,
 ) -> Result<(), ApiError> {
     ensure_actor_can_manage_roles(pool, actor_user_id, &[input.role_id]).await?;
-    RbacRepository::assign_role_to_user(pool, input.user_id, input.role_id).await?;
+    RbacRepository::assign_role_to_user(pool, input.user_id, input.role_id, actor_user_id).await?;
     // Name lookup is audit enrichment only — never fail the assignment for it.
     let role_name = RbacRepository::find_role_by_id(pool, input.role_id)
         .await
@@ -186,7 +186,13 @@ pub async fn assign_permission_to_role(
     ensure_can_mutate_role_permissions(pool, actor_user_id, input.role_id).await?;
     ensure_actor_can_manage_roles(pool, actor_user_id, &[input.role_id]).await?;
     ensure_actor_can_grant_permissions(pool, actor_user_id, &[input.permission_id]).await?;
-    RbacRepository::assign_permission_to_role(pool, input.role_id, input.permission_id).await?;
+    RbacRepository::assign_permission_to_role(
+        pool,
+        input.role_id,
+        input.permission_id,
+        actor_user_id,
+    )
+    .await?;
     log_rbac_definition_change(
         pool,
         actor_user_id,
@@ -241,7 +247,7 @@ pub async fn replace_role_permissions(
         .into_iter()
         .map(|permission| permission.id)
         .collect();
-    RbacRepository::replace_role_permissions(pool, role_id, &permission_ids).await?;
+    RbacRepository::replace_role_permissions(pool, role_id, &permission_ids, actor_user_id).await?;
     let next: HashSet<i64> = permission_ids.iter().copied().collect();
     log_rbac_definition_change(
         pool,
@@ -273,7 +279,7 @@ pub async fn replace_user_roles(
     let role_ids = unique_ids(input.role_ids);
     ensure_actor_can_manage_roles(pool, admin_user_id, &current_role_ids).await?;
     ensure_actor_can_manage_roles(pool, admin_user_id, &role_ids).await?;
-    RbacRepository::replace_user_roles(pool, user_id, &role_ids).await?;
+    RbacRepository::replace_user_roles(pool, user_id, &role_ids, admin_user_id).await?;
 
     let current: HashSet<i64> = current_role_ids.into_iter().collect();
     let next: HashSet<i64> = role_ids.iter().copied().collect();
