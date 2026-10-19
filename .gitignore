@@ -102,3 +102,7 @@ ds-bundle/
 
 # Local pre-edit backups of ask-first files (maintenance.md backup rule)
 .claude/backups/
+
+# Local verification artifacts (screenshots/scripts from staging checks)
+/staging-*.png
+/shots/
