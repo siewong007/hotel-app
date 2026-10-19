@@ -15,6 +15,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Skeleton,
   Stack,
   Toolbar,
   Typography,
@@ -156,7 +157,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
   const { t } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const signOut = useGuestSignOut();
   const hotelName = getHotelSettings().hotel_name;
   const [portalToken, setPortalToken] = useState<string | null>(() => getValidPortalToken());
@@ -329,7 +330,15 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
 
               <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <LanguageSwitcher color="inherit" size="small" />
-                {showAccountNav ? (
+                {isLoading ? (
+                  <Skeleton
+                    variant="rounded"
+                    width={88}
+                    height={36}
+                    role="status"
+                    aria-label={t('common:state.loading')}
+                  />
+                ) : showAccountNav ? (
                   <>
                     <GuestPortalNotificationBell token={portalToken} />
                     <Button
