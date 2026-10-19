@@ -16,6 +16,8 @@
 //! - `sensitive`: password changes, 2FA ops, token refresh (moderate)
 //! - `guest_portal_*`, `public_booking_*`: public portal and booking endpoints
 //! - `webhook`: inbound payment webhooks
+//! - `admin_read`, `admin_write`: staff administration (`/users`, `/rbac`),
+//!   per signed-in staff member — see [`limit_staff_admin`]
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -23,7 +25,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
+use axum::{
+    extract::{Extension, Request},
+    http::Method,
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
+
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 
 /// Configuration for a rate limit rule
 #[derive(Clone)]
@@ -322,6 +332,17 @@ pub struct RateLimiters {
     /// per-IP ceiling well below the general API limit while still clearing
     /// any realistic provider redelivery burst.
     pub webhook: RateLimiter,
+    /// Staff administration reads (`GET` under `/users` and `/rbac`), keyed by
+    /// the signed-in staff member: 300 per 5 minutes. The RBAC screen loads
+    /// one snapshot and a few cached lists, so a person never comes close;
+    /// a script looping over accounts does.
+    pub admin_read: KeyedRateLimiter,
+    /// Staff administration writes (every other method there: creating,
+    /// inviting, suspending and deleting accounts, granting roles and
+    /// permissions, revoking sessions), keyed by the signed-in staff member:
+    /// 60 per 5 minutes. The screens send one request per save, so this only
+    /// slows a stolen session scripting privilege changes or password hashes.
+    pub admin_write: KeyedRateLimiter,
 }
 
 impl RateLimiters {
@@ -413,9 +434,57 @@ impl RateLimiters {
                 RateLimitConfig::new(60, 900),
                 pool.clone(),
             ),
-            webhook: RateLimiter::postgres("webhook", RateLimitConfig::new(60, 60), pool),
+            webhook: RateLimiter::postgres("webhook", RateLimitConfig::new(60, 60), pool.clone()),
+            admin_read: KeyedRateLimiter::postgres(
+                "admin_read",
+                RateLimitConfig::new(300, 300),
+                pool.clone(),
+            ),
+            admin_write: KeyedRateLimiter::postgres(
+                "admin_write",
+                RateLimitConfig::new(60, 300),
+                pool,
+            ),
         }
     }
+}
+
+/// Rate limit for the staff administration routers (`/users`, `/rbac`),
+/// applied with `route_layer` so every route they own, including any added
+/// later, is covered without a per-handler check.
+///
+/// Keyed by the signed-in staff member rather than the IP: a hotel's front
+/// desk shares one address, and the risk here is one session (a stolen one,
+/// or a script) changing accounts and grants faster than anyone can notice.
+/// Reads and writes have separate budgets, so browsing never spends what a
+/// change needs. A request without a valid token passes through untouched:
+/// the route's own permission check answers it with 401, and the session
+/// middleware has already rejected a forged token before this runs.
+pub async fn limit_staff_admin(
+    Extension(limiters): Extension<RateLimiters>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let Ok(user_id) = crate::core::middleware::require_auth(request.headers()).await else {
+        return next.run(request).await;
+    };
+    let limiter = if matches!(*request.method(), Method::GET | Method::HEAD) {
+        &limiters.admin_read
+    } else {
+        &limiters.admin_write
+    };
+    let (allowed, retry_after) = limiter.check_with_retry(user_id.to_string()).await;
+    if !allowed {
+        return ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        )
+        .into_response();
+    }
+    next.run(request).await
 }
 
 #[cfg(test)]
@@ -491,5 +560,102 @@ mod tests {
         let (allowed, retry_after) = limiter.check_with_retry(ip(1)).await;
         assert!(!allowed);
         assert!(retry_after > 0);
+    }
+
+    mod staff_admin {
+        use super::*;
+        use axum::{Router, body::Body, http::StatusCode, routing::get};
+        use tower::ServiceExt;
+
+        /// Production budgets with the admin pair swapped for small in-memory
+        /// ones; the lazy pool is never connected, because nothing here
+        /// reaches a Postgres-backed limiter.
+        fn app(reads: u32, writes: u32) -> Router {
+            let pool = DbPool::connect_lazy("postgres://unused@127.0.0.1:1/unused")
+                .expect("a lazy pool only parses its URL");
+            let mut limiters = RateLimiters::new(pool);
+            limiters.admin_read = KeyedRateLimiter::new(RateLimitConfig::new(reads, 300));
+            limiters.admin_write = KeyedRateLimiter::new(RateLimitConfig::new(writes, 300));
+            Router::new()
+                .route("/users", get(|| async { "ok" }).post(|| async { "ok" }))
+                .route_layer(axum::middleware::from_fn(limit_staff_admin))
+                .layer(Extension(limiters))
+        }
+
+        fn bearer(user_id: i64) -> String {
+            let _ = crate::core::AuthService::init_jwt_secret(
+                "rate-limiter-unit-test-secret-at-least-32-characters",
+            );
+            let token = crate::core::AuthService::generate_session_jwt(
+                user_id,
+                format!("staff{user_id}"),
+                vec!["admin".to_string()],
+                format!("session-{user_id}"),
+            )
+            .expect("a test token encodes");
+            format!("Bearer {token}")
+        }
+
+        async fn send(app: &Router, method: Method, auth: Option<&str>) -> Response {
+            let mut request = Request::builder().method(method).uri("/users");
+            if let Some(auth) = auth {
+                request = request.header("authorization", auth);
+            }
+            app.clone()
+                .oneshot(request.body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+        }
+
+        #[tokio::test]
+        async fn reads_and_writes_spend_separate_budgets_per_staff_member() {
+            let app = app(2, 1);
+            let alice = bearer(910_001);
+            let bob = bearer(910_002);
+
+            for _ in 0..2 {
+                assert_eq!(
+                    send(&app, Method::GET, Some(&alice)).await.status(),
+                    StatusCode::OK
+                );
+            }
+            let refused = send(&app, Method::GET, Some(&alice)).await;
+            assert_eq!(refused.status(), StatusCode::TOO_MANY_REQUESTS);
+            assert!(
+                refused.headers().contains_key("retry-after"),
+                "a refusal must say when to come back"
+            );
+
+            // Reading did not spend the write budget.
+            assert_eq!(
+                send(&app, Method::POST, Some(&alice)).await.status(),
+                StatusCode::OK
+            );
+            assert_eq!(
+                send(&app, Method::POST, Some(&alice)).await.status(),
+                StatusCode::TOO_MANY_REQUESTS
+            );
+
+            // Another staff member, perhaps at the same front desk, is untouched.
+            assert_eq!(
+                send(&app, Method::GET, Some(&bob)).await.status(),
+                StatusCode::OK
+            );
+            assert_eq!(
+                send(&app, Method::POST, Some(&bob)).await.status(),
+                StatusCode::OK
+            );
+        }
+
+        #[tokio::test]
+        async fn a_request_without_a_token_is_left_to_the_route_to_refuse() {
+            let app = app(0, 0);
+            // Zero budgets would refuse anyone the layer could identify.
+            assert_eq!(send(&app, Method::GET, None).await.status(), StatusCode::OK);
+            assert_eq!(
+                send(&app, Method::POST, None).await.status(),
+                StatusCode::OK
+            );
+        }
     }
 }
