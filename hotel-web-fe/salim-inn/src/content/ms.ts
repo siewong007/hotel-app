@@ -101,6 +101,7 @@ export const ms: Copy = {
     myAccount: 'Akaun saya',
     adminConsole: 'Konsol pentadbir',
     bookAnotherStay: 'Tempah penginapan lain',
+    signedInAs: 'Log masuk sebagai {{name}}',
   },
   lang: { aria: 'Bahasa' },
   weather: {
