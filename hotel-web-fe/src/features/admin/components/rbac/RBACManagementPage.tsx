@@ -29,6 +29,7 @@ import {
   Bolt as BoltIcon,
   People as PeopleIcon,
   ViewModule as ModulesIcon,
+  WebAsset as PagesIcon,
 } from '@mui/icons-material';
 import { LogoLoader } from '../../../../components';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -41,6 +42,8 @@ import {
   useUpdateRole,
 } from './hooks/useRBACQueries';
 import { UsersTab } from './UsersTab';
+import { PageAccessTab } from './PageAccessTab';
+import { buildPageAccessRows } from './PageAccessTab/pageAccessModel';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils/errorMessage';
 import { useTranslation } from '../../../../i18n';
@@ -106,6 +109,14 @@ function roleAccent(role: Role): Accent {
   return ACCENTS[role.id % ACCENTS.length];
 }
 
+type PageTab = 'roles' | 'users' | 'pages';
+
+const PAGE_TAB_ICONS: Record<PageTab, typeof SecurityIcon> = {
+  roles: SecurityIcon,
+  users: PeopleIcon,
+  pages: PagesIcon,
+};
+
 const BUILTIN = /(super\s*admin|administrator|^admin$|manager|receptionist|front desk|housekeeping|guest|staff)/i;
 const isBuiltin = (r: Role) => BUILTIN.test(r.name.trim());
 
@@ -131,6 +142,7 @@ const RBACManagementPage: React.FC = () => {
   const {
     roles,
     permissions,
+    routePolicies,
     users,
     rolesWithStats,
     permissionCategories,
@@ -142,9 +154,10 @@ const RBACManagementPage: React.FC = () => {
     setUsers,
     updateRolePermissions,
     updateUserRoles,
+    updateRoutePolicy,
   } = useRBACData();
 
-  const [tab, setTab] = useState<'roles' | 'users'>('roles');
+  const [tab, setTab] = useState<PageTab>('roles');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
 
@@ -198,6 +211,8 @@ const RBACManagementPage: React.FC = () => {
   }, [permissionCategories, isPhone]);
 
   const totalPerms = permissions.length;
+  // Rules no page checks are left off the Page access tab, so leave them out of its count too.
+  const pageAccessCount = useMemo(() => buildPageAccessRows(routePolicies).length, [routePolicies]);
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === selectedId) || null,
     [roles, selectedId]
@@ -406,7 +421,8 @@ const RBACManagementPage: React.FC = () => {
     );
   }
 
-  const PtabBtn = ({ id, label, count }: { id: 'roles' | 'users'; label: string; count: string }) => {
+  const PtabBtn = ({ id, label, count }: { id: PageTab; label: string; count: string }) => {
+    const Icon = PAGE_TAB_ICONS[id];
     const on = tab === id;
     return (
       <Box
@@ -419,7 +435,7 @@ const RBACManagementPage: React.FC = () => {
           '&:hover': { color: on ? 'var(--hotel-bg)' : T.ink },
         }}
       >
-        {id === 'roles' ? <SecurityIcon sx={{ fontSize: 18 }} /> : <PeopleIcon sx={{ fontSize: 18 }} />}
+        <Icon sx={{ fontSize: 18 }} />
         {label}
         <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 18%, transparent)' : T.surface3, color: on ? 'var(--hotel-bg)' : T.ink3, fontWeight: 700 }}>
           {count}
@@ -475,6 +491,7 @@ const RBACManagementPage: React.FC = () => {
       }}>
         <PtabBtn id="roles" label={t('rbac.title')} count={`${roles.length} / ${totalPerms}`} />
         <PtabBtn id="users" label={t('rbac.usersTab')} count={`${users.length}`} />
+        <PtabBtn id="pages" label={t('rbac.pageAccess.tab')} count={`${pageAccessCount}`} />
       </Box>
       {loading && (
         <LogoLoader variant="page" />
@@ -814,6 +831,17 @@ const RBACManagementPage: React.FC = () => {
             onUserUpdated={handleUserUpdated}
             onUserDeleted={handleUserDeleted}
             onRolesAssigned={handleRolesAssigned}
+          />
+        </Box>
+      )}
+      {!loading && tab === 'pages' && (
+        <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', p: { xs: 1.5, sm: 2 } }}>
+          <PageAccessTab
+            routePolicies={routePolicies}
+            roles={roles}
+            permissions={permissions}
+            rolePermissionMap={rolePermissionMap}
+            onPolicySaved={updateRoutePolicy}
           />
         </Box>
       )}
