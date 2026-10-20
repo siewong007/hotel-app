@@ -31,7 +31,10 @@ import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { ProfileDetailRow } from '../../../guests/components/GuestProfileParts';
 import { type NotificationTopic } from '../../../communications/types';
 import { useGuestCommunications } from '../../hooks/useGuestRelationsQueries';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 import GuestConsentDialog from '../GuestConsentDialog';
+import { PhoneRow, PhoneRows } from './PhoneRows';
 
 const SectionCard: React.FC<{ title: React.ReactNode; children: React.ReactNode }> = ({
   title,
@@ -77,6 +80,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
   canManageConsent,
 }) => {
   const { t, tOr } = useTranslation('guests');
+  const isPhone = useIsPhone();
   const communicationsQuery = useGuestCommunications(guestId);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
 
@@ -202,6 +206,27 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 {t('communication.topicsEmpty')}
               </Typography>
+            ) : isPhone ? (
+              <PhoneRows>
+                {summary.subscriptions.map((subscription) => (
+                  <PhoneRow key={`${subscription.channel}:${subscription.topic}`}>
+                    <MobileCardRow
+                      // intentional: dynamic keys — topic and channel are DB enum values; unknown values humanize
+                      title={tOr(`consent.topics.${subscription.topic}`, formatStatusLabel(subscription.topic))}
+                      subtitle={tOr(`communication.channels.${subscription.channel}`, formatStatusLabel(subscription.channel))}
+                      meta={formatHotelDateTime(subscription.updated_at)}
+                      status={
+                        <Chip
+                          size="small"
+                          color={subscription.subscribed ? 'success' : 'default'}
+                          variant={subscription.subscribed ? 'filled' : 'outlined'}
+                          label={subscription.subscribed ? t('communication.subscribed') : t('communication.unsubscribed')}
+                        />
+                      }
+                    />
+                  </PhoneRow>
+                ))}
+              </PhoneRows>
             ) : (
               <TableContainer>
                 <Table size="small" aria-label={t('communication.topicsAria')}>
@@ -261,6 +286,26 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 {t('communication.deliveriesEmpty')}
               </Typography>
+            ) : isPhone ? (
+              <PhoneRows>
+                {summary.recent_deliveries.map((delivery) => (
+                  <PhoneRow key={delivery.id}>
+                    <MobileCardRow
+                      title={delivery.subject ?? '—'}
+                      subtitle={statusLabel(t, 'generic', delivery.kind)}
+                      meta={formatHotelDateTime(delivery.created_at)}
+                      status={
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={deliveryStatusColor(delivery.status)}
+                          label={statusLabel(t, 'email_delivery', delivery.status)}
+                        />
+                      }
+                    />
+                  </PhoneRow>
+                ))}
+              </PhoneRows>
             ) : (
               <TableContainer>
                 <Table size="small" aria-label={t('communication.deliveriesAria')}>

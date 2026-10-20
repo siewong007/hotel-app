@@ -56,14 +56,9 @@ notes are in `git log -- docs/ongoing-dev.md`.
   permission, or edits a route access policy.
   `features/admin/components/rbac/PermissionsTab/` is never mounted, and
   `AdminService.updateRouteAccessPolicy` has no caller.
-- **Phone/tablet density backlog** (from the 2026-09-14 mobile report,
-  priority order). PRs #193 and #194 (2026-09-26/29) were phone (`xs`) and
-  coarse-pointer passes and did not touch these:
-  1. `/housekeeping` at 320px: the "+ New task" CTA is clipped.
-  2. `GuestProfilePage`: five inner tables are still desktop-dense.
-  3. `DataTransferPage` (~50 always-expanded cards), `RBACManagementPage`
-     accordions, and `AuditLogPage` stream cards.
-  4. The staged-changes bar is still occluded on 600–899px tablets (`sm`–`md`).
+- **Phone/tablet density backlog** (from the 2026-09-14 mobile report; not
+  re-measured since): `DataTransferPage` (~50 always-expanded cards),
+  `RBACManagementPage` accordions, and `AuditLogPage` stream cards.
 - **Desktop PostgreSQL lags the server.** The bundle is `19beta2`
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`),
   while every server, CI and compose pin is `19beta3`. Move it with the GA
