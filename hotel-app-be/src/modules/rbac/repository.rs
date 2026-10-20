@@ -111,7 +111,8 @@ impl RbacRepository {
     pub async fn find_all_permissions(pool: &DbPool) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
-            SELECT id, name, resource, action, description, created_at
+            SELECT id, name, resource, action, description, created_at,
+                   COALESCE(is_system_permission, false) AS is_system_permission
             FROM permissions
             ORDER BY resource, action
             "#,
@@ -128,7 +129,8 @@ impl RbacRepository {
     ) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
-            SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at
+            SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at,
+                   COALESCE(p.is_system_permission, false) AS is_system_permission
             FROM permissions p
             JOIN role_permissions rp ON p.id = rp.permission_id
             WHERE rp.role_id = $1
@@ -285,7 +287,8 @@ impl RbacRepository {
             r#"
             INSERT INTO permissions (name, resource, action, description)
             VALUES ($1, $2, $3, $4)
-            RETURNING id, name, resource, action, description, created_at
+            RETURNING id, name, resource, action, description, created_at,
+                      COALESCE(is_system_permission, false) AS is_system_permission
             "#,
         )
         .bind(name)
@@ -615,7 +618,8 @@ impl RbacRepository {
     ) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(sqlx::AssertSqlSafe(format!(
             "{} \
-             SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at \
+             SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at, \
+                    COALESCE(p.is_system_permission, false) AS is_system_permission \
              FROM permissions p \
              INNER JOIN role_permissions rp ON p.id = rp.permission_id \
              INNER JOIN effective_roles er ON er.role_id = rp.role_id \
@@ -819,7 +823,8 @@ impl RbacRepository {
             UPDATE permissions
             SET name = $1, resource = $2, action = $3, description = $4
             WHERE id = $5
-            RETURNING id, name, resource, action, description, created_at
+            RETURNING id, name, resource, action, description, created_at,
+                      COALESCE(is_system_permission, false) AS is_system_permission
             "#,
         )
         .bind(name)
@@ -830,6 +835,41 @@ impl RbacRepository {
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn permission_name(
+        pool: &DbPool,
+        permission_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        let sql = format!(
+            "SELECT name FROM permissions WHERE id = {}",
+            crate::param!(1)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(permission_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// How many page access rules name `permission` in either list. Rules
+    /// hold permission names, not ids, so a deleted or renamed permission
+    /// would leave a name behind that matches nobody.
+    pub async fn route_policy_count_for_permission(
+        pool: &DbPool,
+        permission: &str,
+    ) -> Result<i64, ApiError> {
+        let sql = format!(
+            "SELECT COUNT(*) FROM route_access_policies \
+             WHERE required_permissions @> jsonb_build_array({0}::text) \
+                OR nav_permissions @> jsonb_build_array({0}::text)",
+            crate::param!(1)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(permission)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     pub async fn role_count_for_permission(
