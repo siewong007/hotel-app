@@ -27,7 +27,7 @@ export interface Copy {
     skipLink: string;
   };
   /** Account-aware topbar pills (accountActions.ts). */
-  account: { signIn: string; myAccount: string; adminConsole: string; bookAnotherStay: string };
+  account: { signIn: string; myAccount: string; adminConsole: string; bookAnotherStay: string; signedInAs: string };
   /** Language picker aria-label. Option names are native labels — never translated. */
   lang: { aria: string };
   /** The top bar's weather chip and its panel (ui/WeatherChip.ts). The values
@@ -313,6 +313,7 @@ export const en: Copy = {
     myAccount: 'My account',
     adminConsole: 'Admin console',
     bookAnotherStay: 'Book another stay',
+    signedInAs: 'Signed in as {{name}}',
   },
   lang: { aria: 'Language' },
   weather: {

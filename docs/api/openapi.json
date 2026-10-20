@@ -280,6 +280,9 @@
     "/api/auth/resend-verification": {
       "POST": {}
     },
+    "/api/auth/session-hint": {
+      "GET": {}
+    },
     "/api/auth/verify-email": {
       "POST": {}
     },
