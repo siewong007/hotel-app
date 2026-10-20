@@ -133,6 +133,14 @@ zero, silently". Any change retyping decoded columns must ship a startup schema 
 mapper `.ok()` fallbacks turn a mismatch into epoch dates and wrong balances instead of an
 error, so "it boots and tests pass" proves nothing about unpatched deployments.
 
+**`#[sqlx(default)]` is the same silent fallback, at the column level.** A `FromRow`
+field marked with it reads false/None whenever a query leaves its column out.
+`User.is_super_admin` came back false on every sign-in response, because the password,
+passkey, refresh and access-snapshot lookups each selected their own column list.
+So the app never showed super admins their controls; fixed in #262 by sharing
+`users::repository::USER_COLUMNS`. When a struct has defaulted fields, grep every
+`query_as::<_, T>` for the column, or make the queries share one list.
+
 ## 5. Rust name resolution and silent-SQL traps
 
 - **A file-local `fn` silently shadows an imported one of the same name.** `repositories/rate.rs` defined a private `row_to_room_type` that won over the correct `models::row_mappers` version for every unqualified call in that file — no ambiguity error, Rust prefers the local item. Room-type prices decoded as 0 everywhere. Grep `fn row_to_<type>` repo-wide, not just the domain module. (Note `rooms_queries.rs:74` has its own copy that is CORRECT — a duplicate, not a bug.)
