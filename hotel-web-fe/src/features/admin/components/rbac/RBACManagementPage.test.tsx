@@ -119,6 +119,12 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+const phone = vi.hoisted(() => ({ isPhone: false }));
+
+vi.mock('../../../../hooks/useIsPhone', () => ({
+  useIsPhone: () => phone.isPhone,
+}));
+
 vi.mock('./hooks/useRBACData', () => ({
   useRBACData: () => mocks.data,
 }));
@@ -161,9 +167,30 @@ describe('RBACManagementPage', () => {
     // Rebuild the mutable slices — tests append roles and rewrite the map.
     mocks.data.roles = [roleFixture(1, 'Bookkeeper'), roleFixture(2, 'Admin')];
     mocks.data.rolePermissionMap = { 1: new Set([11]), 2: new Set([11, 12, 13]) };
+    phone.isPhone = false;
   });
 
   afterEach(cleanup);
+
+  it('starts every permission group closed on a phone, and opens the ones a search matches', async () => {
+    phone.isPhone = true;
+    render(<RBACManagementPage />);
+    // Group headers only: no permission rows until one is opened.
+    expect(screen.getByText('Bookings')).toBeTruthy();
+    expect(screen.getByText('Ledgers')).toBeTruthy();
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+
+    fireEvent.change(screen.getByPlaceholderText(/search permissions by name/i), {
+      target: { value: 'ledgers' },
+    });
+    expect(await screen.findByText('ledgers:view')).toBeTruthy();
+    expect(screen.queryByText('bookings:view')).toBeNull();
+  });
+
+  it('starts every permission group open on a wider screen', () => {
+    render(<RBACManagementPage />);
+    expect(screen.getAllByRole('switch')).toHaveLength(3);
+  });
 
   it('renders the roles workspace', () => {
     render(<RBACManagementPage />);

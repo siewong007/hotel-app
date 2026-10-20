@@ -31,6 +31,7 @@ import {
   ViewModule as ModulesIcon,
 } from '@mui/icons-material';
 import { LogoLoader } from '../../../../components';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
 import type { Permission, Role, User } from '../../../../types';
 import { useRBACData } from './hooks/useRBACData';
 import {
@@ -152,6 +153,7 @@ const RBACManagementPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
   const [hideEmpty, setHideEmpty] = useState(true);
   const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+  const isPhone = useIsPhone();
 
   // Draft permission ids per role
   const [draft, setDraft] = useState<Record<number, Set<number>>>({});
@@ -188,10 +190,12 @@ const RBACManagementPage: React.FC = () => {
     setDraft(next);
   }, [roles, rolePermissionMap]);
 
-  // Open all categories by default
+  // Open all categories by default — except on a phone, where 30-odd open
+  // groups stack into a page over 10,000px tall: there they start as a list
+  // of headers (name, on/total) to tap open.
   useEffect(() => {
-    setOpenCats(new Set(permissionCategories.map((c) => c.name)));
-  }, [permissionCategories]);
+    setOpenCats(isPhone ? new Set() : new Set(permissionCategories.map((c) => c.name)));
+  }, [permissionCategories, isPhone]);
 
   const totalPerms = permissions.length;
   const selectedRole = useMemo(
@@ -662,7 +666,9 @@ const RBACManagementPage: React.FC = () => {
                       return true;
                     });
                     if (rows.length === 0 && filtering) return;
-                    const open = openCats.has(cat.name);
+                    // A search or filter must show its matches even in groups a
+                    // phone keeps closed.
+                    const open = openCats.has(cat.name) || (isPhone && filtering);
                     const allOn = onInCat === cat.permissions.length;
 
                     blocks.push(

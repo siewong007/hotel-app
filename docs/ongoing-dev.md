@@ -56,9 +56,6 @@ notes are in `git log -- docs/ongoing-dev.md`.
   permission, or edits a route access policy.
   `features/admin/components/rbac/PermissionsTab/` is never mounted, and
   `AdminService.updateRouteAccessPolicy` has no caller.
-- **Phone/tablet density backlog** (from the 2026-09-14 mobile report; not
-  re-measured since): `DataTransferPage` (~50 always-expanded cards),
-  `RBACManagementPage` accordions, and `AuditLogPage` stream cards.
 - **Desktop PostgreSQL lags the server.** The bundle is `19beta2`
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`),
   while every server, CI and compose pin is `19beta3`. Move it with the GA
