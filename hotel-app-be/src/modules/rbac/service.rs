@@ -570,6 +570,12 @@ pub async fn update_permission(
             "Cannot modify system permissions".to_string(),
         )),
         Some(false) => {
+            let current_name = RbacRepository::permission_name(pool, permission_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("Permission not found".to_string()))?;
+            if input.name != current_name {
+                ensure_no_page_rule_names(pool, &current_name, "rename").await?;
+            }
             let permission = RbacRepository::update_permission(
                 pool,
                 permission_id,
@@ -616,6 +622,10 @@ pub async fn delete_permission(
             role_count
         )));
     }
+    let name = RbacRepository::permission_name(pool, permission_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Permission not found".to_string()))?;
+    ensure_no_page_rule_names(pool, &name, "delete").await?;
 
     RbacRepository::delete_permission(pool, permission_id).await?;
     log_rbac_definition_change(
@@ -624,11 +634,28 @@ pub async fn delete_permission(
         "permission_deleted",
         "permission",
         Some(permission_id),
-        serde_json::Value::Null,
+        serde_json::json!({ "name": name }),
     )
     .await;
     crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
+}
+
+/// Page access rules hold permission names, so deleting or renaming one a
+/// rule still names would leave the rule matching nobody: a page could
+/// quietly disappear for everyone it was meant for.
+async fn ensure_no_page_rule_names(
+    pool: &DbPool,
+    permission: &str,
+    verb: &str,
+) -> Result<(), ApiError> {
+    let rules = RbacRepository::route_policy_count_for_permission(pool, permission).await?;
+    if rules == 0 {
+        return Ok(());
+    }
+    Err(ApiError::BadRequest(format!(
+        "Cannot {verb} permission {permission}: {rules} page access rule(s) still use it"
+    )))
 }
 
 fn unique_ids(ids: Vec<i64>) -> Vec<i64> {

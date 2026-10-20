@@ -932,6 +932,29 @@
         "guest-relations-detail": "Profil tetamu",
         "guest-relations-follow-ups": "Susulan tetamu"
       }
+    },
+    "customPermission": {
+      "new": "Kebenaran baharu",
+      "createTitle": "Kebenaran tersuai baharu",
+      "editTitle": "Sunting {{name}}",
+      "note": "Kebenaran tersuai tidak membuka sebarang ciri terbina dalam: pelayan hanya menyemak kebenaran yang disertakan bersama aplikasi. Gunakannya dalam peraturan akses halaman untuk menentukan siapa yang melihat atau membuka sesuatu halaman.",
+      "resourceHelp": "Huruf kecil, digit dan garis bawah, bermula dengan huruf.",
+      "resourceInvalid": "Gunakan huruf kecil, digit dan garis bawah, bermula dengan huruf (paling banyak 50).",
+      "description": "Penerangan",
+      "namePreview": "Nama kebenaran: {{name}}",
+      "duplicate": "{{name}} sudah wujud.",
+      "edit": "Sunting {{name}}",
+      "delete": "Padam {{name}}",
+      "heldBy": "Matikannya untuk {{roles}} sebelum memadamnya.",
+      "usedByRules": "Peraturan akses halaman masih menggunakannya. Buangkannya daripada peraturan itu sebelum memadamnya.",
+      "saveFirst": "Simpan atau buang perubahan kebenaran anda dahulu.",
+      "deleteTitle": "Padam kebenaran",
+      "deleteBody": "Padam {{name}}? Tindakan ini tidak boleh dibuat asal.",
+      "created": "Kebenaran {{name}} dicipta",
+      "updated": "Kebenaran {{name}} dikemas kini",
+      "deleted": "Kebenaran {{name}} dipadam",
+      "saveFailed": "Tidak dapat menyimpan kebenaran",
+      "deleteFailed": "Tidak dapat memadam kebenaran"
     }
   },
   "system": {

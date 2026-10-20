@@ -932,6 +932,29 @@
         "guest-relations-detail": "宾客资料",
         "guest-relations-follow-ups": "宾客跟进"
       }
+    },
+    "customPermission": {
+      "new": "新建权限",
+      "createTitle": "新建自定义权限",
+      "editTitle": "编辑 {{name}}",
+      "note": "自定义权限不会开启任何内置功能：服务器只检查应用自带的权限。可在页面访问规则中使用它们，决定谁能看到或打开某个页面。",
+      "resourceHelp": "小写字母、数字和下划线，以字母开头。",
+      "resourceInvalid": "请使用小写字母、数字和下划线，以字母开头（最多 50 个字符）。",
+      "description": "说明",
+      "namePreview": "权限名称：{{name}}",
+      "duplicate": "{{name}} 已存在。",
+      "edit": "编辑 {{name}}",
+      "delete": "删除 {{name}}",
+      "heldBy": "请先为{{roles}}关闭此权限，再删除。",
+      "usedByRules": "页面访问规则仍在使用此权限。请先从规则中移除，再删除。",
+      "saveFirst": "请先保存或放弃你对权限的更改。",
+      "deleteTitle": "删除权限",
+      "deleteBody": "删除 {{name}}？此操作无法撤销。",
+      "created": "已创建权限 {{name}}",
+      "updated": "已更新权限 {{name}}",
+      "deleted": "已删除权限 {{name}}",
+      "saveFailed": "无法保存权限",
+      "deleteFailed": "无法删除权限"
     }
   },
   "system": {

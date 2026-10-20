@@ -51,11 +51,6 @@ notes are in `git log -- docs/ongoing-dev.md`.
 
 ## P2 — later
 
-- **Residue of the July 2026 user-domain audit** (re-verified 2026-10-20;
-  every other finding from it is fixed, and page rules are editable under
-  Access Control → Page access): no UI creates, updates or deletes a
-  permission. `features/admin/components/rbac/PermissionsTab/` and
-  `RolesTab/` are never mounted; the May 2026 redesign replaced both.
 - **Desktop PostgreSQL lags the server.** The bundle is `19beta2`
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`),
   while every server, CI and compose pin is `19beta3`. Move it with the GA

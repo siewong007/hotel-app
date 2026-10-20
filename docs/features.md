@@ -11,7 +11,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Passkeys (WebAuthn) | Delivered | ✓ | ✓ `modules/passkey` | Enrollment step-up; revoked on password change/reset |
 | Google sign-in / One Tap | Delivered | ✓ | ✓ (`services/google_identity.rs`) | Staff and guest surfaces |
 | Email verification | Delivered | ✓ `/verify-email` | ✓ | `SKIP_EMAIL_VERIFICATION` bypass for desktop/dev |
-| RBAC roles & permissions | Delivered | ✓ `features/admin/components/rbac` | ✓ `modules/rbac` | `<resource>:<action>`; `:manage` implies all; route-layer enforcement; Access Control → Page access edits each page's `route_access_policies` rule (who opens it, who sees it in the menu) with a per-role preview |
+| RBAC roles & permissions | Delivered | ✓ `features/admin/components/rbac` | ✓ `modules/rbac` | `<resource>:<action>`; `:manage` implies all; route-layer enforcement; Access Control → Page access edits each page's `route_access_policies` rule (who opens it, who sees it in the menu) with a per-role preview; super admins create custom permissions (for page rules only; built-in permissions are immutable) |
 | User & team management | Delivered | ✓ `features/admin`, `features/user` | ✓ `modules/users`, `modules/teams` | |
 | Rooms & room types | Delivered | ✓ `features/rooms` (`/room-management`, `/room-config`, `/timeline`) | ✓ `modules/rooms` | Status board, room events, room-type photos, bulk room-type price update with preview, audit and one-step revert (`room-type-prices/*`) |
 | Housekeeping | Delivered | ✓ `features/housekeeping` | ✓ `modules/housekeeping` | Shared room-status dialog with rooms |
