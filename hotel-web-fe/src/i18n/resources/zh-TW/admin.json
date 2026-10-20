@@ -933,6 +933,29 @@
         "guest-relations-detail": "賓客資料",
         "guest-relations-follow-ups": "賓客跟進"
       }
+    },
+    "customPermission": {
+      "new": "新增權限",
+      "createTitle": "新增自訂權限",
+      "editTitle": "編輯 {{name}}",
+      "note": "自訂權限不會開啟任何內建功能：伺服器只檢查應用程式內建的權限。可在頁面存取規則中使用它們，決定誰能看到或開啟某個頁面。",
+      "resourceHelp": "小寫字母、數字和底線，以字母開頭。",
+      "resourceInvalid": "請使用小寫字母、數字和底線，以字母開頭（最多 50 個字元）。",
+      "description": "說明",
+      "namePreview": "權限名稱：{{name}}",
+      "duplicate": "{{name}} 已存在。",
+      "edit": "編輯 {{name}}",
+      "delete": "刪除 {{name}}",
+      "heldBy": "請先為{{roles}}關閉此權限，再刪除。",
+      "usedByRules": "頁面存取規則仍在使用此權限。請先從規則中移除，再刪除。",
+      "saveFirst": "請先儲存或捨棄你對權限的變更。",
+      "deleteTitle": "刪除權限",
+      "deleteBody": "刪除 {{name}}？此操作無法復原。",
+      "created": "已建立權限 {{name}}",
+      "updated": "已更新權限 {{name}}",
+      "deleted": "已刪除權限 {{name}}",
+      "saveFailed": "無法儲存權限",
+      "deleteFailed": "無法刪除權限"
     }
   },
   "system": {

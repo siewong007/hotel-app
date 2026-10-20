@@ -951,6 +951,29 @@
         "guest-relations-detail": "Guest profile",
         "guest-relations-follow-ups": "Guest follow-ups"
       }
+    },
+    "customPermission": {
+      "new": "New permission",
+      "createTitle": "New custom permission",
+      "editTitle": "Edit {{name}}",
+      "note": "Custom permissions don't unlock any built-in feature: the server checks only the permissions the app ships with. Use them in page access rules to decide who sees or opens a page.",
+      "resourceHelp": "Lowercase letters, digits and underscores, starting with a letter.",
+      "resourceInvalid": "Use lowercase letters, digits and underscores, starting with a letter (50 at most).",
+      "description": "Description",
+      "namePreview": "Permission name: {{name}}",
+      "duplicate": "{{name}} already exists.",
+      "edit": "Edit {{name}}",
+      "delete": "Delete {{name}}",
+      "heldBy": "Turn it off for {{roles}} before deleting it.",
+      "usedByRules": "Page access rules still use it. Remove it from them before deleting it.",
+      "saveFirst": "Save or discard your permission changes first.",
+      "deleteTitle": "Delete permission",
+      "deleteBody": "Delete {{name}}? This can't be undone.",
+      "created": "Permission {{name}} created",
+      "updated": "Permission {{name}} updated",
+      "deleted": "Permission {{name}} deleted",
+      "saveFailed": "Couldn't save the permission",
+      "deleteFailed": "Couldn't delete the permission"
     }
   },
   "system": {
