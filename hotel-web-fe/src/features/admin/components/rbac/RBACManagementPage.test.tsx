@@ -451,6 +451,23 @@ describe('RBACManagementPage custom permissions', () => {
     );
   });
 
+  it('keeps a full-access role locked to built-in edits but lets custom permissions be granted', () => {
+    // Admin holds every built-in permission (compose included): full access.
+    mocks.data.rolePermissionMap = { 1: new Set([11, 15]), 2: new Set([11, 12, 13, 16]) };
+    render(<RBACManagementPage />);
+
+    search('reports:export');
+    const custom = switchForPerm('reports:export');
+    fireEvent.click(custom);
+    expect(custom.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Unsaved changes/i)).toBeTruthy();
+
+    search('bookings:view');
+    const builtin = switchForPerm('bookings:view');
+    fireEvent.click(builtin);
+    expect(builtin.getAttribute('aria-checked')).toBe('true');
+  });
+
   it('keeps the controls off while permission changes are unsaved', () => {
     render(<RBACManagementPage />);
     // The default selection is Admin; toggle one of its switches to dirty the draft.

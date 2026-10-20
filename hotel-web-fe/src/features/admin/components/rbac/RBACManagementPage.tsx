@@ -250,7 +250,19 @@ const RBACManagementPage: React.FC = () => {
     [selectedId, rolePermissionMap]
   );
 
-  const locked = !!selectedRole && totalPerms > 0 && currentSet.size === totalPerms && isBuiltin(selectedRole);
+  // A built-in role holding every built-in permission is full access, and its
+  // built-in switches stay locked. Custom permissions don't count towards that
+  // and stay switchable: otherwise creating one would unlock admin's built-in
+  // switches, and granting it to admin would lock it in for good.
+  const systemPermissionIds = useMemo(
+    () => permissions.filter((p) => p.is_system_permission !== false).map((p) => p.id),
+    [permissions]
+  );
+  const locked =
+    !!selectedRole &&
+    isBuiltin(selectedRole) &&
+    systemPermissionIds.length > 0 &&
+    systemPermissionIds.every((id) => currentSet.has(id));
   const enabledCount = draftSet.size;
   const pct = totalPerms ? Math.round((enabledCount / totalPerms) * 100) : 0;
 
@@ -295,16 +307,16 @@ const RBACManagementPage: React.FC = () => {
 
   const isOn = (pid: number) => draftSet.has(pid);
 
-  const setDraftFor = (mutate: (s: Set<number>) => void) => {
-    if (selectedId == null || locked) return;
+  const setDraftFor = (mutate: (s: Set<number>) => void, customOnly = false) => {
+    if (selectedId == null || (locked && !customOnly)) return;
     setDraft((prev) => {
       const s = new Set(prev[selectedId] || []);
       mutate(s);
       return { ...prev, [selectedId]: s };
     });
   };
-  const togglePerm = (pid: number) =>
-    setDraftFor((s) => (s.has(pid) ? s.delete(pid) : s.add(pid)));
+  const togglePerm = (p: Permission) =>
+    setDraftFor((s) => (s.has(p.id) ? s.delete(p.id) : s.add(p.id)), p.is_system_permission === false);
   const setCatPerms = (catPerms: Permission[], enable: boolean) =>
     setDraftFor((s) => catPerms.forEach((p) => (enable ? s.add(p.id) : s.delete(p.id))));
 
@@ -787,6 +799,7 @@ const RBACManagementPage: React.FC = () => {
                               const vs = verbStyle(p.action);
                               // `undefined` (an older API) reads as built-in: never offer an edit the server refuses.
                               const custom = p.is_system_permission === false;
+                              const rowLocked = locked && !custom;
                               const ruleCount = pageRulesByPermission.get(p.name) ?? 0;
                               const deleteBlocked = dirty
                                 ? t('rbac.customPermission.saveFirst')
@@ -798,14 +811,14 @@ const RBACManagementPage: React.FC = () => {
                               return (
                                 <Box key={p.id}
                                   sx={{ display: 'grid', gridTemplateColumns: { xs: '48px 1fr', md: '48px minmax(150px, 220px) minmax(0,1fr)' }, alignItems: 'center', gap: 1.75, p: '10px 14px 10px 18px', borderTop: i === 0 ? 'none' : `1px solid ${T.border}`, '&:hover': { bgcolor: T.surface2 } }}>
-                                  <Box onClick={() => togglePerm(p.id)} role="switch" aria-checked={on}
+                                  <Box onClick={() => togglePerm(p)} role="switch" aria-checked={on}
                                     sx={{
                                       position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0,
-                                      cursor: locked ? 'not-allowed' : 'pointer',
-                                      bgcolor: locked ? T.rose : on ? T.emerald : T.surface4,
-                                      border: `1px solid ${locked ? T.roseDeep : on ? T.emeraldDeep : T.borderHi}`,
+                                      cursor: rowLocked ? 'not-allowed' : 'pointer',
+                                      bgcolor: rowLocked ? T.rose : on ? T.emerald : T.surface4,
+                                      border: `1px solid ${rowLocked ? T.roseDeep : on ? T.emeraldDeep : T.borderHi}`,
                                       transition: 'background 160ms',
-                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: T.surface, boxShadow: 'var(--hotel-shadow-sm)', transform: (on || locked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
+                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: T.surface, boxShadow: 'var(--hotel-shadow-sm)', transform: (on || rowLocked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
                                     }} />
                                   <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                                     <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{permCode(p)}</Box>
@@ -897,7 +910,7 @@ const RBACManagementPage: React.FC = () => {
               </Box>
 
               {/* Save bar */}
-              {dirty && !locked && (
+              {dirty && (
                 // Phones: clear the fixed bottom nav and let the buttons wrap
                 // under the summary instead of running off a 360px screen.
                 <Box {...mobileActionBarProps} sx={{ position: 'sticky', bottom: { xs: 'calc(76px + var(--sab))', sm: 16 }, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
