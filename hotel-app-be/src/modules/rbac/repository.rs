@@ -336,11 +336,95 @@ impl RbacRepository {
         rows.into_iter().map(route_policy_from_row).collect()
     }
 
-    pub async fn update_route_access_policy(
+    /// One route's policy, row-locked until the caller's transaction ends, so
+    /// an update can validate against and audit the exact row it replaces.
+    pub async fn find_route_access_policy_for_update<'e, E>(
+        executor: E,
+        route_id: &str,
+    ) -> Result<Option<RouteAccessPolicy>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "SELECT \
+                route_id, \
+                path, \
+                nav_label, \
+                nav_group, \
+                required_permissions::text AS required_permissions, \
+                required_roles::text AS required_roles, \
+                excluded_roles::text AS excluded_roles, \
+                nav_permissions::text AS nav_permissions, \
+                nav_roles::text AS nav_roles, \
+                nav_excluded_roles::text AS nav_excluded_roles, \
+                is_navigation \
+             FROM route_access_policies \
+             WHERE route_id = {} \
+             FOR UPDATE",
+            crate::param!(1)
+        );
+
+        sqlx::query_as::<_, RouteAccessPolicyRow>(sqlx::AssertSqlSafe(sql))
+            .bind(route_id)
+            .fetch_optional(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .map(route_policy_from_row)
+            .transpose()
+    }
+
+    /// The subset of `names` that exist as permissions.
+    pub async fn existing_permission_names(
         pool: &DbPool,
+        names: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if names.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let sql = format!(
+            "SELECT name FROM permissions WHERE name = ANY({})",
+            crate::param!(1)
+        );
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(names)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(found.into_iter().collect())
+    }
+
+    /// The subset of `names` that exist as roles.
+    pub async fn existing_role_names(
+        pool: &DbPool,
+        names: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if names.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let sql = format!(
+            "SELECT name FROM roles WHERE name = ANY({})",
+            crate::param!(1)
+        );
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(names)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(found.into_iter().collect())
+    }
+
+    pub async fn update_route_access_policy<'e, E>(
+        executor: E,
         route_id: &str,
         input: &RouteAccessPolicyInput,
-    ) -> Result<RouteAccessPolicy, ApiError> {
+    ) -> Result<RouteAccessPolicy, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         let required_permissions = json_array(&input.required_permissions)?;
         let required_roles = json_array(&input.required_roles)?;
         let excluded_roles = json_array(&input.excluded_roles)?;
@@ -387,7 +471,7 @@ impl RbacRepository {
             .bind(nav_roles)
             .bind(nav_excluded_roles)
             .bind(input.is_navigation)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Route access policy not found".to_string()))?;

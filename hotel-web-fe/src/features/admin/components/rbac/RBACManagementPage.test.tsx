@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => {
   const data = {
     roles: [bookkeeper, admin] as Role[],
     permissions: [bookingsView, bookingsCreate, ledgersView] as Permission[],
+    routePolicies: [] as unknown[],
     users: [] as unknown[],
     rolesWithStats: [
       stats(bookkeeper, [bookingsView]),
@@ -90,6 +91,7 @@ const mocks = vi.hoisted(() => {
       };
     }),
     updateUserRoles: vi.fn(),
+    updateRoutePolicy: vi.fn(),
   };
 
   return {
@@ -134,6 +136,16 @@ vi.mock('./hooks/useRBACQueries', () => ({
   useUpdateRole: () => mocks.mutations.updateRole,
   useDeleteRole: () => mocks.mutations.deleteRole,
   useReplaceRolePermissions: () => mocks.mutations.replaceRolePermissions,
+}));
+
+vi.mock('./PageAccessTab', () => ({
+  PageAccessTab: (props: { onPolicySaved: unknown; routePolicies: unknown }) => (
+    <div
+      data-testid="page-access-tab"
+      data-saves-to-snapshot={String(props.onPolicySaved === mocks.data.updateRoutePolicy)}
+      data-policies={String(props.routePolicies === mocks.data.routePolicies)}
+    />
+  ),
 }));
 
 vi.mock('./UsersTab', () => ({
@@ -190,6 +202,15 @@ describe('RBACManagementPage', () => {
   it('starts every permission group open on a wider screen', () => {
     render(<RBACManagementPage />);
     expect(screen.getAllByRole('switch')).toHaveLength(3);
+  });
+
+  it('opens the page access tab wired to the snapshot', () => {
+    render(<RBACManagementPage />);
+    expect(screen.queryByTestId('page-access-tab')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Page access/ }));
+    const tab = screen.getByTestId('page-access-tab');
+    expect(tab.getAttribute('data-policies')).toBe('true');
+    expect(tab.getAttribute('data-saves-to-snapshot')).toBe('true');
   });
 
   it('renders the roles workspace', () => {
