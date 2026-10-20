@@ -14,7 +14,10 @@ const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
 /// the struct and its queries cannot drift apart. Columns after
 /// `two_factor_recovery_codes` are administration state; the model marks them
 /// `#[sqlx(default)]` so narrower projections still decode.
-const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
+/// Every column `User` maps. Its `#[sqlx(default)]` fields read as false or
+/// empty when a query leaves them out, so a sign-in lookup that does would
+/// report a super admin as an ordinary account.
+pub(crate) const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
      user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, \
      created_at, updated_at, last_login_at, is_locked, locked_until, \
      failed_login_attempts, is_super_admin";
