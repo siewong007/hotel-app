@@ -127,7 +127,7 @@ export class Ground {
           float gn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
             return mix(mix(gh(i),gh(i+vec2(1,0)),u.x), mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),u.x), u.y); }`)
         .replace('#include <map_fragment>', `#include <map_fragment>
-          float d1 = gn(vGW.xz * 0.35) * 0.5 + gn(vGW.xz * 1.7) * 0.3 + gn(vGW.xz * 0.05) * 0.4;
+          float d1 = mix(0.5, gn(vGW.xz * 0.35), aaKeep(0.35)) * 0.5 + mix(0.5, gn(vGW.xz * 1.7), aaKeep(1.7)) * 0.3 + gn(vGW.xz * 0.05) * 0.4; // (aaKeep: shaders.ts)
           diffuseColor.rgb *= 0.78 + 0.34 * d1;`);
     };
     grass(baseMat);

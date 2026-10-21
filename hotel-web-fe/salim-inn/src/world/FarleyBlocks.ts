@@ -11,7 +11,8 @@ import { footprints, type Footprint } from './layout';
 import { DIM, FLOOR_Y } from '../config/dimensions';
 import { FACADE } from '../config/materials';
 import { boxAt, convexHull, mergeAll, paint, pointInPolygon, prism, rng } from './geom';
-import { corrugated, interiorWindows, plaster, signBoards } from './shaders';
+import { corrugated, interiorWindows, plaster, signBoards, windowLights } from './shaders';
+import { hipRoof } from './hipRoof';
 import { shutter } from './textures';
 
 export interface FacadeEdge {
@@ -158,15 +159,24 @@ const FFW = DIM.fiveFootWay;
 const Y1 = FLOOR_Y.level1, Y2 = FLOOR_Y.level2, YR = FLOOR_Y.roof, YP = FLOOR_Y.parapetTop;
 const AWNINGS = [0x2f5f8e, 0x8b9196, 0xb23a2e, 0x3f6d4f, 0xe9e7e0, 0x2a4f73, 0x6b6f72, 0xc9a24a];
 const SIGNS = [0xd23b2f, 0x1f6fb2, 0xf2c230, 0x2f8f58, 0xf4f1ea, 0x173a6e, 0xe06a1f, 0x6a2c8f, 0x16a3a0];
+/** A row's roof: 0.2 rise per metre of run (about 11°, the prisms' old pitch
+ *  over a 19 m row), level 11 m in from the eaves; one metal per row. */
+const ROOF_PITCH = 0.2, ROOF_RUN = 11;
+const ROOF_METALS = [FACADE.roofMetalLight, 0xb3b9bb, FACADE.roofMetalBlue, 0xc4c6c2];
 
 export class FarleyBlocks {
   readonly group = new THREE.Group();
   readonly meshes: THREE.Mesh[] = [];
   readonly signs: THREE.Mesh;
   readonly acUnits: THREE.InstancedMesh;
+  /** The shops' lights (World.update: lit while they trade). */
+  readonly shopLights = windowLights();
+  /** The upper floors': offices by day, homes at dusk. */
+  readonly upperLights = windowLights();
 
   constructor(acGeometry?: THREE.BufferGeometry) {
     const rand = rng(20260926);
+    const roofRand = rng(20261021); // (its own: rand's sequence keeps the facades as they were)
     const body: THREE.BufferGeometry[] = [];
     const trim: THREE.BufferGeometry[] = [];
     const windows: THREE.BufferGeometry[] = [];
@@ -208,10 +218,15 @@ export class FarleyBlocks {
         if (e.len < 5) return;
         const bays = Math.max(1, Math.round(e.len / DIM.bayWidth));
         const bw = e.len / bays;
-        // pitched corrugated roof (ridge along the row): rows per front edge,
-        // bars once over their longest edge
+        // pitched corrugated roof (ridge along the row): a bar's is one gable
+        // over its longest edge; a row's is one hipped roof over the whole
+        // footprint (after the edges). A prism per front edge, which rows had,
+        // crossed over itself wherever a row bends or turns a corner, and each
+        // prism drew its own colour: the broken grey-and-maroon pinwheels.
+        // The colour draw stays, so the facades keep their colours.
         const longest = edges.reduce((m, x) => (x.len > m.len ? x : m), edges[0]);
-        if ((front && f.kind === 'row') || (f.kind === 'bar' && e === longest)) {
+        if (front && f.kind === 'row') rand();
+        else if (f.kind === 'bar' && e === longest) {
           const rd = Math.min(depth, 22);
           const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(rd, 0), new THREE.Vector2(rd / 2, 1.9)]);
           const rg = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.5, e.len - 0.6), bevelEnabled: false });
@@ -270,6 +285,11 @@ export class FarleyBlocks {
           if (rand() < 0.82) signs.push(paint(edgeBox(e, u0 + 0.15, u1 - 0.15, 3.65, 4.55, 0.0, 0.12), SIGNS[Math.floor(rand() * SIGNS.length)]));
         }
       });
+      // a row's roof: hipped over the whole footprint, its eaves behind the parapet
+      if (f.kind === 'row') {
+        const eaves = insetPolygon(f.outer, f.outer.map(() => 0.25)) ?? f.outer;
+        roofs.push(paint(hipRoof(eaves, YR - 0.02, ROOF_PITCH, ROOF_RUN), ROOF_METALS[Math.floor(roofRand() * ROOF_METALS.length)]));
+      }
     }
 
     const add = (geos: THREE.BufferGeometry[], mat: THREE.Material, name: string, keep: string[], cast = true) => {
@@ -285,8 +305,8 @@ export class FarleyBlocks {
     add(body, plaster(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }), 1.4), 'rows-body', ['position', 'normal', 'color']);
     add(trim, new THREE.MeshStandardMaterial({ color: 0xeeece6, roughness: 0.55 }), 'rows-trim', ['position', 'normal']);
     add(floors, new THREE.MeshStandardMaterial({ color: 0x7a746c, roughness: 0.75 }), 'rows-walkway', ['position', 'normal'], false);
-    add(windows, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x25333a, roughness: 0.07, reflectivity: 0.5, envMapIntensity: 1.3 }), { depth: 3.2, size: [2.4, 1.35], litShare: 0.5 }), 'rows-windows', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
-    add(shops, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2c3431, roughness: 0.06, reflectivity: 0.45, envMapIntensity: 1.2 }), { depth: 9, size: [5.6, 3.0], litShare: 0.9, warm: 0xfff0d8 }), 'rows-shopfronts', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
+    add(windows, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x25333a, roughness: 0.07, reflectivity: 0.5, envMapIntensity: 1.3 }), { depth: 3.2, size: [2.4, 1.35], litShare: 0.5, lights: this.upperLights }), 'rows-windows', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
+    add(shops, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2c3431, roughness: 0.06, reflectivity: 0.45, envMapIntensity: 1.2 }), { depth: 9, size: [5.6, 3.0], litShare: 0.9, warm: 0xfff0d8, lights: this.shopLights }), 'rows-shopfronts', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
     const sh = shutter().clone();
     sh.repeat.set(1, 3);
     sh.needsUpdate = true;

@@ -19,6 +19,7 @@ import { CornerCanopy } from './CornerCanopy';
 import { WalkRings } from './WalkRings';
 import { Rain } from './Rain';
 import { NO_WEATHER, type Look } from '../atmosphere';
+import type { Trading } from '../atmosphere/hours';
 import { Lobby } from '../interiors/Lobby';
 import { ReservationCounter } from '../interiors/ReservationCounter';
 import { Corridor } from '../interiors/Corridor';
@@ -26,7 +27,7 @@ import { RoomBuilder } from '../interiors/RoomBuilder';
 import { POINTS, salimFrame } from './layout';
 import type { Tier } from '../config/quality';
 import type { RoomCode } from '../config/site';
-import { GLOBAL } from './shaders';
+import { GLOBAL, type WindowLights } from './shaders';
 import { setTextureLimits } from './textures';
 import { bakeShadowCasters } from './ShadowCasters';
 import { mergeStatic, packGroups } from './geom';
@@ -80,6 +81,14 @@ const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => 
 const LOOK_KEYS = Object.keys(NO_WEATHER) as (keyof Look)[];
 /** What the sky's baked reflections depend on (World.rebakeSky). */
 const skySignature = (l: Look) => [l.day, l.night, l.cloud, l.rain, l.storm].map((v) => v.toFixed(2)).join(',');
+/** The window light a business keeps on while it trades, whatever hour the
+ *  film shows (shaders.WindowLights): the shops and the supermarket fully lit,
+ *  a share of the offices over them, the hotel's lobby always and its guest
+ *  rooms partly (chapter 3's floor-by-floor switch-on brings them up to the
+ *  dusk's level). Once a shop has closed, a fifth of its dusk lights stay. */
+const OPEN_LIGHT = { shops: 0.8, upper: 0.45, lobby: 0.9, rooms: 0.5 };
+const CLOSED_DUSK = 0.2;
+const TRADE_KEYS: (keyof Trading)[] = ['hotel', 'mart', 'shops'];
 /** Beyond this (metres from the room's centre) the room seen from outside
  *  drops its en-suite and beds (RoomBuilder.setFar). */
 const ROOM_FAR = 30;
@@ -162,6 +171,9 @@ export class World {
   private lookTarget: Look = { ...NO_WEATHER };
   /** The sky the reflections were last baked from (rebakeSky). */
   private bakedSky = '';
+  /** Who is open (atmosphere/hours.ts), eased toward `tradingTarget`. */
+  private readonly trading: Trading = { hotel: 1, mart: 1, shops: 1 };
+  private readonly tradingTarget: Trading = { hotel: 1, mart: 1, shops: 1 };
   rain!: Rain;
   /** World-y threshold below which the hero's windows are lit. */
   readonly salimLevels = { value: 99 };
@@ -483,6 +495,13 @@ export class World {
     if (snap) Object.assign(this.look, target);
   }
 
+  /** Who is open on Sibu's clock (atmosphere/hours.ts): eased in like the
+   *  look, so a shop closing at the hour fades its windows out. */
+  setTrading(target: Trading, snap = false): void {
+    Object.assign(this.tradingTarget, target);
+    if (snap) Object.assign(this.trading, target);
+  }
+
   /** Daylight is brighter than the dusk the chapters' exposures were set for. */
   exposureScale(): number {
     return 1 - 0.18 * this.look.day;
@@ -505,6 +524,7 @@ export class World {
   update(p: number, dt: number, camera: THREE.PerspectiveCamera, focus: THREE.Vector3, tier: Tier): void {
     const ease = 1 - Math.exp(-dt / 0.9); // ~95 % in under 3 s
     for (const k of LOOK_KEYS) this.look[k] += (this.lookTarget[k] - this.look[k]) * ease;
+    for (const k of TRADE_KEYS) this.trading[k] += (this.tradingTarget[k] - this.trading[k]) * ease;
     this.atmosphere.update(dt, camera, focus);
     this.parking.update(camera.position);
     this.trees.update(camera.position);
@@ -572,6 +592,18 @@ export class World {
     this.blocks.setDusk(GLOBAL.uLights.value * Math.max(ramp(p, 0.2, 0.45), night));
     this.lamps.update(ramp(d, 0.18, 0.5));
     this.mart.setDusk(GLOBAL.uLights.value);
+    // windows lit in opening hours, whatever hour the film shows
+    const { hotel, mart, shops } = this.trading;
+    const trade = (l: WindowLights, open: number, level: number, closedDusk = CLOSED_DUSK) => {
+      l.open.value = open * level;
+      l.dusk.value = THREE.MathUtils.lerp(closedDusk, 1, open);
+    };
+    trade(this.blocks.shopLights, shops, OPEN_LIGHT.shops);
+    trade(this.blocks.upperLights, shops, OPEN_LIGHT.upper, 1); // homes upstairs light up at dusk anyway
+    trade(this.salim.cafeLights, shops, OPEN_LIGHT.shops);
+    trade(this.salim.lobbyLights, hotel, OPEN_LIGHT.lobby);
+    trade(this.salim.roomLights, hotel, OPEN_LIGHT.rooms, 1);
+    trade(this.mart.lights, mart, OPEN_LIGHT.shops);
 
     // chapter 4: the middle pair of glass doors swings in as we reach it
     this.salim.setDoor(ramp(p, 0.545, 0.572) * (1 - ramp(p, 0.9, 0.95)));
