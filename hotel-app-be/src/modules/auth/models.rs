@@ -360,11 +360,18 @@ pub struct ResendVerificationRequest {
 
 /// Request to setup 2FA
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TwoFactorSetupRequest {}
+pub struct TwoFactorSetupRequest {
+    /// Proof of a pre-existing credential, never the newly generated factor.
+    #[serde(default)]
+    pub password: Option<String>,
+}
 
 /// Request to enable 2FA
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TwoFactorEnableRequest {
+    /// Required again so legacy pending setups cannot bypass re-authentication.
+    #[serde(default)]
+    pub password: Option<String>,
     #[validate(length(min = 6, max = 12, message = "Invalid 2FA code"))]
     pub code: String,
     // The 64-hex-char challenge minted by /2fa/setup (AuthService::generate_refresh_token);

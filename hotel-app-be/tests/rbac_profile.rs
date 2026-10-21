@@ -1012,9 +1012,15 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     upsert_test_user(&pool, user_id, &username, &email, password).await;
 
     // --- setup_2fa: must create a two_factor_challenges row ------------------
-    let setup = two_factor_service::setup_2fa(&pool, user_id, TwoFactorSetupRequest {})
-        .await
-        .expect("setup_2fa must succeed now that two_factor_challenges exists");
+    let setup = two_factor_service::setup_2fa(
+        &pool,
+        user_id,
+        TwoFactorSetupRequest {
+            password: Some(password.to_string()),
+        },
+    )
+    .await
+    .expect("setup_2fa must succeed now that two_factor_challenges exists");
     let first_challenge = setup["challenge_code"]
         .as_str()
         .expect("setup_2fa must return a challenge_code")
@@ -1022,9 +1028,15 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
 
     // Calling setup again must hit the ON CONFLICT (user_id, purpose) branch:
     // same single row, replaced challenge code, fresh secret.
-    let setup_again = two_factor_service::setup_2fa(&pool, user_id, TwoFactorSetupRequest {})
-        .await
-        .expect("a second setup_2fa call must upsert, not error");
+    let setup_again = two_factor_service::setup_2fa(
+        &pool,
+        user_id,
+        TwoFactorSetupRequest {
+            password: Some(password.to_string()),
+        },
+    )
+    .await
+    .expect("a second setup_2fa call must upsert, not error");
     let second_challenge = setup_again["challenge_code"]
         .as_str()
         .expect("second setup_2fa must return a challenge_code")
@@ -1077,6 +1089,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: totp.generate_current().to_string(),
             challenge_code: first_challenge.clone(),
         },
@@ -1104,6 +1117,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: totp.generate_current().to_string(),
             challenge_code: second_challenge.clone(),
         },
@@ -1138,6 +1152,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: wrong_code,
             challenge_code: second_challenge.clone(),
         },
@@ -1169,6 +1184,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: enable_code,
             challenge_code: second_challenge.clone(),
         },
@@ -1931,4 +1947,162 @@ async fn postgres_grants_record_the_staff_member_who_made_them() {
         Some(Some(actor_b)),
         "invite_user records its grantor"
     );
+}
+
+#[tokio::test]
+async fn postgres_two_factor_enrollment_requires_existing_password() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let user_id = 920_020;
+    let password = "S3cure!Enrollment-Password";
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
+    upsert_test_user(
+        &pool,
+        user_id,
+        "rbac920_enrollment",
+        "rbac920-enrollment@hotel.local",
+        password,
+    )
+    .await;
+
+    for supplied in [None, Some(""), Some("wrong password")] {
+        let request = serde_json::from_value(serde_json::json!({"password": supplied})).unwrap();
+        assert!(
+            matches!(
+                two_factor_service::setup_2fa(&pool, user_id, request).await,
+                Err(ApiError::Forbidden(_))
+            ),
+            "a session alone must not create a factor"
+        );
+    }
+    let secret: Option<String> = sqlx::query_scalar(concat!(
+        "SELECT two_factor_secret FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(secret.is_none(), "denied setup must not store a secret");
+    let challenges: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(challenges, 0, "denied setup must not create challenges");
+
+    let request = serde_json::from_value(serde_json::json!({"password": password})).unwrap();
+    let setup = two_factor_service::setup_2fa(&pool, user_id, request)
+        .await
+        .unwrap();
+    let totp = build_totp(setup["secret"].as_str().unwrap());
+    // A valid pending setup (including one issued before this fix) is not
+    // enough to enable a factor without the pre-existing password.
+    for supplied in [None, Some(""), Some("wrong password")] {
+        let request = serde_json::from_value(serde_json::json!({
+            "password": supplied, "code": totp.generate_current().to_string(),
+            "challenge_code": setup["challenge_code"],
+        }))
+        .unwrap();
+        assert!(matches!(
+            two_factor_service::enable_2fa(&pool, user_id, request).await,
+            Err(ApiError::Forbidden(_))
+        ));
+    }
+    let enabled: bool = sqlx::query_scalar(concat!(
+        "SELECT two_factor_enabled FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!enabled);
+    let challenges: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        challenges, 1,
+        "denied enable must not consume the setup challenge"
+    );
+    // Even possession of a legacy pending secret/challenge must not allow
+    // passwordless enable, nor consume the challenge or issue recovery codes.
+    let original_hash: String = sqlx::query_scalar(concat!(
+        "SELECT password_hash FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = NULL WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({
+        "password": password, "code": totp.generate_current().to_string(),
+        "challenge_code": setup["challenge_code"],
+    }))
+    .unwrap();
+    assert!(matches!(
+        two_factor_service::enable_2fa(&pool, user_id, request).await,
+        Err(ApiError::Forbidden(_))
+    ));
+    let codes: Option<Vec<String>> = sqlx::query_scalar(concat!(
+        "SELECT two_factor_recovery_codes FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(codes.is_none());
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = ",
+        hotel_app_be::param!(1),
+        " WHERE id = ",
+        hotel_app_be::param!(2)
+    ))
+    .bind(original_hash)
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({
+        "password": password, "code": totp.generate_current().to_string(),
+        "challenge_code": setup["challenge_code"],
+    }))
+    .unwrap();
+    two_factor_service::enable_2fa(&pool, user_id, request)
+        .await
+        .unwrap();
+
+    // Passwordless accounts must not bootstrap a credential from a session.
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = NULL, two_factor_enabled = false WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({"password": password})).unwrap();
+    assert!(matches!(
+        two_factor_service::setup_2fa(&pool, user_id, request).await,
+        Err(ApiError::Forbidden(_))
+    ));
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }
