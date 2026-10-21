@@ -42,6 +42,15 @@ Authorization: after auth, route wrappers call
 `payments:refund`. `<resource>:manage` implies every action on that resource.
 Missing permission → `403`.
 
+TOTP enrollment (`POST /api/auth/2fa/setup` and `/enable`, including the
+`/api/profile/2fa/*` aliases) requires the current account `password` in both
+request bodies. Missing or incorrect passwords, including accounts without a
+password, return `403` before creating or consuming enrollment state. This is
+separate from the `401` response for an expired or missing login session. A live
+session, setup challenge, or newly generated TOTP code is not sufficient proof
+of identity. Passwordless accounts cannot enroll TOTP through these endpoints
+until they establish a password through an independently verified recovery flow.
+
 ## Error format
 
 Errors serialize as `{"error": "<message>"}`; stable machine-readable `code`

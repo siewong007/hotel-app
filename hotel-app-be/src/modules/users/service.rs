@@ -96,7 +96,9 @@ pub async fn create_user(
     let password_hash = AuthService::hash_password(&input.password)
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
-    let user = UserRepository::create_with_roles(pool, &input, &password_hash, &role_ids).await?;
+    let user =
+        UserRepository::create_with_roles(pool, &input, &password_hash, &role_ids, admin_user_id)
+            .await?;
 
     let _ = AuditLog::log_event(
         pool,
@@ -555,6 +557,7 @@ pub async fn invite_user(
             role_ids: &role_ids,
             token_hash: &token_hash,
             token_expires_at: expires_at,
+            invited_by: admin_user_id,
         },
     )
     .await?;

@@ -31,6 +31,9 @@ pub struct Permission {
     pub action: String,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Seeded with the app and immutable; only custom permissions can be
+    /// edited or deleted.
+    pub is_system_permission: bool,
 }
 
 /// Input for creating a permission

@@ -8,6 +8,7 @@ use crate::models::{Guest, RegisterRequest, User};
 use crate::modules::consent::models::{ConsentAcceptance, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
+use crate::modules::users::repository::USER_COLUMNS;
 use crate::services::google_identity::{
     GoogleIdentity, google_identity_fingerprint, google_username,
 };
@@ -120,9 +121,11 @@ impl AuthRepository {
         pool: &DbPool,
         username_or_email: &str,
     ) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE (username = $1 OR email = $1) AND deleted_at IS NULL"
-        )
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "SELECT {USER_COLUMNS} FROM users \
+             WHERE (username = {p1} OR email = {p1}) AND deleted_at IS NULL",
+            p1 = crate::param!(1)
+        )))
         .bind(username_or_email)
         .fetch_optional(pool)
         .await
@@ -130,9 +133,10 @@ impl AuthRepository {
     }
 
     pub async fn find_user_by_id(pool: &DbPool, user_id: i64) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE id = $1 AND deleted_at IS NULL"
-        )
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "SELECT {USER_COLUMNS} FROM users WHERE id = {} AND deleted_at IS NULL",
+            crate::param!(1)
+        )))
         .bind(user_id)
         .fetch_optional(pool)
         .await
@@ -140,9 +144,10 @@ impl AuthRepository {
     }
 
     pub async fn find_user_by_email(pool: &DbPool, email: &str) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE email = $1 AND deleted_at IS NULL"
-        )
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "SELECT {USER_COLUMNS} FROM users WHERE email = {} AND deleted_at IS NULL",
+            crate::param!(1)
+        )))
         .bind(email)
         .fetch_optional(pool)
         .await
@@ -434,7 +439,9 @@ impl AuthRepository {
     /// Shared by registration and by `claim_guest_account` so the two paths
     /// cannot drift on what a guest account is allowed to do. `ON CONFLICT DO
     /// NOTHING` because a claimed anchor account provisioned by front-desk
-    /// eKYC may already hold the role.
+    /// eKYC may already hold the role. `assigned_by` stays NULL: the account
+    /// gets this role by signing up, not from a staff member (staff grants go
+    /// through `RbacRepository::grant_user_role`).
     async fn grant_guest_role(tx: &mut DbTransaction<'_>, user_id: i64) -> Result<(), ApiError> {
         let guest_role_id: i64 =
             sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
@@ -860,6 +867,7 @@ impl AuthRepository {
                 .fetch_one(&mut *tx)
                 .await
                 .map_err(|error| ApiError::Database(format!("Guest role not found: {error}")))?;
+        // Self-service, like `grant_guest_role`: no staff member, so no `assigned_by`.
         sqlx::query(
             "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         )

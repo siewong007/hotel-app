@@ -46,6 +46,7 @@ import {
   SmokingRooms as SmokingIcon,
   AddPhotoAlternate as AddPhotoIcon,
   MoreVert as MoreVertIcon,
+  PriceChange as PriceIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { errorMessage } from '../../../utils';
@@ -72,6 +73,7 @@ import type { ActionMenuItem } from '../../../components/common/ActionsMenu';
 import { SearchAndFilters } from '../../../components/common/SearchAndFilters';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { COARSE_HIT_AREA_SX } from '../../../components/common/touchTarget';
+import { BulkPriceDialog } from '../bulkPrices/BulkPriceDialog';
 
 /* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
 const C = {
@@ -185,6 +187,8 @@ const RoomConfigurationPage: React.FC = () => {
     hasPermission('rooms:manage');
 
   const [error, setError] = useState<string | null>(null);
+  const [bulkPriceOpen, setBulkPriceOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const roomsQuery = useRooms(hasAccess);
   const roomTypesQuery = useAllRoomTypes(hasAccess);
   const createRoomMutation = useCreateRoom();
@@ -898,22 +902,37 @@ const RoomConfigurationPage: React.FC = () => {
           </Typography>
         </Box>
         {canEdit && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openNewType}
-            sx={{
-              bgcolor: C.emerald,
-              borderRadius: '9px',
-              textTransform: 'none',
-              fontWeight: 600,
-              '&:hover': { bgcolor: C.emeraldDeep },
-            }}
-          >
-            {t('config.newRoomType')}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<PriceIcon />}
+              onClick={() => setBulkPriceOpen(true)}
+              sx={{ borderRadius: '9px', textTransform: 'none', fontWeight: 600 }}
+            >
+              {t('bulkPrice.button')}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openNewType}
+              sx={{
+                bgcolor: C.emerald,
+                borderRadius: '9px',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: C.emeraldDeep },
+              }}
+            >
+              {t('config.newRoomType')}
+            </Button>
+          </Box>
         )}
       </Box>
+      {notice && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice(null)}>
+          {notice}
+        </Alert>
+      )}
       {pageError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {pageError}
@@ -1790,6 +1809,14 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {bulkPriceOpen && (
+        <BulkPriceDialog
+          open
+          roomTypes={roomTypes}
+          onClose={() => setBulkPriceOpen(false)}
+          onDone={setNotice}
+        />
+      )}
     </Box>
   );
 };

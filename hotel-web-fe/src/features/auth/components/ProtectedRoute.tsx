@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { LogoLoader } from '../../../components';
+import { policyAdmits } from '../../../navigation/routeAccess';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -40,26 +41,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/403" replace />;
   }
 
-  const requiredPermissions = policy?.required_permissions ?? [];
-  const requiredRoles = policy?.required_roles ?? [];
-  const excludeRoles = policy?.excluded_roles ?? [];
-
-  if (requiredPermissions.length > 0) {
-    const hasAnyPermission = requiredPermissions.some(permission => hasPermission(permission));
-    const hasAnyRole = requiredRoles.some(role => hasRole(role));
-    if (!hasAnyPermission && !hasAnyRole) {
-      return <Navigate to="/403" replace />;
-    }
-  }
-
-  if (requiredPermissions.length === 0 && requiredRoles.length > 0) {
-    const hasAnyRole = requiredRoles.some(role => hasRole(role));
-    if (!hasAnyRole) {
-      return <Navigate to="/403" replace />;
-    }
-  }
-
-  if (excludeRoles.some((role) => hasRole(role))) {
+  if (policy && !policyAdmits(policy, { hasPermission, hasRole })) {
     return <Navigate to="/403" replace />;
   }
 

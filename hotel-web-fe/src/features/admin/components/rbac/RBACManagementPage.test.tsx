@@ -20,7 +20,7 @@ function roleFixture(id: number, name: string, extra: Partial<Role> = {}): Role 
 function permFixture(id: number, resource: string, action: string): Permission {
   return {
     id,
-    name: `${resource} ${action}`,
+    name: `${resource}:${action}`,
     resource,
     action,
     description: `${resource}:${action} description`,
@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => {
   const data = {
     roles: [bookkeeper, admin] as Role[],
     permissions: [bookingsView, bookingsCreate, ledgersView] as Permission[],
+    routePolicies: [] as unknown[],
     users: [] as unknown[],
     rolesWithStats: [
       stats(bookkeeper, [bookingsView]),
@@ -80,6 +81,9 @@ const mocks = vi.hoisted(() => {
     setRoles: vi.fn((next: SetStateAction<Role[]>) => {
       data.roles = typeof next === 'function' ? next(data.roles) : next;
     }),
+    setPermissions: vi.fn((next: SetStateAction<Permission[]>) => {
+      data.permissions = typeof next === 'function' ? next(data.permissions) : next;
+    }),
     setUsers: vi.fn(),
     // Mirrors the real hook: rewrites the role's canonical permission set, which
     // re-syncs the page draft and clears the dirty bar after a save.
@@ -90,6 +94,7 @@ const mocks = vi.hoisted(() => {
       };
     }),
     updateUserRoles: vi.fn(),
+    updateRoutePolicy: vi.fn(),
   };
 
   return {
@@ -115,9 +120,32 @@ const mocks = vi.hoisted(() => {
         mutate: vi.fn(),
         isPending: false,
       },
+      deletePermission: {
+        mutateAsync: vi.fn(async () => ({})),
+        mutate: vi.fn(),
+        isPending: false,
+      },
     },
   };
 });
+
+const auth = vi.hoisted(() => ({ user: { is_super_admin: false } as { is_super_admin: boolean } | null }));
+
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => ({ user: auth.user }),
+}));
+
+vi.mock('./CustomPermissionDialog', () => ({
+  default: (props: { permission?: { name: string } }) => (
+    <div data-testid="custom-permission-dialog" data-editing={props.permission?.name ?? ''} />
+  ),
+}));
+
+const phone = vi.hoisted(() => ({ isPhone: false }));
+
+vi.mock('../../../../hooks/useIsPhone', () => ({
+  useIsPhone: () => phone.isPhone,
+}));
 
 vi.mock('./hooks/useRBACData', () => ({
   useRBACData: () => mocks.data,
@@ -127,7 +155,18 @@ vi.mock('./hooks/useRBACQueries', () => ({
   useCreateRole: () => mocks.mutations.createRole,
   useUpdateRole: () => mocks.mutations.updateRole,
   useDeleteRole: () => mocks.mutations.deleteRole,
+  useDeletePermission: () => mocks.mutations.deletePermission,
   useReplaceRolePermissions: () => mocks.mutations.replaceRolePermissions,
+}));
+
+vi.mock('./PageAccessTab', () => ({
+  PageAccessTab: (props: { onPolicySaved: unknown; routePolicies: unknown }) => (
+    <div
+      data-testid="page-access-tab"
+      data-saves-to-snapshot={String(props.onPolicySaved === mocks.data.updateRoutePolicy)}
+      data-policies={String(props.routePolicies === mocks.data.routePolicies)}
+    />
+  ),
 }));
 
 vi.mock('./UsersTab', () => ({
@@ -135,6 +174,9 @@ vi.mock('./UsersTab', () => ({
 }));
 
 import RBACManagementPage from './RBACManagementPage';
+
+const BASE_PERMISSIONS = mocks.data.permissions;
+const BASE_CATEGORIES = mocks.data.permissionCategories;
 import { expectNoCriticalAxeViolations } from '../../../../test/axe';
 
 /** Returns the `role="switch"` toggle inside the grid row for `resource:action`. */
@@ -161,9 +203,43 @@ describe('RBACManagementPage', () => {
     // Rebuild the mutable slices — tests append roles and rewrite the map.
     mocks.data.roles = [roleFixture(1, 'Bookkeeper'), roleFixture(2, 'Admin')];
     mocks.data.rolePermissionMap = { 1: new Set([11]), 2: new Set([11, 12, 13]) };
+    mocks.data.permissions = BASE_PERMISSIONS;
+    mocks.data.permissionCategories = BASE_CATEGORIES;
+    mocks.data.routePolicies = [];
+    auth.user = { is_super_admin: false };
+    phone.isPhone = false;
   });
 
   afterEach(cleanup);
+
+  it('starts every permission group closed on a phone, and opens the ones a search matches', async () => {
+    phone.isPhone = true;
+    render(<RBACManagementPage />);
+    // Group headers only: no permission rows until one is opened.
+    expect(screen.getByText('Bookings')).toBeTruthy();
+    expect(screen.getByText('Ledgers')).toBeTruthy();
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+
+    fireEvent.change(screen.getByPlaceholderText(/search permissions by name/i), {
+      target: { value: 'ledgers' },
+    });
+    expect(await screen.findByText('ledgers:view')).toBeTruthy();
+    expect(screen.queryByText('bookings:view')).toBeNull();
+  });
+
+  it('starts every permission group open on a wider screen', () => {
+    render(<RBACManagementPage />);
+    expect(screen.getAllByRole('switch')).toHaveLength(3);
+  });
+
+  it('opens the page access tab wired to the snapshot', () => {
+    render(<RBACManagementPage />);
+    expect(screen.queryByTestId('page-access-tab')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Page access/ }));
+    const tab = screen.getByTestId('page-access-tab');
+    expect(tab.getAttribute('data-policies')).toBe('true');
+    expect(tab.getAttribute('data-saves-to-snapshot')).toBe('true');
+  });
 
   it('renders the roles workspace', () => {
     render(<RBACManagementPage />);
@@ -265,5 +341,137 @@ describe('RBACManagementPage', () => {
     fireEvent.click(switches[0]);
     expect(switches[0].getAttribute('aria-checked')).toBe('true');
     expect(screen.queryByText(/Unsaved changes/i)).toBeNull();
+  });
+});
+
+describe('RBACManagementPage custom permissions', () => {
+  // Built-in, but its action column ("write") differs from its name.
+  const compose = { ...permFixture(16, 'communications', 'write'), name: 'communications:compose' };
+  const reportsView = { ...permFixture(14, 'reports', 'view'), is_system_permission: false }; // a page rule names it
+  const reportsExport = { ...permFixture(17, 'reports', 'export'), is_system_permission: false }; // free to delete
+  const ledgersExport = { ...permFixture(15, 'ledgers', 'export'), is_system_permission: false }; // Bookkeeper holds it
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.data.loading = false;
+    mocks.data.error = null;
+    mocks.data.roles = [roleFixture(1, 'Bookkeeper'), roleFixture(2, 'Admin')];
+    mocks.data.rolePermissionMap = { 1: new Set([11, 15]), 2: new Set([11, 12, 13]) };
+    mocks.data.permissions = [...BASE_PERMISSIONS, reportsView, ledgersExport, compose, reportsExport];
+    mocks.data.permissionCategories = [
+      BASE_CATEGORIES[0],
+      { ...BASE_CATEGORIES[1], permissions: [...BASE_CATEGORIES[1].permissions, ledgersExport] },
+      { name: 'reports', displayName: 'Reports', icon: 'Assessment', color: '#8855cc', permissions: [reportsExport, reportsView] },
+      { name: 'communications', displayName: 'Communications', icon: 'Mail', color: '#cc8855', permissions: [compose] },
+    ];
+    mocks.data.routePolicies = [
+      {
+        route_id: 'reports-hub',
+        path: '/reports-hub',
+        required_permissions: [],
+        required_roles: [],
+        excluded_roles: [],
+        nav_permissions: ['reports:view'],
+        nav_roles: [],
+        nav_excluded_roles: [],
+        is_navigation: true,
+      },
+    ];
+    auth.user = { is_super_admin: true };
+    phone.isPhone = false;
+  });
+
+  afterEach(cleanup);
+
+  const search = (text: string) =>
+    fireEvent.change(screen.getByPlaceholderText(/search permissions by name/i), { target: { value: text } });
+
+  it('shows each permission by the name the app checks', () => {
+    render(<RBACManagementPage />);
+    search('compose');
+    expect(screen.getByText('communications:compose')).toBeTruthy();
+    expect(screen.queryByText('communications:write')).toBeNull();
+  });
+
+  it('offers permission editing to super admins only', () => {
+    auth.user = { is_super_admin: false };
+    const { unmount } = render(<RBACManagementPage />);
+    search('reports');
+    expect(screen.getAllByText('Custom').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'New permission' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit reports:view' })).toBeNull();
+    unmount();
+
+    auth.user = { is_super_admin: true };
+    render(<RBACManagementPage />);
+    search('reports');
+    expect(screen.getByRole('button', { name: 'New permission' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit reports:view' })).toBeTruthy();
+    // Built-in permissions never get the controls.
+    search('compose');
+    expect(screen.queryByRole('button', { name: /communications:compose/ })).toBeNull();
+  });
+
+  it('opens the permission dialog to create and to edit', () => {
+    render(<RBACManagementPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'New permission' }));
+    expect(screen.getByTestId('custom-permission-dialog').getAttribute('data-editing')).toBe('');
+    cleanup();
+
+    render(<RBACManagementPage />);
+    search('reports');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit reports:view' }));
+    expect(screen.getByTestId('custom-permission-dialog').getAttribute('data-editing')).toBe('reports:view');
+  });
+
+  it('blocks deleting a permission a role holds or a page rule names, and says why', async () => {
+    render(<RBACManagementPage />);
+    search('export');
+    const held = screen.getByRole('button', { name: 'Delete ledgers:export' }) as HTMLButtonElement;
+    expect(held.disabled).toBe(true);
+    fireEvent.mouseOver(held.parentElement as HTMLElement);
+    expect(await screen.findByText('Turn it off for Bookkeeper before deleting it.')).toBeTruthy();
+
+    search('reports:view');
+    expect((screen.getByRole('button', { name: 'Delete reports:view' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('deletes a free custom permission after confirming', async () => {
+    render(<RBACManagementPage />);
+    search('reports:export');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete reports:export' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Delete reports:export? This can\'t be undone.')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(mocks.mutations.deletePermission.mutateAsync).toHaveBeenCalledWith('17'));
+    await waitFor(() =>
+      expect(mocks.data.permissions.some((permission) => permission.id === 17)).toBe(false)
+    );
+  });
+
+  it('keeps a full-access role locked to built-in edits but lets custom permissions be granted', () => {
+    // Admin holds every built-in permission (compose included): full access.
+    mocks.data.rolePermissionMap = { 1: new Set([11, 15]), 2: new Set([11, 12, 13, 16]) };
+    render(<RBACManagementPage />);
+
+    search('reports:export');
+    const custom = switchForPerm('reports:export');
+    fireEvent.click(custom);
+    expect(custom.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Unsaved changes/i)).toBeTruthy();
+
+    search('bookings:view');
+    const builtin = switchForPerm('bookings:view');
+    fireEvent.click(builtin);
+    expect(builtin.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('keeps the controls off while permission changes are unsaved', () => {
+    render(<RBACManagementPage />);
+    // The default selection is Admin; toggle one of its switches to dirty the draft.
+    fireEvent.click(switchForPerm('bookings:view'));
+    expect((screen.getByRole('button', { name: 'New permission' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

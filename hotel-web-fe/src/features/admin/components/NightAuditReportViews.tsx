@@ -436,7 +436,8 @@ interface PendingPreviewViewProps {
   preview: NightAuditPreview;
   auditDate: string;
   running: boolean;
-  onRun: () => void;
+  /** Omitted for staff who may review the preview but not run the audit. */
+  onRun?: () => void;
 }
 
 export function PendingPreviewView({ preview, auditDate, running, onRun }: PendingPreviewViewProps) {
@@ -459,15 +460,17 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         </Box>
         {/* Primary action lives in the header too — with a full preview below,
             the footer button rendered far under the fold. */}
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={onRun}
-          disabled={running || preview.total_unposted === 0}
-          startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
-        >
-          {running ? t('actions.running') : t('actions.runNightAudit')}
-        </Button>
+        {onRun && (
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={onRun}
+            disabled={running || preview.total_unposted === 0}
+            startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
+          >
+            {running ? t('actions.running') : t('actions.runNightAudit')}
+          </Button>
+        )}
       </Box>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
         {formatAuditDate(auditDate)}
@@ -587,19 +590,23 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         </>
       )}
 
-      <Divider sx={{ my: 3 }} />
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="contained"
-          color="primary"
-          size="large"
-          onClick={onRun}
-          disabled={running || preview.total_unposted === 0}
-          startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
-        >
-          {running ? t('actions.running') : t('actions.runNightAudit')}
-        </Button>
-      </Box>
+      {onRun && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              onClick={onRun}
+              disabled={running || preview.total_unposted === 0}
+              startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
+            >
+              {running ? t('actions.running') : t('actions.runNightAudit')}
+            </Button>
+          </Box>
+        </>
+      )}
     </Paper>
   );
 }
@@ -614,7 +621,8 @@ interface CompletedReportViewProps {
   onLoadDetails: () => void;
   onExportPDF: () => void;
   onExportCSV: () => void;
-  onRerun: () => void;
+  /** Omitted for staff who may read the report but not rerun the audit. */
+  onRerun?: () => void;
 }
 
 export function CompletedReportView({
@@ -708,16 +716,18 @@ export function CompletedReportView({
         <Button size="small" variant="outlined" startIcon={<CsvIcon />} onClick={onExportCSV}>
           {t('actions.exportCsv')}
         </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          color="warning"
-          startIcon={<RefreshIcon />}
-          onClick={onRerun}
-          disabled={running}
-        >
-          {running ? t('actions.rerunning') : t('actions.rerun')}
-        </Button>
+        {onRerun && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="warning"
+            startIcon={<RefreshIcon />}
+            onClick={onRerun}
+            disabled={running}
+          >
+            {running ? t('actions.rerunning') : t('actions.rerun')}
+          </Button>
+        )}
       </Box>
     </Paper>
   );

@@ -44,8 +44,8 @@ pub struct TeamMember {
     pub joined_at: DateTime<Utc>,
     /// Membership lapses at this instant. Honoured by permission resolution.
     pub expires_at: Option<DateTime<Utc>>,
-    /// Who added this member. Written on every insert, unlike the older
-    /// `user_roles.assigned_by`, which exists but was never populated.
+    /// Who added this member. Written on every insert, as
+    /// `user_roles.assigned_by` is for staff-granted roles.
     pub added_by: Option<i64>,
 }
 

@@ -41,6 +41,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/auth/google", post(google_login))
         .route("/auth/access", get(access_snapshot))
         .route("/auth/refresh", post(refresh))
+        .route("/auth/session-hint", get(session_hint))
         .route("/auth/logout", post(logout))
         .route("/auth/register", post(register))
         .route("/auth/verify-email", post(verify_email))
@@ -77,6 +78,20 @@ async fn access_snapshot(
 ) -> Result<Json<models::AccessSnapshot>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::access_snapshot_handler(State(pool), user_id).await
+}
+
+/// Landing-page nav check: always 200, never rotates the refresh cookie, and
+/// never cached (the answer is per-visitor).
+async fn session_hint(
+    State(pool): State<DbPool>,
+    jar: CookieJar,
+) -> impl axum::response::IntoResponse {
+    let token = jar.get(REFRESH_COOKIE).map(|c| c.value().to_string());
+    let hint = super::service::session_hint(&pool, token.as_deref()).await;
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-store, private")],
+        Json(hint),
+    )
 }
 
 async fn login(

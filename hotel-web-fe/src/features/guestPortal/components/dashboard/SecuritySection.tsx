@@ -518,20 +518,27 @@ function AuthenticatorCard({
     challenge_code: string;
   } | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
+  const [setupPassword, setSetupPassword] = useState('');
   const [disableOpen, setDisableOpen] = useState(false);
   const [disableCode, setDisableCode] = useState('');
 
   const closeSetup = () => {
     setSetupData(null);
     setVerificationCode('');
+    setSetupPassword('');
+    setupTwoFactor.reset();
+    enableTwoFactor.reset();
   };
 
   const handleStartSetup = async () => {
+    if (!setupPassword) return;
     try {
-      setSetupData(await setupTwoFactor.mutateAsync());
+      setSetupData(await setupTwoFactor.mutateAsync(setupPassword));
       setVerificationCode('');
     } catch (error) {
       notify(guestErrorMessage(error, t('dashboard.security.authenticator.setupFailed')), 'error');
+    } finally {
+      setupTwoFactor.reset();
     }
   };
 
@@ -541,12 +548,15 @@ function AuthenticatorCard({
       const result = await enableTwoFactor.mutateAsync({
         code: verificationCode,
         challengeCode: setupData.challenge_code,
+        password: setupPassword,
       });
       closeSetup();
       onCodesIssued(result.backup_codes);
       notify(t('dashboard.security.authenticator.enabled'), 'success');
     } catch (error) {
       notify(guestErrorMessage(error, t('dashboard.security.authenticator.codeMismatch')), 'error');
+    } finally {
+      enableTwoFactor.reset();
     }
   };
 
@@ -588,9 +598,19 @@ function AuthenticatorCard({
           <Typography sx={{ color: 'text.secondary' }}>
             {t('dashboard.security.authenticator.setupHint')}
           </Typography>
+          <TextField
+            fullWidth
+            type="password"
+            autoComplete="current-password"
+            label={t('auth:security.currentPassword')}
+            helperText={t('auth:twoFactorSetup.passwordHint')}
+            value={setupPassword}
+            onChange={(event) => setSetupPassword(event.target.value)}
+            disabled={setupTwoFactor.isPending || setupData !== null}
+          />
           <Button
             variant="contained"
-            disabled={setupTwoFactor.isPending}
+            disabled={setupTwoFactor.isPending || !setupPassword}
             onClick={() => void handleStartSetup()}
           >
             {setupTwoFactor.isPending

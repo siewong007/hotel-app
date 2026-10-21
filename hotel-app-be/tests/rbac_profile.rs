@@ -16,14 +16,16 @@ use hotel_app_be::core::error::ApiError;
 use hotel_app_be::core::middleware;
 use hotel_app_be::core::rbac_cache;
 use hotel_app_be::models::{
-    AssignPermissionInput, AssignRoleInput, LoginRequest, PasswordUpdateInput,
+    AssignPermissionInput, AssignRoleInput, InviteUserInput, LoginRequest, PasswordUpdateInput,
     RegenerateBackupCodesRequest, RoleInput, RolePermissionIdsInput, TwoFactorDisableRequest,
-    TwoFactorEnableRequest, TwoFactorSetupRequest, TwoFactorVerifyRequest, UserRoleIdsInput,
+    TwoFactorEnableRequest, TwoFactorSetupRequest, TwoFactorVerifyRequest, UserCreateInput,
+    UserRoleIdsInput,
 };
 use hotel_app_be::modules::auth::service as auth_service;
 use hotel_app_be::modules::profile::service as profile_service;
 use hotel_app_be::modules::rbac::service as rbac_service;
 use hotel_app_be::modules::two_factor::service as two_factor_service;
+use hotel_app_be::modules::users::service as users_service;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use totp_rs::{Algorithm, Builder as TotpBuilder, Secret, Totp};
 
@@ -229,6 +231,13 @@ async fn cleanup_rbac_fixture(pool: &PgPool, user_ids: &[i64], role_ids: &[i64])
         .unwrap();
     sqlx::query("DELETE FROM roles WHERE id = ANY($1)")
         .bind(role_ids)
+        .execute(pool)
+        .await
+        .unwrap();
+    // `user_roles.assigned_by` references users with no ON DELETE rule, so a
+    // grant a fixture actor made to anyone else would pin the actor's row.
+    sqlx::query("UPDATE user_roles SET assigned_by = NULL WHERE assigned_by = ANY($1)")
+        .bind(user_ids)
         .execute(pool)
         .await
         .unwrap();
@@ -1003,9 +1012,15 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     upsert_test_user(&pool, user_id, &username, &email, password).await;
 
     // --- setup_2fa: must create a two_factor_challenges row ------------------
-    let setup = two_factor_service::setup_2fa(&pool, user_id, TwoFactorSetupRequest {})
-        .await
-        .expect("setup_2fa must succeed now that two_factor_challenges exists");
+    let setup = two_factor_service::setup_2fa(
+        &pool,
+        user_id,
+        TwoFactorSetupRequest {
+            password: Some(password.to_string()),
+        },
+    )
+    .await
+    .expect("setup_2fa must succeed now that two_factor_challenges exists");
     let first_challenge = setup["challenge_code"]
         .as_str()
         .expect("setup_2fa must return a challenge_code")
@@ -1013,9 +1028,15 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
 
     // Calling setup again must hit the ON CONFLICT (user_id, purpose) branch:
     // same single row, replaced challenge code, fresh secret.
-    let setup_again = two_factor_service::setup_2fa(&pool, user_id, TwoFactorSetupRequest {})
-        .await
-        .expect("a second setup_2fa call must upsert, not error");
+    let setup_again = two_factor_service::setup_2fa(
+        &pool,
+        user_id,
+        TwoFactorSetupRequest {
+            password: Some(password.to_string()),
+        },
+    )
+    .await
+    .expect("a second setup_2fa call must upsert, not error");
     let second_challenge = setup_again["challenge_code"]
         .as_str()
         .expect("second setup_2fa must return a challenge_code")
@@ -1068,6 +1089,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: totp.generate_current().to_string(),
             challenge_code: first_challenge.clone(),
         },
@@ -1095,6 +1117,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: totp.generate_current().to_string(),
             challenge_code: second_challenge.clone(),
         },
@@ -1129,6 +1152,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: wrong_code,
             challenge_code: second_challenge.clone(),
         },
@@ -1160,6 +1184,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
+            password: Some(password.to_string()),
             code: enable_code,
             challenge_code: second_challenge.clone(),
         },
@@ -1646,4 +1671,438 @@ async fn postgres_non_super_admin_cannot_rewrite_a_system_role_permission_set() 
     );
 
     cleanup_rbac_fixture(&pool, &[actor_id], &[actor_role]).await;
+}
+
+// ---------------------------------------------------------------------------
+// Grant provenance: every grant a staff member makes records who made it, and
+// replacing a role or permission set re-credits none of the grants it keeps.
+// ---------------------------------------------------------------------------
+
+/// `(assigned_by, assigned_at)` of one `user_roles` row, if it exists.
+async fn role_grant(pool: &PgPool, user_id: i64, role_id: i64) -> Option<(Option<i64>, String)> {
+    sqlx::query_as(
+        "SELECT assigned_by, assigned_at::text FROM user_roles WHERE user_id = $1 AND role_id = $2",
+    )
+    .bind(user_id)
+    .bind(role_id)
+    .fetch_optional(pool)
+    .await
+    .expect("reading a user_roles row must succeed")
+}
+
+/// `(granted_by, granted_at)` of one `role_permissions` row, if it exists.
+async fn permission_grant(
+    pool: &PgPool,
+    role_id: i64,
+    permission_id: i64,
+) -> Option<(Option<i64>, String)> {
+    sqlx::query_as(
+        "SELECT granted_by, granted_at::text FROM role_permissions \
+         WHERE role_id = $1 AND permission_id = $2",
+    )
+    .bind(role_id)
+    .bind(permission_id)
+    .fetch_optional(pool)
+    .await
+    .expect("reading a role_permissions row must succeed")
+}
+
+async fn user_ids_by_username(pool: &PgPool, usernames: &[&str]) -> Vec<i64> {
+    let usernames: Vec<String> = usernames.iter().map(|name| name.to_string()).collect();
+    sqlx::query_scalar("SELECT id FROM users WHERE username = ANY($1)")
+        .bind(usernames)
+        .fetch_all(pool)
+        .await
+        .expect("looking up fixture users must succeed")
+}
+
+#[tokio::test]
+async fn postgres_grants_record_the_staff_member_who_made_them() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    ensure_test_app_config();
+
+    let actor_a = 921_003;
+    let actor_b = 921_004;
+    let target = 921_005;
+    let role_one = 921_105;
+    let role_two = 921_106;
+    let roles = [role_one, role_two];
+    // Accounts the users service creates get generated ids; find them by name.
+    let created_names = ["rbac_prov_created", "rbac_prov_invited"];
+
+    let leftovers = user_ids_by_username(&pool, &created_names).await;
+    let fixed = [actor_a, actor_b, target];
+    cleanup_rbac_fixture(&pool, &[&fixed[..], &leftovers].concat(), &roles).await;
+
+    upsert_test_user(
+        &pool,
+        actor_a,
+        "rbac_prov_actor_a",
+        "rbac-prov-actor-a@hotel.local",
+        "S3cure!Passw0rd-ProvA",
+    )
+    .await;
+    upsert_test_user(
+        &pool,
+        actor_b,
+        "rbac_prov_actor_b",
+        "rbac-prov-actor-b@hotel.local",
+        "S3cure!Passw0rd-ProvB",
+    )
+    .await;
+    upsert_test_user(
+        &pool,
+        target,
+        "rbac_prov_target",
+        "rbac-prov-target@hotel.local",
+        "S3cure!Passw0rd-ProvT",
+    )
+    .await;
+    let admin_role_id = role_id_by_name(&pool, "admin").await;
+    assign_user_role_fixture(&pool, actor_a, admin_role_id).await;
+    assign_user_role_fixture(&pool, actor_b, admin_role_id).await;
+    upsert_custom_role(&pool, role_one, "rbac_prov_role_one", 10).await;
+    upsert_custom_role(&pool, role_two, "rbac_prov_role_two", 10).await;
+    let hk_read = permission_id(&pool, "housekeeping:read").await;
+    let hk_update = permission_id(&pool, "housekeeping:update").await;
+    let hk_create = permission_id(&pool, "housekeeping:create").await;
+    set_role_permission_fixture(&pool, role_one, hk_read).await;
+    set_role_permission_fixture(&pool, role_two, hk_read).await;
+    rbac_cache::clear_all();
+
+    // Roles: a direct grant records its grantor.
+    rbac_service::assign_role_to_user(
+        &pool,
+        actor_a,
+        AssignRoleInput {
+            user_id: target,
+            role_id: role_one,
+        },
+    )
+    .await
+    .expect("actor A should be able to grant a lower-priority role");
+    let first_grant = role_grant(&pool, target, role_one)
+        .await
+        .expect("the grant must exist");
+    assert_eq!(
+        first_grant.0,
+        Some(actor_a),
+        "a direct grant records who made it"
+    );
+
+    // A replace by someone else credits only what it adds.
+    rbac_service::replace_user_roles(
+        &pool,
+        actor_b,
+        target,
+        UserRoleIdsInput {
+            role_ids: vec![role_one, role_two],
+        },
+    )
+    .await
+    .expect("actor B should be able to replace the target's roles");
+    assert_eq!(
+        role_grant(&pool, target, role_one).await,
+        Some(first_grant),
+        "a role the replace keeps must still name its original grantor and time"
+    );
+    assert_eq!(
+        role_grant(&pool, target, role_two)
+            .await
+            .map(|grant| grant.0),
+        Some(Some(actor_b)),
+        "a role the replace adds is credited to whoever saved it"
+    );
+
+    rbac_service::replace_user_roles(
+        &pool,
+        actor_b,
+        target,
+        UserRoleIdsInput {
+            role_ids: vec![role_two],
+        },
+    )
+    .await
+    .expect("actor B should be able to drop a role");
+    assert_eq!(
+        role_grant(&pool, target, role_one).await,
+        None,
+        "a dropped role is gone"
+    );
+    assert_eq!(
+        role_grant(&pool, target, role_two)
+            .await
+            .map(|grant| grant.0),
+        Some(Some(actor_b))
+    );
+
+    // Permissions: the same rules on a role's permission set. The fixture's
+    // `housekeeping:read` row has no grantor and must not acquire one.
+    rbac_service::replace_role_permissions(
+        &pool,
+        actor_a,
+        role_two,
+        RolePermissionIdsInput {
+            permission_ids: vec![hk_read, hk_update],
+        },
+    )
+    .await
+    .expect("actor A should be able to extend the role's permissions");
+    assert_eq!(
+        permission_grant(&pool, role_two, hk_read)
+            .await
+            .map(|grant| grant.0),
+        Some(None),
+        "a permission the replace keeps is not re-credited"
+    );
+    let update_grant = permission_grant(&pool, role_two, hk_update)
+        .await
+        .expect("the added permission must exist");
+    assert_eq!(update_grant.0, Some(actor_a));
+
+    rbac_service::assign_permission_to_role(
+        &pool,
+        actor_b,
+        AssignPermissionInput {
+            role_id: role_two,
+            permission_id: hk_create,
+        },
+    )
+    .await
+    .expect("actor B should be able to add one permission");
+    assert_eq!(
+        permission_grant(&pool, role_two, hk_create)
+            .await
+            .map(|grant| grant.0),
+        Some(Some(actor_b))
+    );
+
+    rbac_service::replace_role_permissions(
+        &pool,
+        actor_b,
+        role_two,
+        RolePermissionIdsInput {
+            permission_ids: vec![hk_update, hk_create],
+        },
+    )
+    .await
+    .expect("actor B should be able to drop a permission");
+    assert_eq!(permission_grant(&pool, role_two, hk_read).await, None);
+    assert_eq!(
+        permission_grant(&pool, role_two, hk_update).await,
+        Some(update_grant),
+        "actor B's replace must not take credit for actor A's grant"
+    );
+
+    // Accounts created or invited with roles record who gave them.
+    let created = users_service::create_user(
+        &pool,
+        actor_a,
+        UserCreateInput {
+            username: created_names[0].to_string(),
+            email: "rbac-prov-created@hotel.local".to_string(),
+            password: "S3cure!Passw0rd-ProvC".to_string(),
+            full_name: None,
+            phone: None,
+            role_ids: Some(vec![role_one]),
+        },
+    )
+    .await
+    .expect("actor A should be able to create an account with a role");
+    let invited = users_service::invite_user(
+        &pool,
+        actor_b,
+        InviteUserInput {
+            username: created_names[1].to_string(),
+            email: "rbac-prov-invited@hotel.local".to_string(),
+            full_name: None,
+            phone: None,
+            role_ids: Some(vec![role_two]),
+        },
+    )
+    .await
+    .expect("actor B should be able to invite an account with a role");
+    let created_grant = role_grant(&pool, created.id, role_one)
+        .await
+        .map(|grant| grant.0);
+    let invited_grant = role_grant(&pool, invited.user.id, role_two)
+        .await
+        .map(|grant| grant.0);
+
+    cleanup_rbac_fixture(
+        &pool,
+        &[&fixed[..], &[created.id, invited.user.id]].concat(),
+        &roles,
+    )
+    .await;
+    assert_eq!(
+        created_grant,
+        Some(Some(actor_a)),
+        "create_user records its grantor"
+    );
+    assert_eq!(
+        invited_grant,
+        Some(Some(actor_b)),
+        "invite_user records its grantor"
+    );
+}
+
+#[tokio::test]
+async fn postgres_two_factor_enrollment_requires_existing_password() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let user_id = 920_020;
+    let password = "S3cure!Enrollment-Password";
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
+    upsert_test_user(
+        &pool,
+        user_id,
+        "rbac920_enrollment",
+        "rbac920-enrollment@hotel.local",
+        password,
+    )
+    .await;
+
+    for supplied in [None, Some(""), Some("wrong password")] {
+        let request = serde_json::from_value(serde_json::json!({"password": supplied})).unwrap();
+        assert!(
+            matches!(
+                two_factor_service::setup_2fa(&pool, user_id, request).await,
+                Err(ApiError::Forbidden(_))
+            ),
+            "a session alone must not create a factor"
+        );
+    }
+    let secret: Option<String> = sqlx::query_scalar(concat!(
+        "SELECT two_factor_secret FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(secret.is_none(), "denied setup must not store a secret");
+    let challenges: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(challenges, 0, "denied setup must not create challenges");
+
+    let request = serde_json::from_value(serde_json::json!({"password": password})).unwrap();
+    let setup = two_factor_service::setup_2fa(&pool, user_id, request)
+        .await
+        .unwrap();
+    let totp = build_totp(setup["secret"].as_str().unwrap());
+    // A valid pending setup (including one issued before this fix) is not
+    // enough to enable a factor without the pre-existing password.
+    for supplied in [None, Some(""), Some("wrong password")] {
+        let request = serde_json::from_value(serde_json::json!({
+            "password": supplied, "code": totp.generate_current().to_string(),
+            "challenge_code": setup["challenge_code"],
+        }))
+        .unwrap();
+        assert!(matches!(
+            two_factor_service::enable_2fa(&pool, user_id, request).await,
+            Err(ApiError::Forbidden(_))
+        ));
+    }
+    let enabled: bool = sqlx::query_scalar(concat!(
+        "SELECT two_factor_enabled FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!enabled);
+    let challenges: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        challenges, 1,
+        "denied enable must not consume the setup challenge"
+    );
+    // Even possession of a legacy pending secret/challenge must not allow
+    // passwordless enable, nor consume the challenge or issue recovery codes.
+    let original_hash: String = sqlx::query_scalar(concat!(
+        "SELECT password_hash FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = NULL WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({
+        "password": password, "code": totp.generate_current().to_string(),
+        "challenge_code": setup["challenge_code"],
+    }))
+    .unwrap();
+    assert!(matches!(
+        two_factor_service::enable_2fa(&pool, user_id, request).await,
+        Err(ApiError::Forbidden(_))
+    ));
+    let codes: Option<Vec<String>> = sqlx::query_scalar(concat!(
+        "SELECT two_factor_recovery_codes FROM users WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(codes.is_none());
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = ",
+        hotel_app_be::param!(1),
+        " WHERE id = ",
+        hotel_app_be::param!(2)
+    ))
+    .bind(original_hash)
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({
+        "password": password, "code": totp.generate_current().to_string(),
+        "challenge_code": setup["challenge_code"],
+    }))
+    .unwrap();
+    two_factor_service::enable_2fa(&pool, user_id, request)
+        .await
+        .unwrap();
+
+    // Passwordless accounts must not bootstrap a credential from a session.
+    sqlx::query(concat!(
+        "UPDATE users SET password_hash = NULL, two_factor_enabled = false WHERE id = ",
+        hotel_app_be::param!(1)
+    ))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let request = serde_json::from_value(serde_json::json!({"password": password})).unwrap();
+    assert!(matches!(
+        two_factor_service::setup_2fa(&pool, user_id, request).await,
+        Err(ApiError::Forbidden(_))
+    ));
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }

@@ -100,6 +100,7 @@ export const zh: Copy = {
     myAccount: '我的账户',
     adminConsole: '管理后台',
     bookAnotherStay: '再次预订',
+    signedInAs: '已登录：{{name}}',
   },
   lang: { aria: '语言' },
   weather: {

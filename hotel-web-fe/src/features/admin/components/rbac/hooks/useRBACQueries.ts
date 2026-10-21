@@ -11,6 +11,7 @@ import type {
   PermissionInput,
   RoleInput,
   RolePermissionIdsInput,
+  RouteAccessPolicyInput,
   UserRoleIdsInput,
 } from '../../../../../types';
 
@@ -35,6 +36,16 @@ export function useRouteAccessPolicies() {
     queryKey: rbacQueryKeys.routePolicies(),
     queryFn: () => AdminService.getRouteAccessPolicies(),
     staleTime: RBAC_STALE_TIME_MS,
+  });
+}
+
+export function useUpdateRouteAccessPolicy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ routeId, input }: { routeId: string; input: RouteAccessPolicyInput }) =>
+      AdminService.updateRouteAccessPolicy(routeId, input),
+    onSuccess: () => invalidateRbacQueries(queryClient),
   });
 }
 

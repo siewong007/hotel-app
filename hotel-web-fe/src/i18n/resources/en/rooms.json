@@ -740,5 +740,74 @@
   },
   "actions": {
     "editBookingNotes": "Edit booking notes"
+  },
+  "bulkPrice": {
+    "button": "Bulk update prices",
+    "title": "Bulk update room prices",
+    "close": "Close",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "apply": "Apply price changes",
+    "steps": {
+      "configure": "Configure",
+      "preview": "Preview",
+      "confirm": "Confirm"
+    },
+    "scope": {
+      "label": "Apply to",
+      "all": "All room types",
+      "selected": "Selected room types"
+    },
+    "fields": {
+      "label": "Prices to change",
+      "base": "Base price",
+      "weekday": "Weekday rate",
+      "weekend": "Weekend rate"
+    },
+    "method": {
+      "label": "Method",
+      "set_exact": "Set exact price",
+      "increase_percent": "Increase by %",
+      "decrease_percent": "Decrease by %",
+      "increase_amount": "Increase by amount",
+      "decrease_amount": "Decrease by amount"
+    },
+    "value": "Value",
+    "round": {
+      "label": "Round result",
+      "none": "No rounding",
+      "nearest": "Nearest {{amount}}"
+    },
+    "immediateHint": "Changes apply immediately to new bookings and quotes. Existing bookings keep their price.",
+    "errors": {
+      "valuePositive": "Enter a number greater than zero",
+      "decreaseTooBig": "A decrease must be less than 100%"
+    },
+    "summary": "{{types}} room type(s) and {{fields}} price(s) will change.",
+    "largeWarning": "Some prices change by more than {{percent}}%. You will need to confirm this.",
+    "noChange": "These settings would not change any price.",
+    "table": {
+      "roomType": "Room type",
+      "price": "Price",
+      "old": "Current",
+      "new": "New",
+      "change": "Change"
+    },
+    "reason": "Reason",
+    "reasonHelp": "Required. Saved in the audit log with your name and the time.",
+    "confirmLarge": "I confirm this change of more than {{percent}}%",
+    "applied": "Prices updated: {{types}} room type(s), {{fields}} price(s).",
+    "reverted": "The last bulk price update was reverted.",
+    "last": {
+      "updated": "Last bulk update by {{user}} on {{when}} ({{count}} room type(s)).",
+      "reverted": "Last bulk update was reverted by {{user}} on {{when}}.",
+      "unknownUser": "unknown user"
+    },
+    "revert": {
+      "open": "Revert last update",
+      "help": "Restores the prices from the last bulk update. This is refused if any of those prices were changed since.",
+      "confirm": "Revert last update"
+    }
   }
 }

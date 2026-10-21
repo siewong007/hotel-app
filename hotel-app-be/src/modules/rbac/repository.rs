@@ -111,7 +111,8 @@ impl RbacRepository {
     pub async fn find_all_permissions(pool: &DbPool) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
-            SELECT id, name, resource, action, description, created_at
+            SELECT id, name, resource, action, description, created_at,
+                   COALESCE(is_system_permission, false) AS is_system_permission
             FROM permissions
             ORDER BY resource, action
             "#,
@@ -128,7 +129,8 @@ impl RbacRepository {
     ) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
-            SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at
+            SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at,
+                   COALESCE(p.is_system_permission, false) AS is_system_permission
             FROM permissions p
             JOIN role_permissions rp ON p.id = rp.permission_id
             WHERE rp.role_id = $1
@@ -141,22 +143,48 @@ impl RbacRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Grant `role_id` to `user_id` on behalf of the staff member
+    /// `assigned_by`, the one place a staff-made grant is written. A role the
+    /// user already holds is left exactly as it is, so `assigned_by` and
+    /// `assigned_at` keep answering who first granted it, and when.
+    ///
+    /// Roles granted at sign-up (a guest account's `guest` role) are written
+    /// by the auth repository with no `assigned_by`: no staff member made them.
+    pub async fn grant_user_role<'e, E>(
+        executor: E,
+        user_id: i64,
+        role_id: i64,
+        assigned_by: i64,
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES ({}, {}, {}) \
+             ON CONFLICT (user_id, role_id) DO NOTHING",
+            crate::param!(1),
+            crate::param!(2),
+            crate::param!(3)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(user_id)
+            .bind(role_id)
+            .bind(assigned_by)
+            .execute(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// Assign role to user
     pub async fn assign_role_to_user(
         pool: &DbPool,
         user_id: i64,
         role_id: i64,
+        assigned_by: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        )
-        .bind(user_id)
-        .bind(role_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(())
+        Self::grant_user_role(pool, user_id, role_id, assigned_by).await
     }
 
     /// Remove role from user
@@ -175,22 +203,44 @@ impl RbacRepository {
         Ok(())
     }
 
+    /// Grant `permission_id` to `role_id` on behalf of the staff member
+    /// `granted_by`. As with [`Self::grant_user_role`], a permission the role
+    /// already holds keeps its original `granted_by` and `granted_at`.
+    async fn grant_role_permission<'e, E>(
+        executor: E,
+        role_id: i64,
+        permission_id: i64,
+        granted_by: i64,
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "INSERT INTO role_permissions (role_id, permission_id, granted_by) VALUES ({}, {}, {}) \
+             ON CONFLICT (role_id, permission_id) DO NOTHING",
+            crate::param!(1),
+            crate::param!(2),
+            crate::param!(3)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(role_id)
+            .bind(permission_id)
+            .bind(granted_by)
+            .execute(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// Assign permission to role
     pub async fn assign_permission_to_role(
         pool: &DbPool,
         role_id: i64,
         permission_id: i64,
+        granted_by: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
-        )
-        .bind(role_id)
-        .bind(permission_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(())
+        Self::grant_role_permission(pool, role_id, permission_id, granted_by).await
     }
 
     /// Remove permission from role
@@ -237,7 +287,8 @@ impl RbacRepository {
             r#"
             INSERT INTO permissions (name, resource, action, description)
             VALUES ($1, $2, $3, $4)
-            RETURNING id, name, resource, action, description, created_at
+            RETURNING id, name, resource, action, description, created_at,
+                      COALESCE(is_system_permission, false) AS is_system_permission
             "#,
         )
         .bind(name)
@@ -288,11 +339,95 @@ impl RbacRepository {
         rows.into_iter().map(route_policy_from_row).collect()
     }
 
-    pub async fn update_route_access_policy(
+    /// One route's policy, row-locked until the caller's transaction ends, so
+    /// an update can validate against and audit the exact row it replaces.
+    pub async fn find_route_access_policy_for_update<'e, E>(
+        executor: E,
+        route_id: &str,
+    ) -> Result<Option<RouteAccessPolicy>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
+        let sql = format!(
+            "SELECT \
+                route_id, \
+                path, \
+                nav_label, \
+                nav_group, \
+                required_permissions::text AS required_permissions, \
+                required_roles::text AS required_roles, \
+                excluded_roles::text AS excluded_roles, \
+                nav_permissions::text AS nav_permissions, \
+                nav_roles::text AS nav_roles, \
+                nav_excluded_roles::text AS nav_excluded_roles, \
+                is_navigation \
+             FROM route_access_policies \
+             WHERE route_id = {} \
+             FOR UPDATE",
+            crate::param!(1)
+        );
+
+        sqlx::query_as::<_, RouteAccessPolicyRow>(sqlx::AssertSqlSafe(sql))
+            .bind(route_id)
+            .fetch_optional(executor)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .map(route_policy_from_row)
+            .transpose()
+    }
+
+    /// The subset of `names` that exist as permissions.
+    pub async fn existing_permission_names(
         pool: &DbPool,
+        names: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if names.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let sql = format!(
+            "SELECT name FROM permissions WHERE name = ANY({})",
+            crate::param!(1)
+        );
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(names)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(found.into_iter().collect())
+    }
+
+    /// The subset of `names` that exist as roles.
+    pub async fn existing_role_names(
+        pool: &DbPool,
+        names: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if names.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let sql = format!(
+            "SELECT name FROM roles WHERE name = ANY({})",
+            crate::param!(1)
+        );
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(names)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(found.into_iter().collect())
+    }
+
+    pub async fn update_route_access_policy<'e, E>(
+        executor: E,
         route_id: &str,
         input: &RouteAccessPolicyInput,
-    ) -> Result<RouteAccessPolicy, ApiError> {
+    ) -> Result<RouteAccessPolicy, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         let required_permissions = json_array(&input.required_permissions)?;
         let required_roles = json_array(&input.required_roles)?;
         let excluded_roles = json_array(&input.excluded_roles)?;
@@ -339,7 +474,7 @@ impl RbacRepository {
             .bind(nav_roles)
             .bind(nav_excluded_roles)
             .bind(input.is_navigation)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
             .ok_or_else(|| ApiError::NotFound("Route access policy not found".to_string()))?;
@@ -399,35 +534,36 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Make `permission_ids` the role's exact permission set, writing only the
+    /// difference: dropped permissions are deleted, new ones are granted by
+    /// `granted_by`, and kept ones retain their original grant. (Deleting and
+    /// re-inserting the whole set would credit every kept permission to
+    /// whoever saved last.)
     pub async fn replace_role_permissions(
         pool: &DbPool,
         role_id: i64,
         permission_ids: &[i64],
+        granted_by: i64,
     ) -> Result<(), ApiError> {
         let mut tx = pool
             .begin()
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        sqlx::query("DELETE FROM role_permissions WHERE role_id = $1")
+        let sql = format!(
+            "DELETE FROM role_permissions WHERE role_id = {} AND permission_id <> ALL({})",
+            crate::param!(1),
+            crate::param!(2)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(role_id)
+            .bind(permission_ids)
             .execute(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for permission_id in permission_ids {
-            sqlx::query(
-                r#"
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES ($1, $2)
-                ON CONFLICT (role_id, permission_id) DO NOTHING
-                "#,
-            )
-            .bind(role_id)
-            .bind(permission_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Self::grant_role_permission(&mut *tx, role_id, *permission_id, granted_by).await?;
         }
 
         tx.commit()
@@ -435,31 +571,36 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Make `role_ids` the user's exact set of direct roles, writing only the
+    /// difference: dropped roles are deleted, new ones are granted by
+    /// `assigned_by`, and kept ones retain their original grant, `expires_at`
+    /// included. (Deleting and re-inserting the whole set would credit every
+    /// kept role to whoever saved last, and quietly drop its expiry.)
     pub async fn replace_user_roles(
         pool: &DbPool,
         user_id: i64,
         role_ids: &[i64],
+        assigned_by: i64,
     ) -> Result<(), ApiError> {
         let mut tx = pool
             .begin()
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+        let sql = format!(
+            "DELETE FROM user_roles WHERE user_id = {} AND role_id <> ALL({})",
+            crate::param!(1),
+            crate::param!(2)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(user_id)
+            .bind(role_ids)
             .execute(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for role_id in role_ids {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-            )
-            .bind(user_id)
-            .bind(role_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Self::grant_user_role(&mut *tx, user_id, *role_id, assigned_by).await?;
         }
 
         tx.commit()
@@ -477,7 +618,8 @@ impl RbacRepository {
     ) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(sqlx::AssertSqlSafe(format!(
             "{} \
-             SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at \
+             SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at, \
+                    COALESCE(p.is_system_permission, false) AS is_system_permission \
              FROM permissions p \
              INNER JOIN role_permissions rp ON p.id = rp.permission_id \
              INNER JOIN effective_roles er ON er.role_id = rp.role_id \
@@ -681,7 +823,8 @@ impl RbacRepository {
             UPDATE permissions
             SET name = $1, resource = $2, action = $3, description = $4
             WHERE id = $5
-            RETURNING id, name, resource, action, description, created_at
+            RETURNING id, name, resource, action, description, created_at,
+                      COALESCE(is_system_permission, false) AS is_system_permission
             "#,
         )
         .bind(name)
@@ -692,6 +835,41 @@ impl RbacRepository {
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn permission_name(
+        pool: &DbPool,
+        permission_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        let sql = format!(
+            "SELECT name FROM permissions WHERE id = {}",
+            crate::param!(1)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(permission_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// How many page access rules name `permission` in either list. Rules
+    /// hold permission names, not ids, so a deleted or renamed permission
+    /// would leave a name behind that matches nobody.
+    pub async fn route_policy_count_for_permission(
+        pool: &DbPool,
+        permission: &str,
+    ) -> Result<i64, ApiError> {
+        let sql = format!(
+            "SELECT COUNT(*) FROM route_access_policies \
+             WHERE required_permissions @> jsonb_build_array({0}::text) \
+                OR nav_permissions @> jsonb_build_array({0}::text)",
+            crate::param!(1)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(permission)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     pub async fn role_count_for_permission(

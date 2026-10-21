@@ -290,7 +290,12 @@ describe('SecuritySection', () => {
 
     renderSection();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator app' }));
+    const setupButton = await screen.findByRole('button', { name: 'Set up authenticator app' });
+    expect(setupButton.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(setupButton);
+    expect(mocks.setupTwoFactor).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: ' existing password ' } });
+    fireEvent.click(setupButton);
 
     const codeField = await screen.findByLabelText('6-digit code');
     fireEvent.change(codeField, { target: { value: '123456' } });
@@ -299,7 +304,7 @@ describe('SecuritySection', () => {
     expect(await screen.findByText('AAAA-1111')).toBeTruthy();
     expect(screen.getByText('BBBB-2222')).toBeTruthy();
     await waitFor(() =>
-      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1', {
+      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1', ' existing password ', {
         suppressApiNotification: true,
       }),
     );
@@ -316,7 +321,12 @@ describe('SecuritySection', () => {
 
     const { container } = renderSection();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator app' }));
+    const setupButton = await screen.findByRole('button', { name: 'Set up authenticator app' });
+    expect(setupButton.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(setupButton);
+    expect(mocks.setupTwoFactor).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: ' existing password ' } });
+    fireEvent.click(setupButton);
 
     await screen.findByText('JBSWY3DPEHPK3PXP');
     expect(container.ownerDocument.querySelector('svg[height="200"]')).toBeTruthy();

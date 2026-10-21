@@ -36,6 +36,9 @@ import { formatStatusLabel } from '../../../../utils/formatters';
 import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
+import { PhoneRow, PhoneRows } from './PhoneRows';
 import {
   SupportPriorityChip,
   SupportSlaChip,
@@ -92,6 +95,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
   onNewConversation,
 }) => {
   const { t, tOr } = useTranslation('guests');
+  const isPhone = useIsPhone();
   const conversationsQuery = useGuestSupportConversations(guestId);
   const reviewsQuery = useGuestReviews(guestId, canViewReviews);
   const respondMutation = useRespondToReview();
@@ -136,14 +140,42 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
     }
   };
 
+  // intentional: dynamic key — category is a DB enum value; out-of-enum values humanize
+  const categoryLabel = (category: string) => tOr(`support:categories.${category}`, formatStatusLabel(category));
+  // The SLA clock that matters next: first response until there is one, then resolution.
+  const slaDueAt = (conversation: GuestSupportConversationSummary) =>
+    conversation.first_response_at == null
+      ? conversation.first_response_due_at
+      : conversation.resolution_due_at;
+
+  const renderConversationRow = (conversation: GuestSupportConversationSummary) => (
+    <PhoneRow key={conversation.id}>
+      <MobileCardRow
+        title={conversation.conversation_number}
+        subtitle={`${categoryLabel(conversation.category)} · ${conversation.assigned_to_name ?? t('supportFeedback.unassigned')}`}
+        meta={formatHotelDateTime(conversation.last_activity_at)}
+        status={<SupportStatusChip status={conversation.status} />}
+        footer={
+          <>
+            <SupportPriorityChip priority={conversation.priority} />
+            <SupportSlaChip
+              isAtRisk={conversation.is_sla_at_risk}
+              isBreached={conversation.is_sla_breached}
+              dueAt={slaDueAt(conversation)}
+            />
+          </>
+        }
+      />
+    </PhoneRow>
+  );
+
   const renderConversation = (conversation: GuestSupportConversationSummary) => (
     <TableRow key={conversation.id}>
       <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
         {conversation.conversation_number}
       </TableCell>
       <TableCell>
-        {/* intentional: dynamic key — category is a DB enum value; out-of-enum values humanize */}
-        <Chip size="small" variant="outlined" label={tOr(`support:categories.${conversation.category}`, formatStatusLabel(conversation.category))} />
+        <Chip size="small" variant="outlined" label={categoryLabel(conversation.category)} />
       </TableCell>
       <TableCell>
         <SupportStatusChip status={conversation.status} />
@@ -156,9 +188,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
         <SupportSlaChip
           isAtRisk={conversation.is_sla_at_risk}
           isBreached={conversation.is_sla_breached}
-          dueAt={conversation.first_response_at == null
-            ? conversation.first_response_due_at
-            : conversation.resolution_due_at}
+          dueAt={slaDueAt(conversation)}
         />
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -302,10 +332,13 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
     <Stack spacing={2.5}>
       <SectionCard
         title={
+          // Wraps: on a phone the actions drop under the title instead of
+          // pushing "New conversation" out past the card's edge.
           <Stack
             direction="row"
             spacing={0.75}
-            sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+            useFlexGap
+            sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', rowGap: 1 }}
           >
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <SupportIcon sx={{ fontSize: 16 }} />
@@ -366,6 +399,8 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
             {t('supportFeedback.empty')}
             {canWriteSupport ? ` ${t('supportFeedback.emptyHint')}` : ''}
           </Typography>
+        ) : isPhone ? (
+          <PhoneRows>{conversations.map(renderConversationRow)}</PhoneRows>
         ) : (
           <TableContainer>
             <Table size="small" aria-label={t('supportFeedback.aria')}>
