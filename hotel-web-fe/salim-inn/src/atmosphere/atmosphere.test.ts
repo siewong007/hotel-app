@@ -1,10 +1,12 @@
 // The atmosphere's rules: what MET Norway's forecast becomes, which hour is
-// "now" and when a forecast is too old to show, Sibu's clock and sun, which
-// look wins, and how the one request is shared and survives failure. The
-// film's lighting is judged from screenshots; these pin the decisions it rests on.
+// "now" and when a forecast is too old to show, Sibu's clock and sun, who is
+// open (whose windows the film lights), which look wins, and how the one
+// request is shared and survives failure. The film's lighting is judged from
+// screenshots; these pin the decisions it rests on.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_AGE_MS, WeatherFeed, parseMetNo, skyOf, weatherAt, type Forecast, type Weather } from './weather';
-import { periodAt, sibuTime, solarTimes } from './solar';
+import { periodAt, sibuDay, sibuTime, solarTimes } from './solar';
+import { openAt, SHOP_HOURS, tradingAt } from './hours';
 import { AtmosphereController, lookFor, MODE_KEY, NO_WEATHER, weatherLook } from './index';
 
 const AT = Date.UTC(2026, 9, 13, 4, 30); // 12:30 in Sibu
@@ -111,6 +113,47 @@ describe("Sibu's clock and sun", () => {
     expect(periodAt(sibu(17, 5), rise, set)).toBe('golden'); // the last 75 minutes of sun
     expect(periodAt(sibu(18, 44), rise, set)).toBe('golden');
     expect(periodAt(sibu(18, 46), rise, set)).toBe('night');
+  });
+});
+
+describe('who is open', () => {
+  // October 2026: the 16th is a Friday, the 18th a Sunday, the 19th a Monday
+  const daily = [{ days: [0, 1, 2, 3, 4, 5, 6], times: ['08:00-22:00'] }];
+
+  it('reads the day in Sibu, not the visitor’s zone', () => {
+    expect(sibuDay(sibu(0, 30, 19))).toBe(1); // Monday 00:30 in Sibu is still Sunday in UTC
+    expect(sibuDay(sibu(23, 59, 18))).toBe(0);
+  });
+
+  it('opens at the hour and closes at the hour', () => {
+    expect(openAt(daily, sibu(7, 59))).toBe(false);
+    expect(openAt(daily, sibu(8, 0))).toBe(true);
+    expect(openAt(daily, sibu(21, 59))).toBe(true);
+    expect(openAt(daily, sibu(22, 0))).toBe(false);
+  });
+
+  it('keeps split hours and days', () => {
+    // Low Medical Clinic: Mon–Thu three sessions, Fri–Sun mornings
+    const clinic = [{ days: [1, 2, 3, 4], times: ['08:30-12:00', '14:00-17:00', '19:00-20:30'] }, { days: [5, 6, 0], times: ['08:30-12:00'] }];
+    expect(openAt(clinic, sibu(19, 30, 19))).toBe(true); // Monday evening
+    expect(openAt(clinic, sibu(13, 0, 19))).toBe(false); // Monday lunch
+    expect(openAt(clinic, sibu(9, 0, 18))).toBe(true); // Sunday morning
+    expect(openAt(clinic, sibu(19, 30, 16))).toBe(false); // Friday evening
+  });
+
+  it('carries hours past midnight into the next morning, on their own days only', () => {
+    const late = [{ days: [5], times: ['18:00-02:00'] }]; // Friday nights
+    expect(openAt(late, sibu(23, 0, 16))).toBe(true);
+    expect(openAt(late, sibu(1, 30, 17))).toBe(true); // Saturday 01:30, still Friday's night
+    expect(openAt(late, sibu(2, 0, 17))).toBe(false);
+    expect(openAt(late, sibu(23, 0, 17))).toBe(false); // Saturday night is not on the list
+  });
+
+  it('never closes the hotel; the shops and the supermarket keep the listed hours', () => {
+    expect(SHOP_HOURS).toEqual(daily); // the owner's, 21 Oct 2026 (the supermarket's listed hours are the same)
+    expect(tradingAt(sibu(10, 19))).toEqual({ hotel: 1, mart: 1, shops: 1 });
+    expect(tradingAt(sibu(23, 30))).toEqual({ hotel: 1, mart: 0, shops: 0 });
+    expect(tradingAt(sibu(3, 0))).toEqual({ hotel: 1, mart: 0, shops: 0 });
   });
 });
 

@@ -18,6 +18,12 @@ const NOISE = /* glsl */ `
   float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
     return mix(mix(h12(i), h12(i+vec2(1,0)), u.x), mix(h12(i+vec2(0,1)), h12(i+vec2(1,1)), u.x), u.y); }
   float fbm3(vec2 p){ return vnoise(p)*0.55 + vnoise(p*2.13+7.1)*0.3 + vnoise(p*4.37+3.3)*0.15; }
+  // How much of a noise of freq cycles per metre to keep here: all of it
+  // while a cycle spans a few pixels, none once it is under about two (the
+  // noise is then mixed to its mean, 0.5). Sub-pixel noise only sparkles
+  // from the air, and the sharpening (Post.ts) would amplify the sparkle.
+  // (length(fwidth) reads about 1.5 pixels' worth of metres.)
+  float aaKeep(float freq){ return 1.0 - smoothstep(0.5, 1.0, freq * length(fwidth(vW))); }
 `;
 
 function addCommon(shader: THREE.WebGLProgramParametersWithUniforms, worldVarying = true) {
@@ -50,7 +56,7 @@ export function asphalt(mat: THREE.MeshStandardMaterial, scale = 1): THREE.MeshS
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec2 q = vW.xz * ${(0.22 * scale).toFixed(3)};
         float patches = smoothstep(0.35, 0.75, fbm3(q * 0.18));
-        float grain = vnoise(vW.xz * 7.0) * 0.6 + vnoise(vW.xz * 19.0) * 0.4;
+        float grain = mix(0.5, vnoise(vW.xz * 7.0), aaKeep(7.0)) * 0.6 + mix(0.5, vnoise(vW.xz * 19.0), aaKeep(19.0)) * 0.4;
         float stain = smoothstep(0.62, 0.9, fbm3(q * 0.9 + 11.0));
         diffuseColor.rgb *= mix(0.86, 1.13, patches) * (0.9 + 0.2 * grain) * (1.0 - 0.28 * stain);
         float puddle = smoothstep(0.56, 0.74, fbm3(vW.xz * 0.06 + 23.0));
@@ -72,7 +78,7 @@ export function plaster(mat: THREE.MeshStandardMaterial, amount = 1): THREE.Mesh
     addCommon(s);
     s.fragmentShader = s.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       float st = fbm3(vec2(vW.x + vW.z, vW.y * 0.25) * 0.9);
-      float streak = vnoise(vec2((vW.x + vW.z) * 3.1, vW.y * 0.12)) * smoothstep(0.0, 3.0, vW.y);
+      float streak = mix(0.5, vnoise(vec2((vW.x + vW.z) * 3.1, vW.y * 0.12)), aaKeep(3.1)) * smoothstep(0.0, 3.0, vW.y);
       diffuseColor.rgb *= 1.0 - ${(0.07 * amount).toFixed(3)} * st - ${(0.06 * amount).toFixed(3)} * streak * streak;`);
   });
   return mat;
@@ -84,7 +90,7 @@ export function grass(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMateri
     addCommon(s);
     s.fragmentShader = s.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       float g1 = fbm3(vW.xz * 0.08);
-      float g2 = vnoise(vW.xz * 1.3);
+      float g2 = mix(0.5, vnoise(vW.xz * 1.3), aaKeep(1.3));
       vec3 dry = vec3(0.52, 0.5, 0.3);
       diffuseColor.rgb = mix(diffuseColor.rgb * (0.82 + 0.3 * g2), dry * 0.55, smoothstep(0.55, 0.85, g1) * 0.45);`);
   });
@@ -113,13 +119,13 @@ export function foliage(mat: THREE.MeshStandardMaterial, sunDir: THREE.Vector3):
     s.fragmentShader = s.fragmentShader
       .replace('uniform float uTime;', 'uniform float uTime; uniform vec3 uSun;')
       .replace('#include <color_fragment>', `#include <color_fragment>
-        float clump = vnoise(vW.xz * 0.9 + vW.y * 0.7) * 0.6 + vnoise(vW.xz * 3.7 - vW.y * 2.1) * 0.4;
-        float leaf = vnoise(vW.xz * 13.0 + vW.y * 11.0) * 0.6 + vnoise(vW.zy * 29.0 - vW.x * 7.0) * 0.4;
+        float clump = vnoise(vW.xz * 0.9 + vW.y * 0.7) * 0.6 + mix(0.5, vnoise(vW.xz * 3.7 - vW.y * 2.1), aaKeep(3.7)) * 0.4;
+        float leaf = mix(0.5, vnoise(vW.xz * 13.0 + vW.y * 11.0), aaKeep(13.0)) * 0.6 + mix(0.5, vnoise(vW.zy * 29.0 - vW.x * 7.0), aaKeep(29.0)) * 0.4;
         diffuseColor.rgb *= (0.8 + 0.34 * clump) * (0.84 + 0.3 * leaf);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         // leafy micro-relief: a jittered shading normal catches the low sun in flecks
         vec3 jit = vec3(vnoise(vW.xy * 5.3), vnoise(vW.yz * 5.9 + 3.1), vnoise(vW.zx * 6.7 + 7.7)) - 0.5;
-        normal = normalize(normal + jit * 0.9);`)
+        normal = normalize(normal + jit * 0.9 * aaKeep(6.0));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         vec3 V = normalize(cameraPosition - vW);
         float back = pow(clamp(dot(-V, normalize(uSun)), 0.0, 1.0), 3.0);
@@ -144,13 +150,22 @@ export function corrugated(mat: THREE.MeshStandardMaterial, pitch = 0.076): THRE
   return mat;
 }
 
+/** A business's window lights (World.update): `open` is the light its lit
+ *  windows keep while it trades, whatever hour the film shows; `dusk` scales
+ *  the dusk's own lights (down once it has closed). */
+export interface WindowLights {
+  open: { value: number };
+  dusk: { value: number };
+}
+export const windowLights = (): WindowLights => ({ open: { value: 0 }, dusk: { value: 1 } });
+
 /**
  * Interior-mapped windows: a fake room box behind each pane (brief §5: "lit
  * room cards with parallax offset so windows don't look painted on"). Needs
  * per-vertex attributes aWin (0..1 across the pane), aSeed (per-window
  * random) and aTan (the facade's horizontal direction, world space).
  */
-export function interiorWindows(mat: THREE.MeshPhysicalMaterial | THREE.MeshStandardMaterial, opts: { depth?: number; litShare?: number; warm?: THREE.ColorRepresentation; size?: [number, number]; levels?: { value: number } } = {}): typeof mat {
+export function interiorWindows(mat: THREE.MeshPhysicalMaterial | THREE.MeshStandardMaterial, opts: { depth?: number; litShare?: number; warm?: THREE.ColorRepresentation; size?: [number, number]; levels?: { value: number }; lights?: WindowLights } = {}): typeof mat {
   const depth = opts.depth ?? 3.2; // room depth, metres
   const size = opts.size ?? [2.8, 1.5]; // typical pane width × height, metres
   const lit = opts.litShare ?? 0.62;
@@ -159,11 +174,13 @@ export function interiorWindows(mat: THREE.MeshPhysicalMaterial | THREE.MeshStan
     addCommon(s);
     s.uniforms.uWarm = { value: warm };
     s.uniforms.uLevelOn = opts.levels ?? { value: 99 };
+    s.uniforms.uOpenLight = opts.lights?.open ?? { value: 0 };
+    s.uniforms.uDuskLight = opts.lights?.dusk ?? { value: 1 };
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 aWin; attribute float aSeed; attribute vec3 aTan;\nvarying vec2 vWin; varying float vSeed; varying vec3 vTan; varying vec3 vNrmW;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWin = aWin; vSeed = aSeed; vTan = normalize(mat3(modelMatrix) * aTan); vNrmW = normalize(mat3(modelMatrix) * objectNormal);');
     s.fragmentShader = s.fragmentShader
-      .replace('uniform float uTime;', 'uniform float uTime; uniform vec3 uWarm; uniform float uLevelOn;\nvarying vec2 vWin; varying float vSeed; varying vec3 vTan; varying vec3 vNrmW;')
+      .replace('uniform float uTime;', 'uniform float uTime; uniform vec3 uWarm; uniform float uLevelOn; uniform float uOpenLight; uniform float uDuskLight;\nvarying vec2 vWin; varying float vSeed; varying vec3 vTan; varying vec3 vNrmW;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           vec3 N = normalize(vNrmW);
@@ -193,7 +210,9 @@ export function interiorWindows(mat: THREE.MeshPhysicalMaterial | THREE.MeshStan
           // curtains on some panes
           float curtain = step(0.55, fract(vSeed * 3.7)) * smoothstep(0.0, 0.02, vWin.x - 0.62 - 0.2 * fract(vSeed * 5.3));
           col = mix(col, vec3(0.93, 0.88, 0.78), curtain * 0.9);
-          float on = step(r, ${lit.toFixed(2)}) * uLights * step(vW.y, uLevelOn);
+          // the dusk's lights (floor by floor where levels are given), and
+          // never less than the business keeps on while it is open
+          float on = step(r, ${lit.toFixed(2)}) * max(uLights * uDuskLight * step(vW.y, uLevelOn), uOpenLight);
           totalEmissiveRadiance += col * uWarm * on * 1.25;
           // daytime: a dim view of the room through the glass
           diffuseColor.rgb = mix(diffuseColor.rgb, col * 0.18, 0.55);

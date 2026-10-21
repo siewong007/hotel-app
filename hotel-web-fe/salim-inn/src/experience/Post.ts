@@ -1,13 +1,14 @@
-// Post chain (brief §5): N8AO → depth of field (high tier, interiors only) →
-// bloom (high threshold, so only emissive signage / lamps / downlights bloom)
-// → AgX tone mapping → SMAA → vignette + fine grain. One EffectComposer;
-// effects toggled per chapter and tier.
+// Post chain (brief §5): N8AO → sharpening → depth of field (high tier,
+// interiors only) → bloom (high threshold, so only emissive signage / lamps /
+// downlights bloom) → AgX tone mapping → SMAA → grade, vignette + fine grain.
+// One EffectComposer; effects toggled per chapter and tier.
 import * as THREE from 'three';
 import {
   BlendFunction,
   BloomEffect,
   DepthOfFieldEffect,
   Effect,
+  EffectAttribute,
   EffectComposer,
   EffectPass,
   NoiseEffect,
@@ -55,6 +56,42 @@ class GradeEffect extends Effect {
   }
 }
 
+/** Contrast-adaptive sharpening (after AMD FidelityFX CAS): gives back the
+ *  edge contrast an upscaled canvas and SMAA take away, most where the local
+ *  contrast is low (window grids, roof edges seen from the air) and little
+ *  across strong edges and highlights, so they do not ring. It reads its
+ *  neighbours from the scene as drawn (linear, unbounded), so it rides the
+ *  tone-mapping pass, first, instead of costing a full-screen pass of its own
+ *  after SMAA (~5 % of a frame); the weights come from a tone-mapped copy. */
+class SharpenEffect extends Effect {
+  constructor() {
+    super('SharpenEffect', /* glsl */ `
+      uniform float uAmount;
+      vec3 casProxy(const in vec3 c) { return c / (1.0 + c); }
+      void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+        vec3 e = inputColor.rgb;
+        vec3 b = texture2D(inputBuffer, uv - vec2(0.0, texelSize.y)).rgb;
+        vec3 d = texture2D(inputBuffer, uv - vec2(texelSize.x, 0.0)).rgb;
+        vec3 f = texture2D(inputBuffer, uv + vec2(texelSize.x, 0.0)).rgb;
+        vec3 h = texture2D(inputBuffer, uv + vec2(0.0, texelSize.y)).rgb;
+        vec3 E = casProxy(e), B = casProxy(b), D = casProxy(d), F = casProxy(f), H = casProxy(h);
+        vec3 mn = min(E, min(min(B, D), min(F, H)));
+        vec3 mx = max(E, max(max(B, D), max(F, H)));
+        vec3 amp = sqrt(clamp(min(mn, 1.0 - mx) / max(mx, vec3(1e-4)), 0.0, 1.0));
+        vec3 w = -amp / mix(8.0, 5.0, uAmount);
+        outputColor = vec4(max((e + (b + d + f + h) * w) / (1.0 + 4.0 * w), 0.0), inputColor.a);
+      }`, {
+      attributes: EffectAttribute.CONVOLUTION,
+      uniforms: new Map<string, THREE.Uniform>([['uAmount', new THREE.Uniform(0.3)]]),
+    });
+  }
+}
+
+/** Above this pixel ratio AO runs at half resolution: at 2× that is still
+ *  one sample per CSS pixel, which is all a soft contact shadow needs, and it
+ *  takes the pass from ~10 ms to a third of that on a Retina screen. */
+const AO_FULL_RES_DPR = 1.25;
+
 export class Post {
   readonly composer: EffectComposer;
   readonly renderPass: RenderPass;
@@ -69,6 +106,7 @@ export class Post {
   readonly vignette: VignetteEffect;
   readonly noise: NoiseEffect;
   readonly grade: GradeEffect;
+  readonly sharpen: SharpenEffect;
   private gradePass: EffectPass;
   private aaPass: EffectPass;
 
@@ -120,7 +158,8 @@ export class Post {
     const dofUpdate = this.dof.update.bind(this.dof);
     // its blur passes cost a few ms: skip them whenever it is not showing
     this.dof.update = (r, input, dt) => { if (this.dofOn) dofUpdate(r, input, dt); };
-    this.gradePass = new EffectPass(camera, this.dof, this.bloom, this.tone);
+    this.sharpen = new SharpenEffect();
+    this.gradePass = new EffectPass(camera, this.sharpen, this.dof, this.bloom, this.tone);
     this.composer.addPass(this.gradePass);
 
     this.smaa = new SMAAEffect({ preset: SMAAPreset.HIGH });
@@ -128,8 +167,11 @@ export class Post {
     this.noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: false });
     this.noise.blendMode.opacity.value = 0.028;
     // perf/posters.ts: the page's still frames go without grain, which JPEG
-    // spends most of its bytes on (the chapter-1 poster is in the first paint)
-    if (new URLSearchParams(location.search).get('grain') === '0') this.noise.blendMode.opacity.value = 0;
+    // spends most of its bytes on (the chapter-1 poster is in the first paint),
+    // and without sharpening, which costs it a third more
+    const params = new URLSearchParams(location.search);
+    if (params.get('grain') === '0') this.noise.blendMode.opacity.value = 0;
+    if (params.get('sharpen') === '0') this.sharpen.blendMode.opacity.value = 0;
     this.grade = new GradeEffect();
     this.aaPass = new EffectPass(camera, this.smaa, this.grade, this.vignette, this.noise);
     this.composer.addPass(this.aaPass);
@@ -139,19 +181,21 @@ export class Post {
     this.renderPass.mainCamera = camera;
   }
 
-  applyTier(t: Tier): void {
+  /** `dpr`: the canvas's pixel ratio (AO_FULL_RES_DPR). */
+  applyTier(t: Tier, dpr = 1): void {
     // measurement only (perf/): ?ao=full|half|off and ?dof=0|1 override the tier
     const params = new URLSearchParams(location.search);
     const force = params.get('ao') as Tier['ao'] | null;
     const ao = force ?? t.ao;
+    const half = ao === 'half' || (!force && dpr > AO_FULL_RES_DPR);
     if (ao === 'off') this.ao.enabled = false; // (its resolution left as it is: nothing to re-make)
-    else if (this.live && (ao === 'half') !== this.ao.configuration.halfRes) {
+    else if (this.live && half !== this.ao.configuration.halfRes) {
       // a step down while the film runs (high → medium): AO off, not re-made
       // at half resolution, which recompiles its shaders — a 250–300 ms stall
       this.ao.enabled = false;
     } else {
       this.ao.enabled = true;
-      this.ao.configuration.halfRes = ao === 'half';
+      this.ao.configuration.halfRes = half;
     }
     this.bloom.blendMode.opacity.value = t.bloom ? 1 : 0;
     // rebuilding the levels makes new targets and recompiles two shaders
@@ -196,6 +240,14 @@ export class Post {
     if (Math.abs(u.value - v) > 1e-4) u.value = v;
     const toEmerald = Math.max(night, 0.6 * Math.min(1, rain * 1.2));
     (this.grade.uniforms.get('uShadow')!.value as THREE.Vector3).copy(COOL_SHADOW).lerp(EMERALD_SHADOW, toEmerald);
+  }
+
+  /** Sharpen to suit the canvas: gently at the screen's own resolution, more
+   *  as the canvas is drawn below it and stretched to fit (a Retina screen at
+   *  a calibrated 1.25×, say). `upscale` is the screen's pixel ratio over the
+   *  canvas's. */
+  setSharpen(upscale: number): void {
+    this.sharpen.uniforms.get('uAmount')!.value = THREE.MathUtils.clamp(0.3 + 0.5 * (upscale - 1), 0.3, 0.8);
   }
 
   /** Scale AO to the shot: metres-wide contact shading on the street,

@@ -105,6 +105,6 @@ export const OPEN_QUESTIONS = [
   'Neighbourhood, still open: where the new food court stands is not given, and the old one (in the supermarket’s row) matches no map point, so neither has a walking time.',
   'Supermarket walk: saliminn.my says about 5 minutes; the brief’s straight-line formula gives about 3 (165 m). The page shows the published 5.',
   'Booking portal pre-fill: the portal ignores the dates, guests and room the panel sends, so guests re-enter them (the panel shows a copyable summary). A small portal change would make them carry over.',
-  'Link preview: replaced the room photo with the chapter 3 hero render (salim-inn-hero-v2.jpg); the old image is still published.',
+  'Link preview: replaced the room photo with the chapter 3 hero render (salim-inn-hero-v3.jpg since the shop rows’ roofs were rebuilt, 21 Oct 2026); the older images are still published.',
   'Extra bed: RM35 is shown without a unit (per night or per stay?), and children count towards each room’s maximum occupancy.',
 ];

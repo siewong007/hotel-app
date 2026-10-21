@@ -18,6 +18,11 @@ export function sibuMinutes(now: number): number {
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
+/** The day of the week in Sibu (0 is Sunday). */
+export function sibuDay(now: number): number {
+  return new Date(now + OFFSET_MS).getUTCDay();
+}
+
 /** "14:05" in Sibu, whatever the visitor's own zone. */
 export function sibuTime(now: number): string {
   const m = sibuMinutes(now);
