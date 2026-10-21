@@ -1,5 +1,5 @@
 import { screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderPage } from '../../../test/renderPage';
 import { expectNoAxeViolations } from '../../../test/axe';
 import { queryData, queryLoading, queryError } from '../../../test/queryMocks';
@@ -99,6 +99,15 @@ const bookings: BookingWithDetails[] = [
     status: 'voided',
   },
 ];
+
+// Fixtures use fixed 2026-10 dates; pin "today" so they never age out.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 9, 12, 12, 0, 0));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function setPopulated() {
   mocks.rooms = { ...queryData(rooms), refetch: vi.fn().mockResolvedValue(undefined) } as never;

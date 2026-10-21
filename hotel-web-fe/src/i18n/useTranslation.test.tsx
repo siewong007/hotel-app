@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { configure } from '@testing-library/dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from './I18nProvider';
 import { resetLocaleStoreForTests, setActiveLocale } from './localeStore';
@@ -8,6 +9,11 @@ import { resetLocaleStoreForTests, setActiveLocale } from './localeStore';
 import { ensureLocaleLoaded } from './resources';
 import { resetMissingKeyReportsForTests } from './translate';
 import { useTranslation } from './useTranslation';
+
+// The cold-path test below waits on a real lazy locale chunk, which can take
+// longer than the 1 s default on a loaded machine (it failed that way in a
+// full local run while passing on CI).
+configure({ asyncUtilTimeout: 10_000 });
 
 afterEach(() => {
   cleanup();

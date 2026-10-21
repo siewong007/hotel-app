@@ -1,11 +1,20 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { BookingWithDetails, Room } from '../../../../../types';
 
 vi.mock('../../../../../hooks/useIsPhone', () => ({ useIsPhone: () => false }));
 
 import RoomCard from './RoomCard';
+
+// Fixtures use fixed 2026-10 dates; pin "today" so they never age out.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 9, 12, 12, 0, 0));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 const room: Room = {
   id: '10',

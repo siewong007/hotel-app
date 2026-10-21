@@ -1017,3 +1017,58 @@ fn generic_verification_response() -> serde_json::Value {
         "message": "If that account needs verification, a new email has been sent."
     })
 }
+
+/// What the public landing page needs to know about the visitor's session.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct SessionHint {
+    pub signed_in: bool,
+    /// `staff` or `guest`; `None` when signed out.
+    pub account: Option<&'static str>,
+    pub display_name: Option<String>,
+}
+
+impl SessionHint {
+    pub fn signed_out() -> Self {
+        Self {
+            signed_in: false,
+            account: None,
+            display_name: None,
+        }
+    }
+}
+
+/// Read-only session check for the landing page. It validates the refresh
+/// token without rotating it (so it can never race the app's own refresh and
+/// burn the session) and returns only a display label.
+pub async fn session_hint(pool: &DbPool, refresh_token: Option<&str>) -> SessionHint {
+    let Some(token) = refresh_token.filter(|t| !t.is_empty()) else {
+        return SessionHint::signed_out();
+    };
+    let Ok(Some((user_id, _))) = AuthService::validate_refresh_token(pool, token).await else {
+        return SessionHint::signed_out();
+    };
+    let Ok(Some(user)) = AuthRepository::find_user_by_id(pool, user_id).await else {
+        return SessionHint::signed_out();
+    };
+    if !user.is_active {
+        return SessionHint::signed_out();
+    }
+    let account = match user.user_type {
+        Some(crate::constants::UserType::Guest) => "guest",
+        _ => "staff",
+    };
+    let display_name = user
+        .full_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or(&user.username)
+        .chars()
+        .take(80)
+        .collect();
+    SessionHint {
+        signed_in: true,
+        account: Some(account),
+        display_name: Some(display_name),
+    }
+}

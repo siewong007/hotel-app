@@ -2,6 +2,7 @@
 //!
 //! Routes for room CRUD, status management, and events.
 
+use super::bulk_prices;
 use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -33,6 +34,11 @@ pub fn routes() -> Router<DbPool> {
         .route("/room-types/{id}", get(get_room_type))
         .route("/room-types/{id}", patch(update_room_type))
         .route("/room-types/{id}", delete(delete_room_type))
+        // Bulk price updates (separate prefix so it never collides with {id})
+        .route("/room-type-prices/bulk-preview", post(bulk_price_preview))
+        .route("/room-type-prices/bulk-update", post(bulk_price_update))
+        .route("/room-type-prices/bulk-revert", post(bulk_price_revert))
+        .route("/room-type-prices/last-bulk-update", get(bulk_price_last))
         // Per-route body cap: axum's Multipart extractor honors the 2MB
         // DefaultBodyLimit, which would reject phone photos before the
         // handler's own size check runs (same trap as routes/guest_portal.rs).
@@ -305,4 +311,50 @@ async fn get_rooms_with_occupancy(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomWithOccupancy>>, ApiError> {
     handlers::get_rooms_with_occupancy_handler(State(pool), headers).await
+}
+
+// ==================== Bulk room-type prices ====================
+// `rooms:update` is held by admin and reception; `rooms:manage` (manager)
+// implies it via check_permission.
+
+async fn bulk_price_preview(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<bulk_prices::BulkPriceRequest>,
+) -> Result<Json<bulk_prices::BulkPricePreview>, ApiError> {
+    require_permission_helper(&pool, &headers, "rooms:update").await?;
+    Ok(Json(bulk_prices::preview(&pool, &input).await?))
+}
+
+async fn bulk_price_update(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<bulk_prices::BulkPriceRequest>,
+) -> Result<Json<bulk_prices::BulkPriceResult>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
+    Ok(Json(bulk_prices::apply(&pool, user_id, &input).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct BulkRevertInput {
+    reason: Option<String>,
+}
+
+async fn bulk_price_revert(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<BulkRevertInput>,
+) -> Result<Json<bulk_prices::LastBulkPriceChange>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
+    Ok(Json(
+        bulk_prices::revert_last(&pool, user_id, &input.reason).await?,
+    ))
+}
+
+async fn bulk_price_last(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<Option<bulk_prices::LastBulkPriceChange>>, ApiError> {
+    require_permission_helper(&pool, &headers, "rooms:update").await?;
+    Ok(Json(bulk_prices::last_change(&pool).await?))
 }

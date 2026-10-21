@@ -437,7 +437,7 @@ describe('AuthService', () => {
   });
 
   describe('setupTwoFactor', () => {
-    it('posts an empty json body to profile/2fa/setup', async () => {
+    it('posts the existing account password to profile/2fa/setup', async () => {
       const setup = {
         secret: 'abc',
         qr_code_url: 'data:...',
@@ -445,9 +445,9 @@ describe('AuthService', () => {
       };
       post.mockReturnValue(mockJsonResponse(setup));
 
-      const result = await AuthService.setupTwoFactor();
+      const result = await AuthService.setupTwoFactor(' existing password ');
 
-      expect(post).toHaveBeenCalledWith('profile/2fa/setup', { json: {} });
+      expect(post).toHaveBeenCalledWith('profile/2fa/setup', { json: { password: ' existing password ' } });
       expect(result).toEqual(setup);
     });
   });
@@ -458,10 +458,10 @@ describe('AuthService', () => {
       post.mockReturnValue(mockJsonResponse(enable));
 
       const challenge = 'c'.repeat(64);
-      const result = await AuthService.enableTwoFactor('123456', challenge);
+      const result = await AuthService.enableTwoFactor('123456', challenge, ' existing password ');
 
       expect(post).toHaveBeenCalledWith('profile/2fa/enable', {
-        json: { code: '123456', challenge_code: challenge },
+        json: { code: '123456', challenge_code: challenge, password: ' existing password ' },
       });
       expect(result).toEqual(enable);
     });

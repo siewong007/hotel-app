@@ -51,25 +51,6 @@ notes are in `git log -- docs/ongoing-dev.md`.
 
 ## P2 — later
 
-- **Residue of the July 2026 user-domain audit** (re-verified 2026-10-05;
-  every other finding from it is fixed):
-  1. The `/users` and `/rbac` admin routes have no rate limiter.
-  2. `user_roles.assigned_by` is never written: all six `INSERT INTO
-     user_roles` sites omit it. "Who granted this role" depends on
-     `audit_logs` (`team_members.added_by` *is* written).
-  3. No UI creates, updates or deletes a permission, or edits a route access
-     policy. `features/admin/components/rbac/PermissionsTab/` is exported but
-     never mounted, and `AdminService.updateRouteAccessPolicy` has no caller.
-  4. `NightAuditPage`'s run control is not permission-gated in the UI. The
-     backend still enforces `night_audit:execute`.
-- **Phone/tablet density backlog** (from the 2026-09-14 mobile report,
-  priority order). PRs #193 and #194 (2026-09-26/29) were phone (`xs`) and
-  coarse-pointer passes and did not touch these:
-  1. `/housekeeping` at 320px: the "+ New task" CTA is clipped.
-  2. `GuestProfilePage`: five inner tables are still desktop-dense.
-  3. `DataTransferPage` (~50 always-expanded cards), `RBACManagementPage`
-     accordions, and `AuditLogPage` stream cards.
-  4. The staged-changes bar is still occluded on 600–899px tablets (`sm`–`md`).
 - **Desktop PostgreSQL lags the server.** The bundle is `19beta2`
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`),
   while every server, CI and compose pin is `19beta3`. Move it with the GA

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   portalToken: 'portal-token' as string | null,
   hotelName: 'Salim Inn',
   signOut: vi.fn(),
+  isLoading: false,
   user: {
     full_name: 'Aina Rahman',
     username: 'aina',
@@ -29,7 +30,7 @@ vi.mock('../../../router', () => ({
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ user: mocks.user, isAuthenticated: Boolean(mocks.user) }),
+  useAuth: () => ({ user: mocks.user, isAuthenticated: Boolean(mocks.user), isLoading: mocks.isLoading }),
 }));
 
 vi.mock('../hooks/useGuestSignOut', () => ({
@@ -66,6 +67,7 @@ describe('GuestPortalShell', () => {
     mocks.portalToken = 'portal-token';
     mocks.navigate.mockReset();
     mocks.signOut.mockReset();
+    mocks.isLoading = false;
     mocks.user = {
       full_name: 'Aina Rahman',
       username: 'aina',
@@ -252,5 +254,36 @@ describe('GuestPortalShell', () => {
 
     expect(screen.getByText('Sign in')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Account' })).toBeNull();
+  });
+
+  it('waits for session restoration before offering sign-in on public pages', () => {
+    mocks.isLoading = true;
+    mocks.user = null;
+    const { rerender } = render(
+      <GuestPortalShell showAccountNav={false}><p>public page</p></GuestPortalShell>,
+    );
+
+    expect(screen.getByText('public page')).toBeTruthy();
+    expect(screen.queryByText('Sign in')).toBeNull();
+    expect(screen.getByRole('status', { name: 'Loading…' })).toBeTruthy();
+
+    mocks.isLoading = false;
+    mocks.user = { full_name: 'Aina Rahman', user_type: 'guest' };
+    rerender(<GuestPortalShell showAccountNav><p>public page</p></GuestPortalShell>);
+
+    expect(screen.queryByText('Sign in')).toBeNull();
+    expect(screen.queryByRole('status', { name: 'Loading…' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy();
+  });
+
+  it('offers sign-in after session restoration confirms an anonymous visitor', () => {
+    mocks.isLoading = true;
+    mocks.user = null;
+    const { rerender } = render(<GuestPortalShell showAccountNav={false}>public page</GuestPortalShell>);
+    expect(screen.queryByText('Sign in')).toBeNull();
+
+    mocks.isLoading = false;
+    rerender(<GuestPortalShell showAccountNav={false}>public page</GuestPortalShell>);
+    expect(screen.getByText('Sign in')).toBeTruthy();
   });
 });
