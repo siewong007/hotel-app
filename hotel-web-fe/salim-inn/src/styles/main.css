@@ -457,6 +457,18 @@ html.film-live .poster { visibility: hidden; }
   color-scheme: dark;
 }
 .bk-field select option { color: #111; }
+/* iOS Safari gives a native date input an intrinsic min-width wider than a
+   phone's half-column, so it spilled into its neighbour. Strip the native
+   look, size it to the cell and align its value like the selects. */
+.bk-field input, .bk-field select { box-sizing: border-box; display: block; }
+.bk-field input[type='date'] {
+  -webkit-appearance: none; appearance: none; height: 44px; line-height: 44px; text-align: left; overflow: hidden;
+}
+.bk-field input[type='date']::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 0; line-height: inherit; }
+.bk-field input[type='date']::-webkit-datetime-edit { padding: 0; }
+@media (max-width: 340px) {
+  .bk-field:has(input[type='date']) { grid-column: 1 / -1; }
+}
 .bk-field [aria-invalid='true'] { border-color: #ff9d86; box-shadow: 0 0 0 1px #ff9d86; }
 .bk-msg { min-height: 1.3em; margin: 10px 0 0; font-size: 0.86rem; color: var(--ivory); }
 .bk-msg.is-error { color: #ffb4a0; }
