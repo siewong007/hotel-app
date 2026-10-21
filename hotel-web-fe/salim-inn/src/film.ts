@@ -24,6 +24,7 @@ import { ROOM_ORDER } from './interiors/roomLayouts';
 import { dishes, neighbourhoodTitle, places } from './data/neighbourhood';
 import { copy } from './content';
 import { atmosphere, type Sky } from './atmosphere';
+import { tradingAt, type Trading } from './atmosphere/hours';
 
 // ('other' names no condition: the film as designed, whatever today's weather)
 const SKIES: readonly Sky[] = ['clear', 'partly', 'overcast', 'fog', 'lightRain', 'rain', 'heavyRain', 'thunder', 'other'];
@@ -130,8 +131,14 @@ async function boot(): Promise<void> {
   // the room configurator (chapter 6) arrives with the interior, below
   let cfg: Configurator | null = null;
   const post = new Post(renderer.gl, world.scene, camera);
-  post.applyTier(tier);
-  post.setSize(renderer.width, renderer.height);
+  /** The post chain at the canvas's size, sharpened for how far the browser
+   *  stretches it to the screen. */
+  const sizePost = () => {
+    post.setSize(renderer.width, renderer.height);
+    post.setSharpen((window.devicePixelRatio || 1) / renderer.dpr);
+  };
+  post.applyTier(tier, renderer.dpr);
+  sizePost();
 
   // Smooth scroll: Lenis drives the page; one requestAnimationFrame loop
   // drives Lenis, the timeline, the scene and the DOM (the frame loop below).
@@ -193,7 +200,7 @@ async function boot(): Promise<void> {
   const onResize = () => {
     renderer.resize(tier);
     rig.setViewport(innerWidth, innerHeight);
-    post.setSize(renderer.width, renderer.height);
+    sizePost();
     chapters.layout();
     lenis.resize();
   };
@@ -205,8 +212,8 @@ async function boot(): Promise<void> {
   const applyTier = (t: Tier) => {
     tier = t;
     renderer.resize(tier);
-    post.applyTier(tier);
-    post.setSize(renderer.width, renderer.height);
+    post.applyTier(tier, renderer.dpr);
+    sizePost();
     world.applyTier(tier);
     renderer.gl.shadowMap.needsUpdate = true; // a new resolution drops the old map, indoors too
   };
@@ -219,7 +226,7 @@ async function boot(): Promise<void> {
   // starts on it (calibration, applyTier).
   governor.onDrop = (t) => {
     tier = t;
-    post.applyTier(tier);
+    post.applyTier(tier, renderer.dpr);
     world.applyTier(tier);
     renderer.gl.shadowMap.needsUpdate = true;
   };
@@ -232,7 +239,15 @@ async function boot(): Promise<void> {
   const lookAs = DEBUG ? params.get('wxlook') : null;
   if (lookAs && SKIES.includes(lookAs as Sky)) atmosphere.lookAs = lookAs as Sky;
   world.setAtmosphere(atmosphere.look(), true);
-  atmosphere.subscribe((s) => world.setAtmosphere(s.look));
+  // who is open on Sibu's clock lights their windows (re-read with the
+  // minute); perf/ tooling can pin it (?debug=1&hours=open|closed)
+  const hoursAs = DEBUG ? params.get('hours') : null;
+  const trading = (now: number): Trading => hoursAs === 'open' ? { hotel: 1, mart: 1, shops: 1 } : hoursAs === 'closed' ? { hotel: 1, mart: 0, shops: 0 } : tradingAt(now);
+  world.setTrading(trading(Date.now()), true);
+  atmosphere.subscribe((s) => {
+    world.setAtmosphere(s.look);
+    world.setTrading(trading(s.now));
+  });
 
   // Precompile every material before the preloader leaves (no first-use hitches).
   pre.set(0.84, copy.preloader.warming);
@@ -285,7 +300,9 @@ async function boot(): Promise<void> {
   // The result is kept per device and screen (localStorage), so a return
   // visit skips the timing; each timing is a few short tasks, not one long one.
   const calibration: string[] = [];
-  const CAL_KEY = 'salim-inn:quality:v2';
+  // v3: AO at half resolution above 1.25× made every frame cheaper, so a
+  // ratio timed before it is lower than this chain needs
+  const CAL_KEY = 'salim-inn:quality:v3';
   const calId = `${gpu}|${reason}|${window.devicePixelRatio}|${innerWidth >= 760 ? 'wide' : 'narrow'}`;
   const applyCalibrated = (name: Tier['name'], dpr: number) => {
     while (tier.name !== name && lowerTier(tier)) applyTier(lowerTier(tier)!);

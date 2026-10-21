@@ -10,7 +10,7 @@ import { FACADE } from '../config/materials';
 import { DIM } from '../config/dimensions';
 import { facadeEdges, edgeBox, edgeMatrix, type FacadeEdge } from './FarleyBlocks';
 import { mergeAll, paint, prism, rng } from './geom';
-import { interiorWindows } from './shaders';
+import { interiorWindows, windowLights } from './shaders';
 import { shutter } from './textures';
 
 const H = DIM.supermarket.height;
@@ -24,6 +24,8 @@ export class FarleySupermarket {
   readonly group = new THREE.Group();
   readonly meshes: THREE.Mesh[] = [];
   readonly wings: THREE.Mesh;
+  /** The entrances' lights (World.update: lit while it trades). */
+  readonly lights = windowLights();
 
   constructor() {
     const mart = footprints.filter((f) => f.kind === 'mart');
@@ -95,7 +97,7 @@ export class FarleySupermarket {
     rib.rotation = Math.PI / 2;
     rib.needsUpdate = true;
     add(ribs, new THREE.MeshStandardMaterial({ map: rib, color: 0x9fb3a8, roughness: 0.4, metalness: 0.4 }), 'mart-storefront', ['position', 'normal', 'uv']);
-    add(glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2b3a33, roughness: 0.05, envMapIntensity: 1.2 }), { depth: 12, size: [4.2, 3.6], litShare: 1, warm: 0xf4fff0 }), 'mart-entrances', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
+    add(glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2b3a33, roughness: 0.05, envMapIntensity: 1.2 }), { depth: 12, size: [4.2, 3.6], litShare: 1, warm: 0xf4fff0, lights: this.lights }), 'mart-entrances', ['position', 'normal', 'aWin', 'aSeed', 'aTan'], false);
     this.wings = add(wingGeos, new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.62, side: THREE.DoubleSide, emissive: 0xfff3dd, emissiveIntensity: 0 }), 'mart-wings', ['position', 'normal']);
 
     const finMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.15 }), fins.length);

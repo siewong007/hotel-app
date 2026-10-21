@@ -12,13 +12,13 @@
      tags must stay static and the image URL absolute. nginx serves .jpg as
      immutable for a year: publish a replacement image under a NEW file name
      and point og:image at it, never overwrite the file in place.
-     salim-inn-hero-v2.jpg is the film's chapter-3 hero angle at 1200×630
+     salim-inn-hero-v3.jpg is the film's chapter-3 hero angle at 1200×630
      (brief §9), rendered by the workshop's perf/posters.ts. -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Salim Inn" />
 <meta property="og:title" content="Salim Inn Sibu - Cozy stays at Farley" />
 <meta property="og:description" content="Explore Salim Inn at Farley Commercial Centre in Sibu, then book a clean, comfortable stay directly." />
-<meta property="og:image" content="https://saliminn.my/salim-inn/share/salim-inn-hero-v2.jpg" />
+<meta property="og:image" content="https://saliminn.my/salim-inn/share/salim-inn-hero-v3.jpg" />
 <meta property="og:image:type" content="image/jpeg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -33,7 +33,7 @@
   "@type": "Hotel",
   "name": "Salim Inn",
   "url": "https://saliminn.my/",
-  "image": "https://saliminn.my/salim-inn/share/salim-inn-hero-v2.jpg",
+  "image": "https://saliminn.my/salim-inn/share/salim-inn-hero-v3.jpg",
   "telephone": "+601110507083",
   "address": {
     "@type": "PostalAddress",
@@ -66,10 +66,10 @@
      before any script runs — the page's largest paint — with the preloader
      over it and the canvas fading in on top once the film is ready. -->
 <picture class="poster" aria-hidden="true">
-<source media="(max-width: 760px)" type="image/webp" srcset="/salim-inn/posters/ch1-tall.webp" width="780" height="1688" />
-<source media="(max-width: 760px)" srcset="/salim-inn/posters/ch1-tall.jpg" width="780" height="1688" />
-<source type="image/webp" srcset="/salim-inn/posters/ch1-wide.webp" width="1440" height="900" />
-<img src="/salim-inn/posters/ch1-wide.jpg" width="1440" height="900" alt="" fetchpriority="high" />
+<source media="(max-width: 760px)" type="image/webp" srcset="/salim-inn/posters/ch1-tall.webp?v=1" width="780" height="1688" />
+<source media="(max-width: 760px)" srcset="/salim-inn/posters/ch1-tall.jpg?v=1" width="780" height="1688" />
+<source type="image/webp" srcset="/salim-inn/posters/ch1-wide.webp?v=1" width="1440" height="900" />
+<img src="/salim-inn/posters/ch1-wide.jpg?v=1" width="1440" height="900" alt="" fetchpriority="high" />
 </picture>
 <canvas id="scene" aria-hidden="true"></canvas>
 <div class="scrim" aria-hidden="true"></div>

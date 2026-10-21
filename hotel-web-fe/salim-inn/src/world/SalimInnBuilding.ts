@@ -28,7 +28,7 @@ import { DIM, FLOOR_Y } from '../config/dimensions';
 import { BRAND, FACADE } from '../config/materials';
 import { boxAt, mergeAll, metricUV, paint, rbox, rng, tube, wallWithOpenings, type Opening } from './geom';
 import { buildText } from './letters';
-import { downlightWash, GLOBAL, interiorWindows, plaster, type Wash } from './shaders';
+import { downlightWash, GLOBAL, interiorWindows, plaster, windowLights, type Wash, type WindowLights } from './shaders';
 import { chineseNameTexture } from './signage';
 import { louvres, mosaicTiles, soffitSlats, stoneCladding, wallTiles } from './textures';
 
@@ -250,6 +250,11 @@ export class SalimInnBuilding {
   readonly doorLeaves: THREE.Object3D[] = [];
   /** The lit room behind the entrance glass while the lobby is not drawn. */
   readonly lobbyVeil: THREE.Mesh;
+  /** Window lights (World.update): the guest rooms', the lobby's (the
+   *  front desk never closes) and the cafe's (its own trading hours). */
+  readonly roomLights = windowLights();
+  readonly lobbyLights = windowLights();
+  readonly cafeLights = windowLights();
   readonly downlights: THREE.InstancedMesh;
   readonly acUnits: THREE.InstancedMesh;
   /** Cafe furniture and planter greenery on the five-foot way. */
@@ -601,13 +606,15 @@ export class SalimInnBuilding {
     soffitN.needsUpdate = true;
     mk([soffit, soffit2], new THREE.MeshStandardMaterial({ map: soffitMap, normalMap: soffitN, roughness: 0.45, metalness: 0.4, side: THREE.DoubleSide }), 'salim-soffit', false);
 
-    this.windowGlass = mk(panes.glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x223036, roughness: 0.13, reflectivity: 0.55, envMapIntensity: 1.5 }), { depth: 3.4, size: [2.5, 1.35], litShare: 0.62, levels }), 'salim-windows', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
-    this.shopGlass = mk(shopPanes.glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2a3432, roughness: 0.05, reflectivity: 0.5, envMapIntensity: 1.3 }), { depth: 7, size: [6.4, 3.1], litShare: 1.0, warm: 0xffdcb0 }), 'salim-shopfront', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
+    this.windowGlass = mk(panes.glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x223036, roughness: 0.13, reflectivity: 0.55, envMapIntensity: 1.5 }), { depth: 3.4, size: [2.5, 1.35], litShare: 0.62, levels, lights: this.roomLights }), 'salim-windows', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
+    const shopfront = (lights: WindowLights) => interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2a3432, roughness: 0.05, reflectivity: 0.5, envMapIntensity: 1.3 }), { depth: 7, size: [6.4, 3.1], litShare: 1.0, warm: 0xffdcb0, lights });
+    this.shopGlass = mk(shopPanes.glass, shopfront(this.cafeLights), 'salim-shopfront', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
 
     // Behind the entrance glass, the shopfronts' lit room until the lobby
     // itself is drawn (setLobbyShown): from the air the doorway glows like
-    // the cafe beside it, not with the empty shell.
-    this.lobbyVeil = new THREE.Mesh(pane(d.x0, d.x1, GY, d.h, zf - 0.08, [d.x0, d.x1, 0, CAN_Y], 0.71), this.shopGlass.material);
+    // the cafe beside it, not with the empty shell. Its own material (the
+    // same shader): the lobby stays lit when the cafe closes.
+    this.lobbyVeil = new THREE.Mesh(pane(d.x0, d.x1, GY, d.h, zf - 0.08, [d.x0, d.x1, 0, CAN_Y], 0.71), shopfront(this.lobbyLights));
     this.lobbyVeil.name = 'salim-lobby-veil';
     this.group.add(this.lobbyVeil);
 
