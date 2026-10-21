@@ -101,6 +101,7 @@ export const zhTW: Copy = {
     myAccount: '我的帳戶',
     adminConsole: '管理後台',
     bookAnotherStay: '再次預訂',
+    signedInAs: '已登入：{{name}}',
   },
   lang: { aria: '語言' },
   weather: {

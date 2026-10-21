@@ -71,7 +71,8 @@ export const NotificationCenter: React.FC = () => {
   const feedTier: TierFilter = tab === 'alerts' || tab === 'system' ? 'all' : tab;
   const feed = useDeliveryFeed(
     { tier: feedTier },
-    open && canReadFeed && tab !== 'alerts' && tab !== 'system',
+    canReadFeed,
+    open && tab !== 'alerts' && tab !== 'system',
   );
   const serverUnread = canReadFeed ? feed.data?.unread ?? null : null;
 

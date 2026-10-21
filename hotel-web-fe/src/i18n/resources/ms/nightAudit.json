@@ -1,5 +1,6 @@
 {
   "title": "Audit Malam",
+  "readOnly": "Anda mempunyai akses baca sahaja kepada audit malam.",
   "tabs": {
     "aria": "Tab audit malam",
     "run": "Jalankan Audit",

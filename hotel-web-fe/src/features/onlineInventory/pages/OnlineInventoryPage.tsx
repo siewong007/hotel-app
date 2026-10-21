@@ -25,6 +25,7 @@ import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { StickyActionBar } from '../../../components/common/StickyActionBar';
 import { mobileActionBarProps } from '../../../components/common/mobileActionBar';
+import { SIDEBAR_WIDTH_VAR } from '../../../components/layout/sidebar/AppSidebar';
 import { GRID_DAYS, START_MAX_OFFSET_DAYS, START_MIN_OFFSET_DAYS } from '../constants';
 import type { CellKey, GridCellView } from '../types';
 import { cellKey, dateRange, shiftDate, summarizeEdits } from '../utils';
@@ -45,6 +46,9 @@ export const ONLINE_INVENTORY_MANAGE = 'online_inventory:manage';
 
 /** How many conflicting days the conflict banner names before "+N more". */
 const CONFLICT_LIST_LIMIT = 6;
+
+/** The sidebar's width, `0px` where there is none (phones, or outside the staff shell). */
+const SIDEBAR_WIDTH = `var(${SIDEBAR_WIDTH_VAR}, 0px)`;
 
 const OnlineInventoryPage = () => {
   const { t } = useTranslation('onlineInventory');
@@ -431,7 +435,13 @@ const OnlineInventoryPage = () => {
           sx={{
             position: 'fixed',
             zIndex: (theme) => theme.zIndex.appBar - 1,
-            left: { xs: 12, md: '50%' },
+            // From sm up the sidebar drawer (painted above this bar) takes the
+            // left edge: start, and centre, within the content area instead.
+            left: {
+              xs: 12,
+              sm: `calc(${SIDEBAR_WIDTH} + 12px)`,
+              md: `calc(${SIDEBAR_WIDTH} + (100vw - ${SIDEBAR_WIDTH}) / 2)`,
+            },
             right: { xs: 12, md: 'auto' },
             // Below sm the 60px bottom nav (+ --sab home indicator) covers a
             // bar pinned at bottom:16 — lift it clear; while phone select
@@ -442,7 +452,7 @@ const OnlineInventoryPage = () => {
               md: 16,
             },
             transform: { md: 'translateX(-50%)' },
-            width: { md: 'min(680px, calc(100vw - 48px))' },
+            width: { md: `min(680px, calc(100vw - ${SIDEBAR_WIDTH} - 48px))` },
             p: 1.25,
             pl: 2,
             borderRadius: 3,

@@ -26,13 +26,3 @@ export const ROLE_COLORS: Record<string, string> = {
   guest: 'var(--hotel-neutral)',
   default: 'var(--hotel-neutral)',
 };
-
-// Get category color with fallback
-export const getCategoryColor = (category: string): string => {
-  return PERMISSION_CATEGORIES[category]?.color || 'var(--hotel-neutral)';
-};
-
-// Get role color with fallback
-export const getRoleColor = (roleName: string): string => {
-  return ROLE_COLORS[roleName.toLowerCase()] || ROLE_COLORS.default;
-};

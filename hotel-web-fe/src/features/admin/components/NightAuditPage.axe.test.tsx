@@ -17,6 +17,10 @@ const preview: NightAuditPreview = {
   journal_sections: [],
 };
 
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
+
 vi.mock('../hooks/useNightAuditQueries', () => ({
   useNightAuditPreview: () => ({ data: preview, isPending: false, isFetching: false, error: null }),
   useNightAuditRuns: () => ({

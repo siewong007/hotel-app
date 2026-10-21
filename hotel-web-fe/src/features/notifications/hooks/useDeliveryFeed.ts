@@ -9,9 +9,13 @@ const OPEN_POLL_MS = 15_000;
 /**
  * Server-backed feed for the notification center. `open` tightens polling so
  * an open panel tracks near-real-time while a closed bell idles gently.
+ * `enabled` is the caller's `communications:read`: without it the endpoint
+ * answers 403, and the API client turns every refusal into a "no permission"
+ * toast and notification-center entry, one per poll.
  */
 export function useDeliveryFeed(
   params: DeliveryFeedParams,
+  enabled: boolean,
   open: boolean,
 ) {
   return useQuery({
@@ -20,5 +24,6 @@ export function useDeliveryFeed(
     staleTime: 15_000,
     refetchInterval: open ? OPEN_POLL_MS : IDLE_POLL_MS,
     refetchIntervalInBackground: false,
+    enabled,
   });
 }

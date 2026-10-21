@@ -98,7 +98,7 @@ export interface UserSessionInfo {
 
 // 2FA Types
 export interface TwoFactorSetupRequest {
-  username: string;
+  password: string;
 }
 
 export interface TwoFactorSetupResponse {
@@ -116,6 +116,7 @@ export interface TwoFactorEnableResponse {
 
 export interface TwoFactorEnableRequest {
   code: string;
+  password: string;
   // Single-use challenge from TwoFactorSetupResponse; expires 10 minutes after setup.
   challenge_code: string;
 }

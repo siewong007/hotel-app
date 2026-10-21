@@ -12,6 +12,7 @@ import { disableGoogleAutoSelect } from '../features/auth/components/GoogleSignI
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy, UserProfile } from '../types';
 import { normalizeAuthUser, type AuthUserShape } from './authUser';
+import { holdsPermission, normalizeAccessValue } from '../navigation/routeAccess';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 import { t } from '../i18n';
 
@@ -263,8 +264,6 @@ const EMPTY_AUTH_STATE: AuthState = {
   isLoading: true,
   shouldPromptPasskey: false,
 };
-
-const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
@@ -634,20 +633,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 
   const hasPermission = useCallback(
-    (permission: string): boolean => {
-      const normalizedPermission = normalizeAccessValue(permission);
-      if (permissionSet.has(normalizedPermission)) {
-        return true;
-      }
-
-      const [resource, action] = normalizedPermission.split(':');
-      return Boolean(
-        resource &&
-          action &&
-          action !== 'manage' &&
-          permissionSet.has(`${resource}:manage`)
-      );
-    },
+    (permission: string): boolean => holdsPermission(permissionSet, permission),
     [permissionSet]
   );
 

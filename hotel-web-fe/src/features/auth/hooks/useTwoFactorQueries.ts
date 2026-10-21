@@ -14,15 +14,17 @@ export function useTwoFactorStatus(options?: ApiRequestOptions) {
 
 export function useSetupTwoFactor(options?: ApiRequestOptions) {
   return useMutation({
-    mutationFn: () => AuthService.setupTwoFactor(options),
+    gcTime: 0,
+    mutationFn: (password: string) => AuthService.setupTwoFactor(password, options),
   });
 }
 
 export function useEnableTwoFactor(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ code, challengeCode }: { code: string; challengeCode: string }) =>
-      AuthService.enableTwoFactor(code, challengeCode, options),
+    gcTime: 0,
+    mutationFn: ({ code, challengeCode, password }: { code: string; challengeCode: string; password: string }) =>
+      AuthService.enableTwoFactor(code, challengeCode, password, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },

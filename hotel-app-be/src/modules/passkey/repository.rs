@@ -3,6 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Passkey, PasskeyInfoRow, User};
+use crate::modules::users::repository::USER_COLUMNS;
 use chrono::{DateTime, Utc};
 
 pub struct PasskeyRepository;
@@ -64,9 +65,12 @@ impl PasskeyRepository {
         user_id: i64,
         username: &str,
     ) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE id = $1 AND username = $2 AND is_active = true AND deleted_at IS NULL"
-        )
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "SELECT {USER_COLUMNS} FROM users \
+             WHERE id = {} AND username = {} AND is_active = true AND deleted_at IS NULL",
+            crate::param!(1),
+            crate::param!(2)
+        )))
         .bind(user_id)
         .bind(username)
         .fetch_optional(pool)
@@ -78,9 +82,11 @@ impl PasskeyRepository {
         pool: &DbPool,
         username: &str,
     ) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE username = $1 AND is_active = true AND deleted_at IS NULL"
-        )
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "SELECT {USER_COLUMNS} FROM users \
+             WHERE username = {} AND is_active = true AND deleted_at IS NULL",
+            crate::param!(1)
+        )))
         .bind(username)
         .fetch_optional(pool)
         .await

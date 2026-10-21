@@ -29,17 +29,24 @@ import {
   Bolt as BoltIcon,
   People as PeopleIcon,
   ViewModule as ModulesIcon,
+  WebAsset as PagesIcon,
 } from '@mui/icons-material';
 import { LogoLoader } from '../../../../components';
+import { useAuth } from '../../../../auth/AuthContext';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
 import type { Permission, Role, User } from '../../../../types';
 import { useRBACData } from './hooks/useRBACData';
 import {
   useCreateRole,
+  useDeletePermission,
   useDeleteRole,
   useReplaceRolePermissions,
   useUpdateRole,
 } from './hooks/useRBACQueries';
+import CustomPermissionDialog from './CustomPermissionDialog';
 import { UsersTab } from './UsersTab';
+import { PageAccessTab } from './PageAccessTab';
+import { buildPageAccessRows } from './PageAccessTab/pageAccessModel';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils/errorMessage';
 import { useTranslation } from '../../../../i18n';
@@ -105,6 +112,14 @@ function roleAccent(role: Role): Accent {
   return ACCENTS[role.id % ACCENTS.length];
 }
 
+type PageTab = 'roles' | 'users' | 'pages';
+
+const PAGE_TAB_ICONS: Record<PageTab, typeof SecurityIcon> = {
+  roles: SecurityIcon,
+  users: PeopleIcon,
+  pages: PagesIcon,
+};
+
 const BUILTIN = /(super\s*admin|administrator|^admin$|manager|receptionist|front desk|housekeeping|guest|staff)/i;
 const isBuiltin = (r: Role) => BUILTIN.test(r.name.trim());
 
@@ -119,17 +134,20 @@ const VERB_STYLE: Record<string, { bg: string; fg: string }> = {
 };
 const verbStyle = (v: string) => VERB_STYLE[v] || { bg: T.slateSoft, fg: T.ink2 };
 
-const permCode = (p: Permission) =>
-  p.resource?.includes(':') ? p.resource : `${p.resource}:${p.action}`;
+// The name is what every check and page rule uses. A few built-in
+// permissions name an action their `action` column classifies differently
+// (communications:compose is a "write"), so never rebuild it from the parts.
+const permCode = (p: Permission) => p.name;
 
 const initials = (s: string) =>
   s.split(/[\s._-]+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
 const RBACManagementPage: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, locale } = useTranslation('admin');
   const {
     roles,
     permissions,
+    routePolicies,
     users,
     rolesWithStats,
     permissionCategories,
@@ -138,12 +156,14 @@ const RBACManagementPage: React.FC = () => {
     error,
     reload,
     setRoles,
+    setPermissions,
     setUsers,
     updateRolePermissions,
     updateUserRoles,
+    updateRoutePolicy,
   } = useRBACData();
 
-  const [tab, setTab] = useState<'roles' | 'users'>('roles');
+  const [tab, setTab] = useState<PageTab>('roles');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
 
@@ -152,6 +172,7 @@ const RBACManagementPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
   const [hideEmpty, setHideEmpty] = useState(true);
   const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+  const isPhone = useIsPhone();
 
   // Draft permission ids per role
   const [draft, setDraft] = useState<Record<number, Set<number>>>({});
@@ -164,6 +185,17 @@ const RBACManagementPage: React.FC = () => {
 
   const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') =>
     emitApiNotification({ message, severity });
+
+  // Only super admins may create, edit or delete permissions (the API's rule).
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = Boolean(currentUser?.is_super_admin);
+  const [permissionDialog, setPermissionDialog] = useState<null | { permission?: Permission }>(null);
+  const [deletePermissionTarget, setDeletePermissionTarget] = useState<Permission | null>(null);
+  const deletePermissionMutation = useDeletePermission();
+  const listFormat = useMemo(
+    () => new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }),
+    [locale]
+  );
 
   const createRoleMutation = useCreateRole();
   const updateRoleMutation = useUpdateRole();
@@ -188,12 +220,16 @@ const RBACManagementPage: React.FC = () => {
     setDraft(next);
   }, [roles, rolePermissionMap]);
 
-  // Open all categories by default
+  // Open all categories by default — except on a phone, where 30-odd open
+  // groups stack into a page over 10,000px tall: there they start as a list
+  // of headers (name, on/total) to tap open.
   useEffect(() => {
-    setOpenCats(new Set(permissionCategories.map((c) => c.name)));
-  }, [permissionCategories]);
+    setOpenCats(isPhone ? new Set() : new Set(permissionCategories.map((c) => c.name)));
+  }, [permissionCategories, isPhone]);
 
   const totalPerms = permissions.length;
+  // Rules no page checks are left off the Page access tab, so leave them out of its count too.
+  const pageAccessCount = useMemo(() => buildPageAccessRows(routePolicies).length, [routePolicies]);
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === selectedId) || null,
     [roles, selectedId]
@@ -214,7 +250,19 @@ const RBACManagementPage: React.FC = () => {
     [selectedId, rolePermissionMap]
   );
 
-  const locked = !!selectedRole && totalPerms > 0 && currentSet.size === totalPerms && isBuiltin(selectedRole);
+  // A built-in role holding every built-in permission is full access, and its
+  // built-in switches stay locked. Custom permissions don't count towards that
+  // and stay switchable: otherwise creating one would unlock admin's built-in
+  // switches, and granting it to admin would lock it in for good.
+  const systemPermissionIds = useMemo(
+    () => permissions.filter((p) => p.is_system_permission !== false).map((p) => p.id),
+    [permissions]
+  );
+  const locked =
+    !!selectedRole &&
+    isBuiltin(selectedRole) &&
+    systemPermissionIds.length > 0 &&
+    systemPermissionIds.every((id) => currentSet.has(id));
   const enabledCount = draftSet.size;
   const pct = totalPerms ? Math.round((enabledCount / totalPerms) * 100) : 0;
 
@@ -238,6 +286,18 @@ const RBACManagementPage: React.FC = () => {
     return m;
   }, [rolePermissionMap, roles]);
 
+  // Page access rules hold permission names; the API refuses to delete a
+  // permission one still names, so say so before anyone tries.
+  const pageRulesByPermission = useMemo(() => {
+    const counts = new Map<string, number>();
+    routePolicies.forEach((policy) => {
+      new Set([...policy.required_permissions, ...policy.nav_permissions]).forEach((name) => {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      });
+    });
+    return counts;
+  }, [routePolicies]);
+
   const dirty = useMemo(() => {
     if (selectedId == null) return false;
     if (draftSet.size !== currentSet.size) return true;
@@ -247,16 +307,16 @@ const RBACManagementPage: React.FC = () => {
 
   const isOn = (pid: number) => draftSet.has(pid);
 
-  const setDraftFor = (mutate: (s: Set<number>) => void) => {
-    if (selectedId == null || locked) return;
+  const setDraftFor = (mutate: (s: Set<number>) => void, customOnly = false) => {
+    if (selectedId == null || (locked && !customOnly)) return;
     setDraft((prev) => {
       const s = new Set(prev[selectedId] || []);
       mutate(s);
       return { ...prev, [selectedId]: s };
     });
   };
-  const togglePerm = (pid: number) =>
-    setDraftFor((s) => (s.has(pid) ? s.delete(pid) : s.add(pid)));
+  const togglePerm = (p: Permission) =>
+    setDraftFor((s) => (s.has(p.id) ? s.delete(p.id) : s.add(p.id)), p.is_system_permission === false);
   const setCatPerms = (catPerms: Permission[], enable: boolean) =>
     setDraftFor((s) => catPerms.forEach((p) => (enable ? s.add(p.id) : s.delete(p.id))));
 
@@ -367,6 +427,32 @@ const RBACManagementPage: React.FC = () => {
     }
   };
 
+  // Custom permissions
+  const handlePermissionSaved = (saved: Permission, created: boolean) => {
+    setPermissions((prev) =>
+      created ? [...prev, saved] : prev.map((existing) => (existing.id === saved.id ? saved : existing))
+    );
+    if (created) {
+      // Show it straight away, even in a group "hide empty" would fold away.
+      setPermSearch(saved.name);
+    }
+    setPermissionDialog(null);
+    showSnackbar(
+      t(created ? 'rbac.customPermission.created' : 'rbac.customPermission.updated', { name: saved.name })
+    );
+  };
+  const confirmDeletePermission = async () => {
+    if (!deletePermissionTarget) return;
+    try {
+      await deletePermissionMutation.mutateAsync(String(deletePermissionTarget.id));
+      setPermissions((prev) => prev.filter((existing) => existing.id !== deletePermissionTarget.id));
+      showSnackbar(t('rbac.customPermission.deleted', { name: deletePermissionTarget.name }));
+      setDeletePermissionTarget(null);
+    } catch (e) {
+      showSnackbar(errorMessage(e, t('rbac.customPermission.deleteFailed')), 'error');
+    }
+  };
+
   // Users tab handlers (reuse existing UsersTab functionality)
   const handleUserCreated = (user: User) => {
     setUsers((prev) => [...prev, { ...user, roles: [] }]);
@@ -402,7 +488,8 @@ const RBACManagementPage: React.FC = () => {
     );
   }
 
-  const PtabBtn = ({ id, label, count }: { id: 'roles' | 'users'; label: string; count: string }) => {
+  const PtabBtn = ({ id, label, count }: { id: PageTab; label: string; count: string }) => {
+    const Icon = PAGE_TAB_ICONS[id];
     const on = tab === id;
     return (
       <Box
@@ -415,7 +502,7 @@ const RBACManagementPage: React.FC = () => {
           '&:hover': { color: on ? 'var(--hotel-bg)' : T.ink },
         }}
       >
-        {id === 'roles' ? <SecurityIcon sx={{ fontSize: 18 }} /> : <PeopleIcon sx={{ fontSize: 18 }} />}
+        <Icon sx={{ fontSize: 18 }} />
         {label}
         <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 18%, transparent)' : T.surface3, color: on ? 'var(--hotel-bg)' : T.ink3, fontWeight: 700 }}>
           {count}
@@ -471,6 +558,7 @@ const RBACManagementPage: React.FC = () => {
       }}>
         <PtabBtn id="roles" label={t('rbac.title')} count={`${roles.length} / ${totalPerms}`} />
         <PtabBtn id="users" label={t('rbac.usersTab')} count={`${users.length}`} />
+        <PtabBtn id="pages" label={t('rbac.pageAccess.tab')} count={`${pageAccessCount}`} />
       </Box>
       {loading && (
         <LogoLoader variant="page" />
@@ -639,6 +727,17 @@ const RBACManagementPage: React.FC = () => {
                 </Button>
                 <Button size="small" onClick={() => setOpenCats(new Set(permissionCategories.map((c) => c.name)))} sx={{ textTransform: 'none', color: T.ink3 }}>{t('rbac.expandAll')}</Button>
                 <Button size="small" onClick={() => setOpenCats(new Set())} sx={{ textTransform: 'none', color: T.ink3 }}>{t('rbac.collapseAll')}</Button>
+                {isSuperAdmin && (
+                  <Tooltip title={dirty ? t('rbac.customPermission.saveFirst') : ''}>
+                    <span style={{ marginLeft: 'auto' }}>
+                      <Button size="small" variant="outlined" startIcon={<AddIcon />} disabled={dirty}
+                        onClick={() => setPermissionDialog({})}
+                        sx={{ textTransform: 'none' }}>
+                        {t('rbac.customPermission.new')}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
               </Box>
 
               {/* Groups */}
@@ -662,7 +761,9 @@ const RBACManagementPage: React.FC = () => {
                       return true;
                     });
                     if (rows.length === 0 && filtering) return;
-                    const open = openCats.has(cat.name);
+                    // A search or filter must show its matches even in groups a
+                    // phone keeps closed.
+                    const open = openCats.has(cat.name) || (isPhone && filtering);
                     const allOn = onInCat === cat.permissions.length;
 
                     blocks.push(
@@ -691,31 +792,70 @@ const RBACManagementPage: React.FC = () => {
                           <Box>
                             {rows.map((p, i) => {
                               const on = isOn(p.id);
-                              const others = (rolesByPermission[p.id] || []).filter(
+                              const holders = rolesByPermission[p.id] || [];
+                              const others = holders.filter(
                                 (r) => r.id !== selectedRole!.id
                               );
                               const vs = verbStyle(p.action);
+                              // `undefined` (an older API) reads as built-in: never offer an edit the server refuses.
+                              const custom = p.is_system_permission === false;
+                              const rowLocked = locked && !custom;
+                              const ruleCount = pageRulesByPermission.get(p.name) ?? 0;
+                              const deleteBlocked = dirty
+                                ? t('rbac.customPermission.saveFirst')
+                                : holders.length > 0
+                                  ? t('rbac.customPermission.heldBy', { roles: listFormat.format(holders.map((r) => r.name)) })
+                                  : ruleCount > 0
+                                    ? t('rbac.customPermission.usedByRules', { count: ruleCount })
+                                    : null;
                               return (
                                 <Box key={p.id}
-                                  sx={{ display: 'grid', gridTemplateColumns: { xs: '48px 1fr', md: '48px 200px minmax(220px,1fr) minmax(0,1fr)' }, alignItems: 'center', gap: 1.75, p: '10px 14px 10px 18px', borderTop: i === 0 ? 'none' : `1px solid ${T.border}`, '&:hover': { bgcolor: T.surface2 } }}>
-                                  <Box onClick={() => togglePerm(p.id)} role="switch" aria-checked={on}
+                                  sx={{ display: 'grid', gridTemplateColumns: { xs: '48px 1fr', md: '48px minmax(150px, 220px) minmax(0,1fr)' }, alignItems: 'center', gap: 1.75, p: '10px 14px 10px 18px', borderTop: i === 0 ? 'none' : `1px solid ${T.border}`, '&:hover': { bgcolor: T.surface2 } }}>
+                                  <Box onClick={() => togglePerm(p)} role="switch" aria-checked={on}
                                     sx={{
                                       position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0,
-                                      cursor: locked ? 'not-allowed' : 'pointer',
-                                      bgcolor: locked ? T.rose : on ? T.emerald : T.surface4,
-                                      border: `1px solid ${locked ? T.roseDeep : on ? T.emeraldDeep : T.borderHi}`,
+                                      cursor: rowLocked ? 'not-allowed' : 'pointer',
+                                      bgcolor: rowLocked ? T.rose : on ? T.emerald : T.surface4,
+                                      border: `1px solid ${rowLocked ? T.roseDeep : on ? T.emeraldDeep : T.borderHi}`,
                                       transition: 'background 160ms',
-                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: T.surface, boxShadow: 'var(--hotel-shadow-sm)', transform: (on || locked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
+                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: T.surface, boxShadow: 'var(--hotel-shadow-sm)', transform: (on || rowLocked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
                                     }} />
                                   <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                                     <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{permCode(p)}</Box>
-                                    <Box sx={{ mt: '4px', display: 'inline-flex', width: 'fit-content', fontSize: 10.5, fontWeight: 700, px: 0.75, py: '1px', borderRadius: '5px', textTransform: 'uppercase', bgcolor: vs.bg, color: vs.fg }}>{p.action}</Box>
+                                    <Box sx={{ mt: '4px', display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                      <Box sx={{ display: 'inline-flex', width: 'fit-content', fontSize: 10.5, fontWeight: 700, px: 0.75, py: '1px', borderRadius: '5px', textTransform: 'uppercase', bgcolor: vs.bg, color: vs.fg }}>{p.action}</Box>
+                                      {custom && (
+                                        <Box sx={{ display: 'inline-flex', fontSize: 10.5, fontWeight: 700, px: 0.75, py: '1px', borderRadius: '5px', bgcolor: T.violetSoft, color: T.violetDeep, border: `1px solid ${tintBorder(T.violet)}` }}>
+                                          {t('rbac.custom')}
+                                        </Box>
+                                      )}
+                                      {custom && isSuperAdmin && (
+                                        <>
+                                          <Tooltip title={dirty ? t('rbac.customPermission.saveFirst') : t('rbac.customPermission.edit', { name: p.name })}>
+                                            <span>
+                                              <IconButton size="small" disabled={dirty} onClick={() => setPermissionDialog({ permission: p })}
+                                                aria-label={t('rbac.customPermission.edit', { name: p.name })}>
+                                                <EditIcon sx={{ fontSize: 15 }} />
+                                              </IconButton>
+                                            </span>
+                                          </Tooltip>
+                                          <Tooltip title={deleteBlocked ?? t('rbac.customPermission.delete', { name: p.name })}>
+                                            <span>
+                                              <IconButton size="small" disabled={Boolean(deleteBlocked)} onClick={() => setDeletePermissionTarget(p)}
+                                                aria-label={t('rbac.customPermission.delete', { name: p.name })}>
+                                                <DeleteIcon sx={{ fontSize: 15, color: deleteBlocked ? undefined : T.rose }} />
+                                              </IconButton>
+                                            </span>
+                                          </Tooltip>
+                                        </>
+                                      )}
+                                    </Box>
                                   </Box>
-                                  <Box sx={{ display: { xs: 'none', md: 'block' }, fontSize: 13, color: T.ink, lineHeight: 1.4 }}>
-                                    {p.name}
-                                    <Box sx={{ display: 'block', fontSize: 11.5, color: T.ink3, mt: '2px', fontWeight: 500 }}>{p.description || '—'}</Box>
-                                  </Box>
-                                  <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.75, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  {/* Description and the other roles share one column: a fourth
+                                      column clipped the role chips at laptop widths. */}
+                                  <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 0.75, minWidth: 0 }}>
+                                    <Box sx={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.4 }}>{p.description || '—'}</Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                                     {others.length === 0 ? (
                                       <Box sx={{ fontSize: 11, color: T.ink4, fontWeight: 600 }}>{t('rbac.onlyThisRole')}</Box>
                                     ) : others.slice(0, 5).map((r) => {
@@ -727,6 +867,7 @@ const RBACManagementPage: React.FC = () => {
                                         </Box>
                                       );
                                     })}
+                                  </Box>
                                   </Box>
                                 </Box>
                               );
@@ -769,7 +910,7 @@ const RBACManagementPage: React.FC = () => {
               </Box>
 
               {/* Save bar */}
-              {dirty && !locked && (
+              {dirty && (
                 // Phones: clear the fixed bottom nav and let the buttons wrap
                 // under the summary instead of running off a 360px screen.
                 <Box {...mobileActionBarProps} sx={{ position: 'sticky', bottom: { xs: 'calc(76px + var(--sab))', sm: 16 }, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
@@ -811,6 +952,17 @@ const RBACManagementPage: React.FC = () => {
           />
         </Box>
       )}
+      {!loading && tab === 'pages' && (
+        <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', p: { xs: 1.5, sm: 2 } }}>
+          <PageAccessTab
+            routePolicies={routePolicies}
+            roles={roles}
+            permissions={permissions}
+            rolePermissionMap={rolePermissionMap}
+            onPolicySaved={updateRoutePolicy}
+          />
+        </Box>
+      )}
       {/* Create / Rename role dialog */}
       <Dialog open={!!roleDialog} onClose={() => setRoleDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{roleDialog === 'create' ? t('rbac.newRole') : t('rbac.renameRoleTitle')}</DialogTitle>
@@ -834,6 +986,33 @@ const RBACManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Delete custom permission */}
+      <Dialog open={!!deletePermissionTarget} onClose={() => setDeletePermissionTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('rbac.customPermission.deleteTitle')}</DialogTitle>
+        <DialogContent>
+          <Typography>{t('rbac.customPermission.deleteBody', { name: deletePermissionTarget?.name ?? '' })}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletePermissionTarget(null)} disabled={deletePermissionMutation.isPending}>{t('common:actions.cancel')}</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmDeletePermission}
+            disabled={deletePermissionMutation.isPending}
+            startIcon={deletePermissionMutation.isPending ? <CircularProgress size={16} /> : null}
+          >
+            {t('common:actions.delete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {permissionDialog && (
+        <CustomPermissionDialog
+          permission={permissionDialog.permission}
+          permissions={permissions}
+          onClose={() => setPermissionDialog(null)}
+          onSaved={handlePermissionSaved}
+        />
+      )}
       {/* Delete role */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{t('rbac.deleteRoleTitle')}</DialogTitle>

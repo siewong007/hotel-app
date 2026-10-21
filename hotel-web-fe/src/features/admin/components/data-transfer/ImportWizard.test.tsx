@@ -19,6 +19,8 @@ const auth = vi.hoisted(() => ({
   hasPermission: vi.fn(),
 }));
 
+const phone = vi.hoisted(() => ({ isPhone: false }));
+
 vi.mock('../../../../api', () => ({
   DataTransferService: { ...svc },
 }));
@@ -28,7 +30,7 @@ vi.mock('../../../../auth/AuthContext', () => ({
 }));
 
 vi.mock('../../../../hooks/useIsPhone', () => ({
-  useIsPhone: () => false,
+  useIsPhone: () => phone.isPhone,
 }));
 
 import ImportWizard from './ImportWizard';
@@ -97,6 +99,7 @@ describe('ImportWizard', () => {
     Object.values(svc).forEach((fn) => fn.mockReset());
     svc.deleteUpload.mockResolvedValue(undefined);
     auth.hasPermission.mockReset().mockReturnValue(true);
+    phone.isPhone = false;
   });
 
   afterEach(cleanup);
@@ -124,6 +127,27 @@ describe('ImportWizard', () => {
     // Sensitive file → the warning banner renders.
     expect(screen.getByText(/contains sensitive business data/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /review & import/i })).toBeTruthy();
+  });
+
+  it('lists the first six entities on a phone, the rest behind "Show more"', async () => {
+    phone.isPhone = true;
+    renderWizard();
+    const entities = Array.from({ length: 10 }, (_, i) => ({
+      name: `public.table_${i}`,
+      rows: i,
+      new: i,
+      existing: 0,
+      skipped: 0,
+    }));
+    await stageFile({ ...standardPreview, entities, totalRows: 45 });
+
+    expect(screen.queryAllByRole('table')).toHaveLength(0);
+    expect(screen.getByText('table_5')).toBeTruthy();
+    expect(screen.queryByText('table_6')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show more (4)' }));
+    expect(screen.getByText('table_9')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+    expect(screen.queryByText('table_9')).toBeNull();
   });
 
   it('blocks the import when the preview reports validation errors', async () => {
