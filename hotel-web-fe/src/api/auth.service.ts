@@ -170,22 +170,23 @@ export class AuthService {
   }
 
   // 2FA Management
-  static async setupTwoFactor(options?: ApiRequestOptions): Promise<{
+  static async setupTwoFactor(password: string, options?: ApiRequestOptions): Promise<{
     secret: string;
     qr_code_url: string;
     challenge_code: string;
   }> {
-    return await api.post('profile/2fa/setup', { json: {}, ...apiRequestOptions(options) }).json();
+    return await api.post('profile/2fa/setup', { json: { password }, ...apiRequestOptions(options) }).json();
   }
 
   static async enableTwoFactor(
     code: string,
     challengeCode: string,
+    password: string,
     options?: ApiRequestOptions
   ): Promise<{ message: string; backup_codes: string[] }> {
     return await api
       .post('profile/2fa/enable', {
-        json: { code, challenge_code: challengeCode },
+        json: { code, challenge_code: challengeCode, password },
         ...apiRequestOptions(options),
       })
       .json();

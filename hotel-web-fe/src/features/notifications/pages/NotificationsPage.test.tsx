@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     page: 1,
     page_size: 20,
   },
+  feedCalls: [] as Array<{ enabled: boolean; open: boolean }>,
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
@@ -18,10 +19,10 @@ vi.mock('../../../auth/AuthContext', () => ({
 }));
 
 vi.mock('../hooks/useDeliveryFeed', () => ({
-  useDeliveryFeed: () => ({
-    data: mocks.feed,
-    isPending: false,
-  }),
+  useDeliveryFeed: (_params: unknown, enabled: boolean, open: boolean) => {
+    mocks.feedCalls.push({ enabled, open });
+    return { data: mocks.feed, isPending: false };
+  },
 }));
 
 import NotificationsPage from './NotificationsPage';
@@ -31,6 +32,7 @@ describe('NotificationsPage', () => {
   beforeEach(() => {
     mocks.hasPermission = true;
     mocks.feed = { items: [], total: 0, unread: 0, page: 1, page_size: 20 };
+    mocks.feedCalls = [];
   });
 
   afterEach(cleanup);
@@ -43,6 +45,9 @@ describe('NotificationsPage', () => {
     expect(
       screen.getByText(/do not have permission/i),
     ).toBeTruthy();
+    // The friendly state must not sit on top of a feed request that 403s.
+    expect(mocks.feedCalls.length).toBeGreaterThan(0);
+    expect(mocks.feedCalls.every((call) => !call.enabled)).toBe(true);
   });
 
   it('lists deliveries and exposes the status filter', () => {
@@ -55,6 +60,7 @@ describe('NotificationsPage', () => {
     render(<NotificationsPage />);
 
     expect(screen.getByText('Receipt BK-9')).toBeTruthy();
+    expect(mocks.feedCalls[0]).toEqual({ enabled: true, open: true });
 
     // MUI Select is a combobox: open it, then pick an option.
     fireEvent.mouseDown(screen.getByRole('combobox'));

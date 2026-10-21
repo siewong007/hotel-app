@@ -1,5 +1,12 @@
 import { cleanup, render, screen, act } from '@testing-library/react';
+import { configure } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// Each surface arrives through a lazy route import; on a loaded machine that
+// import alone can outlast the 1 s default and fail a correct route (seen
+// twice in full local runs, never alone). Same safety net as the bookings
+// suites.
+configure({ asyncUtilTimeout: 10_000 });
 import {
   createMemoryHistory,
   createRootRoute,

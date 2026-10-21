@@ -6,6 +6,7 @@ use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{ensure_super_admin, require_any_permission_helper};
+use crate::core::rate_limiter::limit_staff_admin;
 use crate::models;
 use axum::{
     Router,
@@ -67,6 +68,8 @@ pub fn routes() -> Router<DbPool> {
             "/rbac/roles/{role_id}/permissions/{permission_id}",
             delete(remove_permission),
         )
+        // Last, so it covers every route above.
+        .route_layer(axum::middleware::from_fn(limit_staff_admin))
 }
 
 async fn get_snapshot(

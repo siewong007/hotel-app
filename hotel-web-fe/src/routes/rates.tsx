@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-
-import RatesPage from '../features/rates/pages/RatesPage';
+import { RouteById } from '../router/renderRouteFromRegistry';
 
 export const Route = createFileRoute('/rates')({
-  component: RatesPage,
+  component: () => <RouteById id="rates" />,
 });

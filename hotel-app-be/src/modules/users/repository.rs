@@ -5,6 +5,7 @@ use crate::core::error::ApiError;
 use crate::models::{
     StaffDirectoryEntry, StaffDirectoryQuery, User, UserCreateInput, UserProfile, UserUpdateInput,
 };
+use crate::modules::rbac::repository::RbacRepository;
 use crate::param;
 
 const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
@@ -13,7 +14,10 @@ const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
 /// the struct and its queries cannot drift apart. Columns after
 /// `two_factor_recovery_codes` are administration state; the model marks them
 /// `#[sqlx(default)]` so narrower projections still decode.
-const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
+/// Every column `User` maps. Its `#[sqlx(default)]` fields read as false or
+/// empty when a query leaves them out, so a sign-in lookup that does would
+/// report a super admin as an ordinary account.
+pub(crate) const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
      user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, \
      created_at, updated_at, last_login_at, is_locked, locked_until, \
      failed_login_attempts, is_super_admin";
@@ -213,12 +217,14 @@ impl UserRepository {
         Ok(id.is_some())
     }
 
-    /// Create a user and assign its initial roles in one transaction.
+    /// Create a user and assign its initial roles in one transaction, as
+    /// granted by the staff member `created_by`.
     pub async fn create_with_roles(
         pool: &DbPool,
         input: &UserCreateInput,
         password_hash: &str,
         role_ids: &[i64],
+        created_by: i64,
     ) -> Result<User, ApiError> {
         let mut tx = pool
             .begin()
@@ -240,14 +246,7 @@ impl UserRepository {
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for role_id in role_ids {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-            )
-            .bind(user.id)
-            .bind(role_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            RbacRepository::grant_user_role(&mut *tx, user.id, *role_id, created_by).await?;
         }
 
         tx.commit()
@@ -490,14 +489,7 @@ impl UserRepository {
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         for role_id in invite.role_ids {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-            )
-            .bind(user.id)
-            .bind(role_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+            RbacRepository::grant_user_role(&mut *tx, user.id, *role_id, invite.invited_by).await?;
         }
 
         tx.commit()
@@ -682,4 +674,7 @@ pub struct NewInvite<'a> {
     pub role_ids: &'a [i64],
     pub token_hash: &'a str,
     pub token_expires_at: chrono::DateTime<chrono::Utc>,
+    /// The staff member sending the invitation; recorded as the grantor of
+    /// `role_ids`.
+    pub invited_by: i64,
 }

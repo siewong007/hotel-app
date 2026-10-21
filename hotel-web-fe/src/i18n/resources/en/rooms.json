@@ -777,7 +777,7 @@
     "round": {
       "label": "Round result",
       "none": "No rounding",
-      "nearest": "Nearest RM {{step}}"
+      "nearest": "Nearest {{amount}}"
     },
     "immediateHint": "Changes apply immediately to new bookings and quotes. Existing bookings keep their price.",
     "errors": {

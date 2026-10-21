@@ -9,6 +9,7 @@ use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_any_permission_helper;
+use crate::core::rate_limiter::limit_staff_admin;
 use crate::models;
 use axum::{
     Router,
@@ -51,6 +52,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/users/roles", post(assign_role))
         .route("/users/{user_id}/roles", put(replace_user_roles))
         .route("/users/{user_id}/roles/{role_id}", delete(remove_role))
+        // Last, so it covers every route above.
+        .route_layer(axum::middleware::from_fn(limit_staff_admin))
 }
 
 async fn get_users(

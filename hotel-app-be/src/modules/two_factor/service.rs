@@ -9,6 +9,7 @@ use crate::models::{
     RegenerateBackupCodesRequest, TwoFactorDisableRequest, TwoFactorEnableRequest,
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
 };
+use crate::modules::auth::repository::AuthRepository;
 use crate::modules::users::repository::UserRepository;
 use crate::repositories::audit::AuditRepository;
 use crate::services::audit::AuditLog;
@@ -18,7 +19,7 @@ use validator::Validate;
 pub async fn setup_2fa(
     pool: &DbPool,
     user_id: i64,
-    _req: TwoFactorSetupRequest,
+    req: TwoFactorSetupRequest,
 ) -> Result<Value, ApiError> {
     log::info!("2FA setup service called for user {}", user_id);
     let user = get_user(pool, user_id).await?;
@@ -28,6 +29,8 @@ pub async fn setup_2fa(
             "2FA is already enabled for this account".to_string(),
         ));
     }
+
+    require_enrollment_password(pool, user_id, req.password.as_deref()).await?;
 
     let username = user.username.clone();
     let issuer_name = settings_cache::get_hotel_display_name(pool, "totp_issuer_name").await;
@@ -83,6 +86,7 @@ pub async fn enable_2fa(
     req.validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
     let user = get_user(pool, user_id).await?;
+    require_enrollment_password(pool, user_id, req.password.as_deref()).await?;
     let stored = user.two_factor_secret.ok_or_else(|| {
         ApiError::BadRequest("2FA setup not initiated. Call /auth/2fa/setup first.".to_string())
     })?;
@@ -312,6 +316,42 @@ pub async fn regenerate_backup_codes(
         "message": "Backup codes regenerated successfully",
         "backup_codes": new_backup_codes
     }))
+}
+
+// A session alone must not bootstrap the TOTP credential accepted by passkey
+// step-up. Check both stages, including setup challenges issued before this fix.
+async fn require_enrollment_password(
+    pool: &DbPool,
+    user_id: i64,
+    password: Option<&str>,
+) -> Result<(), ApiError> {
+    // A valid session with insufficient re-authentication is forbidden, not
+    // expired: 401 makes desktop clients discard their valid login.
+    let denied = || {
+        ApiError::Forbidden(
+            "Confirm your current account password to enroll an authenticator.".to_string(),
+        )
+    };
+    let password = password
+        .filter(|value| !value.is_empty())
+        .ok_or_else(denied)?;
+    let hash = AuthRepository::password_hash(pool, user_id)
+        .await?
+        .ok_or_else(denied)?;
+    let valid = AuthService::verify_password(password, &hash)
+        .await
+        .map_err(|error| {
+            log::error!(
+                "Enrollment password verification failed for user {}: {}",
+                user_id,
+                error
+            );
+            ApiError::Internal("Password verification failed".to_string())
+        })?;
+    if !valid {
+        return Err(denied());
+    }
+    Ok(())
 }
 
 async fn get_user(pool: &DbPool, user_id: i64) -> Result<User, ApiError> {
