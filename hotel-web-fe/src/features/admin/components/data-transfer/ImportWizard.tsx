@@ -87,6 +87,42 @@ const errorMessage = (error: unknown, fallback: string) =>
 
 const nullableCount = (value: number | null): string => (value === null ? '—' : formatNum(value));
 
+/** Entity rows a phone shows before "Show more": a full or backup file lists
+ *  around 50 entities, which would otherwise stack into one very long page
+ *  (desktop bounds the same table in a 360px scroll area instead). */
+const PHONE_ENTITY_PREVIEW = 6;
+
+/** The phone form of the entity table: MobileCardRows, the first few shown. */
+const PhoneEntityList: React.FC<{ rows: EntityTableRow[]; headers: string[] }> = ({ rows, headers }) => {
+  const theme = useTheme();
+  const { t } = useTranslation('dataTransfer');
+  const [expanded, setExpanded] = useState(false);
+  const hidden = rows.length - PHONE_ENTITY_PREVIEW;
+  const visible = expanded || hidden <= 0 ? rows : rows.slice(0, PHONE_ENTITY_PREVIEW);
+  return (
+    <Box>
+      {visible.map((row) => (
+        <Box
+          key={row.name}
+          sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 0 } }}
+        >
+          <MobileCardRow
+            title={shortEntityName(row.name)}
+            meta={row.cells.map((cell, i) => `${headers[i]}: ${nullableCount(cell)}`).join(' · ')}
+          />
+        </Box>
+      ))}
+      {hidden > 0 && (
+        <Box sx={{ px: 2, py: 1 }}>
+          <Button size="small" onClick={() => setExpanded((open) => !open)} aria-expanded={expanded}>
+            {expanded ? t('common:actions.showLess') : `${t('common:actions.showMore')} (${hidden})`}
+          </Button>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
 const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollIntervalMs }) => {
   const theme = useTheme();
   const isPhone = useIsPhone();
@@ -307,23 +343,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
   } as const;
 
   const renderEntityTable = (rows: EntityTableRow[], headers: string[], ariaLabel: string) => {
-    if (isPhone) {
-      return (
-        <Box>
-          {rows.map((row) => (
-            <Box
-              key={row.name}
-              sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 0 } }}
-            >
-              <MobileCardRow
-                title={shortEntityName(row.name)}
-                meta={row.cells.map((cell, i) => `${headers[i]}: ${nullableCount(cell)}`).join(' · ')}
-              />
-            </Box>
-          ))}
-        </Box>
-      );
-    }
+    if (isPhone) return <PhoneEntityList rows={rows} headers={headers} />;
     return (
       <TableContainer sx={{ maxHeight: 360 }}>
         <Table size="small" stickyHeader aria-label={ariaLabel}>

@@ -1,7 +1,7 @@
 import ky from 'ky';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearAccessToken } from '../auth/tokenStore';
+import { clearAccessToken, getAccessToken, setAccessToken } from '../auth/tokenStore';
 import { api, refreshAccessToken, requestFromKyHook, trackPendingLogout } from './client';
 
 describe('api client URL resolution', () => {
@@ -100,5 +100,33 @@ describe('refreshAccessToken during a sign-out', () => {
     await expect(refreshing).resolves.toEqual({ access_token: 'access-after' });
     expect(postSpy).toHaveBeenCalledTimes(1);
     expect(String(postSpy.mock.calls[0][0])).toContain('auth/refresh');
+  });
+});
+
+
+describe('authenticator enrollment reauthentication', () => {
+  afterEach(() => {
+    clearAccessToken();
+    vi.restoreAllMocks();
+  });
+
+  it.each(['setup', 'enable'])('keeps a valid desktop session after a denied %s password', async (stage) => {
+    setAccessToken('valid-desktop-session');
+    const refresh = vi.spyOn(ky, 'post');
+    const dispatch = vi.spyOn(window, 'dispatchEvent');
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      error: 'Confirm your current account password to enroll an authenticator.',
+    }), { status: 403, headers: { 'Content-Type': 'application/json' } }));
+
+    await expect(api.post(`profile/2fa/${stage}`, {
+      json: { password: 'wrong-password' },
+      fetch: fetchMock,
+      context: { suppressApiNotification: true },
+    })).rejects.toMatchObject({ response: { status: 403 } });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBe('valid-desktop-session');
+    expect(dispatch.mock.calls.some(([event]) => event.type === 'auth:unauthorized')).toBe(false);
   });
 });

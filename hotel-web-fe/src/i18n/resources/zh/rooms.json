@@ -725,5 +725,74 @@
   },
   "actions": {
     "editBookingNotes": "编辑预订备注"
+  },
+  "bulkPrice": {
+    "button": "批量更新价格",
+    "title": "批量更新房价",
+    "close": "关闭",
+    "cancel": "取消",
+    "back": "返回",
+    "next": "下一步",
+    "apply": "应用价格变更",
+    "steps": {
+      "configure": "设置",
+      "preview": "预览",
+      "confirm": "确认"
+    },
+    "scope": {
+      "label": "适用范围",
+      "all": "所有房型",
+      "selected": "选定房型"
+    },
+    "fields": {
+      "label": "要更改的价格",
+      "base": "基础价格",
+      "weekday": "平日价格",
+      "weekend": "周末价格"
+    },
+    "method": {
+      "label": "方式",
+      "set_exact": "设为固定价格",
+      "increase_percent": "按百分比上调",
+      "decrease_percent": "按百分比下调",
+      "increase_amount": "按金额上调",
+      "decrease_amount": "按金额下调"
+    },
+    "value": "数值",
+    "round": {
+      "label": "结果取整",
+      "none": "不取整",
+      "nearest": "取最接近的 {{amount}}"
+    },
+    "immediateHint": "变更将立即适用于新的预订和报价，已有预订保持原价。",
+    "errors": {
+      "valuePositive": "请输入大于零的数字",
+      "decreaseTooBig": "下调幅度必须小于 100%"
+    },
+    "summary": "将更改 {{types}} 个房型的 {{fields}} 项价格。",
+    "largeWarning": "部分价格变动超过 {{percent}}%，需要您确认。",
+    "noChange": "当前设置不会更改任何价格。",
+    "table": {
+      "roomType": "房型",
+      "price": "价格",
+      "old": "当前",
+      "new": "新价格",
+      "change": "变动"
+    },
+    "reason": "原因",
+    "reasonHelp": "必填。将与您的姓名和时间一起记录在审计日志中。",
+    "confirmLarge": "我确认此次超过 {{percent}}% 的变动",
+    "applied": "价格已更新：{{types}} 个房型，{{fields}} 项价格。",
+    "reverted": "上一次批量价格更新已撤销。",
+    "last": {
+      "updated": "上次批量更新：{{user}}，{{when}}（{{count}} 个房型）。",
+      "reverted": "上次批量更新已由 {{user}} 于 {{when}} 撤销。",
+      "unknownUser": "未知用户"
+    },
+    "revert": {
+      "open": "撤销上次更新",
+      "help": "恢复上次批量更新前的价格。如果这些价格此后被修改过，则无法撤销。",
+      "confirm": "撤销上次更新"
+    }
   }
 }

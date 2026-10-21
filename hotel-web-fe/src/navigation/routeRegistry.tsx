@@ -559,6 +559,19 @@ export const publicRouteDefinitions = routeDefinitions.filter((route) => route.v
 export const navigationRouteDefinitions = authRouteDefinitions.filter((route) => route.navGroup);
 export { FirstLoginPasskeyPrompt };
 
+/**
+ * Route-access policy ids that file routes outside this registry guard on
+ * with `<ProtectedRoute routeId="…">`. Detail pages that reuse a registry id
+ * (bookings, channels, help) need no entry. Together with the registry's own
+ * ids this is every policy a page actually checks, which is what the Access
+ * Control page offers for editing; `routeGuardCoverage.test.ts` keeps the
+ * list in step with `src/routes/`.
+ */
+export const FILE_ROUTE_POLICY_IDS: readonly string[] = [
+  'guest-relations-detail',
+  'guest-relations-follow-ups',
+];
+
 export function findRouteDefinition(pathname: string) {
   return routeDefinitions.find((route) => route.path === pathname);
 }

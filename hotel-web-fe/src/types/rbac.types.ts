@@ -15,6 +15,8 @@ export interface Permission {
   action: string;
   description?: string;
   created_at: string;
+  /** Seeded with the app and immutable; only custom permissions can be edited or deleted. */
+  is_system_permission?: boolean;
 }
 
 export interface RoleInput {

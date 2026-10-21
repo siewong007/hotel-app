@@ -65,6 +65,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   // Codes minted by the enable call — the only set that actually works.
   const [enableBackupCodes, setEnableBackupCodes] = useState<string[]>([]);
   const [verificationCode, setVerificationCode] = useState('');
+  const [setupPassword, setSetupPassword] = useState('');
   const [disableCode, setDisableCode] = useState('');
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [showDisableDialog, setShowDisableDialog] = useState(false);
@@ -77,13 +78,25 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
     disableMutation.isPending ||
     regenerateMutation.isPending;
 
+  const closeSetup = () => {
+    setShowSetupDialog(false);
+    setSetupData(null);
+    setVerificationCode('');
+    setSetupPassword('');
+    setupMutation.reset();
+    enableMutation.reset();
+  };
+
   const handleSetup2FA = async () => {
+    if (!setupPassword) return;
     try {
-      const data = await setupMutation.mutateAsync();
+      const data = await setupMutation.mutateAsync(setupPassword);
       setSetupData(data);
       setShowSetupDialog(true);
     } catch (error) {
-      console.error('Failed to setup 2FA:', error);
+      showSnackbar(errorMessage(error, t('twoFactorSetup.enableFailed')), 'error');
+    } finally {
+      setupMutation.reset();
     }
   };
 
@@ -101,16 +114,16 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       const result = await enableMutation.mutateAsync({
         code: verificationCode,
         challengeCode: setupData.challenge_code,
+        password: setupPassword,
       });
-      setShowSetupDialog(false);
-      setVerificationCode('');
-      setSetupData(null);
+      closeSetup();
       setEnableBackupCodes(result.backup_codes);
       showSnackbar(t('twoFactorSetup.enabled'), 'success');
       onSetupComplete?.();
     } catch (error) {
-      console.error('Failed to enable 2FA:', error);
       showSnackbar(errorMessage(error, t('twoFactorSetup.enableFailed')), 'error');
+    } finally {
+      enableMutation.reset();
     }
   };
 
@@ -213,10 +226,21 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 }}>
                 {t('twoFactorSetup.notEnabledHint')}
               </Typography>
+              <TextField
+                fullWidth
+                type="password"
+                autoComplete="current-password"
+                label={t('security.currentPassword')}
+                helperText={t('twoFactorSetup.passwordHint')}
+                value={setupPassword}
+                onChange={(event) => setSetupPassword(event.target.value)}
+                disabled={loading || showSetupDialog}
+                sx={{ mb: 2 }}
+              />
               <Button
                 variant="contained"
                 onClick={handleSetup2FA}
-                disabled={loading}
+                disabled={loading || !setupPassword}
                 startIcon={<QrCodeIcon />}
                 sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
@@ -287,7 +311,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </CardContent>
       </Card>
       {/* Setup 2FA Dialog */}
-      <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)} maxWidth="sm" fullWidth fullScreen={fullScreen}>
+      <Dialog open={showSetupDialog} onClose={closeSetup} maxWidth="sm" fullWidth fullScreen={fullScreen}>
         <DialogTitle>{t('twoFactorEnrollment.title')}</DialogTitle>
         <DialogContent>
           {setupData && (
@@ -342,7 +366,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowSetupDialog(false)}>{t('common:actions.cancel')}</Button>
+          <Button onClick={closeSetup}>{t('common:actions.cancel')}</Button>
           <Button
             onClick={handleEnable2FA}
             variant="contained"

@@ -5,6 +5,8 @@ import { SidebarContent } from './SidebarContent';
 
 export const SIDEBAR_WIDTH_EXPANDED = 264;
 export const SIDEBAR_WIDTH_COLLAPSED = 72;
+/** The sidebar's current width on `:root`; `0px` on phones, where it is not rendered. */
+export const SIDEBAR_WIDTH_VAR = '--hotel-sidebar-width';
 
 /**
  * The staff shell's left navigation host, in three states:
@@ -44,10 +46,21 @@ export const AppSidebar: React.FC = () => {
     storage.setItem('navCollapsed', next);
   };
 
-  if (isPhone) return null;
-
   const showRail = collapsed || railLocked;
   const width = showRail ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
+
+  // Published for overlays pinned to the viewport (`position: fixed`), which
+  // must start where the content area does or the drawer, painted above them,
+  // hides their left end.
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty(SIDEBAR_WIDTH_VAR, `${isPhone ? 0 : width}px`);
+    return () => {
+      root.style.removeProperty(SIDEBAR_WIDTH_VAR);
+    };
+  }, [isPhone, width]);
+
+  if (isPhone) return null;
   return (
     <Drawer
       variant="permanent"

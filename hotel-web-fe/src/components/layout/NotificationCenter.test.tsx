@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   staffUnread: 0,
   staffItems: [] as Array<Record<string, unknown>>,
   items: [] as Array<Record<string, unknown>>,
+  // What the bell asked the feed hook for, render by render.
+  feedCalls: [] as Array<{ enabled: boolean; open: boolean }>,
 }));
 
 vi.mock('../../auth/AuthContext', () => ({
@@ -19,7 +21,8 @@ vi.mock('../../auth/AuthContext', () => ({
 }));
 
 vi.mock('../../features/notifications/hooks/useDeliveryFeed', () => ({
-  useDeliveryFeed: (params?: { tier?: string }) => {
+  useDeliveryFeed: (params: { tier?: string }, enabled: boolean, open: boolean) => {
+    mocks.feedCalls.push({ enabled, open });
     const all = [
         {
           id: 11,
@@ -100,6 +103,7 @@ describe('NotificationCenter', () => {
     mocks.serverUnread = 3;
     mocks.staffUnread = 0;
     mocks.staffItems = [];
+    mocks.feedCalls = [];
   });
 
   afterEach(cleanup);
@@ -109,6 +113,8 @@ describe('NotificationCenter', () => {
 
     const bell = screen.getByLabelText('Notifications (3 unread)');
     expect(bell).toBeTruthy();
+    expect(mocks.feedCalls.length).toBeGreaterThan(0);
+    expect(mocks.feedCalls.every((call) => call.enabled)).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: /^Notifications/ }));
     const viewAll = screen.getByLabelText('View all notifications');
@@ -122,6 +128,11 @@ describe('NotificationCenter', () => {
 
     // No server unread -> alerts count (0) means no "(N unread)" suffix.
     expect(screen.getByLabelText('Notifications')).toBeTruthy();
+    // ... and the feed is never requested: it would only collect 403s, each
+    // one a "no permission" toast.
+    fireEvent.click(screen.getByRole('button', { name: /^Notifications/ }));
+    expect(mocks.feedCalls.length).toBeGreaterThan(0);
+    expect(mocks.feedCalls.every((call) => !call.enabled)).toBe(true);
   });
 
   it('groups the outbox feed into priority tabs and filters by tier', () => {

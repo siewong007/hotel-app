@@ -34,6 +34,7 @@ interface UseRBACDataReturn {
   setUsers: (nextUsers: SetStateAction<UserWithRoles[]>) => void;
   updateRolePermissions: (roleId: number, permissions: Permission[]) => void;
   updateUserRoles: (userId: string, roleIds: number[]) => void;
+  updateRoutePolicy: (policy: RouteAccessPolicy) => void;
 }
 
 function applyStateAction<T>(current: T, action: SetStateAction<T>): T {
@@ -165,6 +166,15 @@ export function useRBACData(): UseRBACDataReturn {
     }));
   }, [updateSnapshot]);
 
+  const updateRoutePolicy = useCallback((policy: RouteAccessPolicy) => {
+    updateSnapshot((current) => ({
+      ...current,
+      route_policies: current.route_policies.map((existing) =>
+        existing.route_id === policy.route_id ? policy : existing
+      ),
+    }));
+  }, [updateSnapshot]);
+
   // Compute role-permission map for quick lookups
   const rolePermissionMap = useMemo<RolePermissionMap>(() => {
     const map: RolePermissionMap = {};
@@ -248,5 +258,6 @@ export function useRBACData(): UseRBACDataReturn {
     setUsers,
     updateRolePermissions,
     updateUserRoles,
+    updateRoutePolicy,
   };
 }

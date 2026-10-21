@@ -31,6 +31,9 @@ import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { ProfileDetailRow, ProfileMetric } from '../../../guests/components/GuestProfileParts';
 import { useGuestLoyalty, useGuestVouchers } from '../../hooks/useGuestRelationsQueries';
 import { formatNumber } from '../../../../i18n/format';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
+import { PhoneRow, PhoneRows } from './PhoneRows';
 
 const SectionCard: React.FC<{ title: React.ReactNode; children: React.ReactNode }> = ({
   title,
@@ -106,6 +109,7 @@ interface LoyaltyVouchersTabProps {
  */
 const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
   const { t } = useTranslation('guests');
+  const isPhone = useIsPhone();
   const loyaltyQuery = useGuestLoyalty(guestId);
   const vouchersQuery = useGuestVouchers(guestId);
 
@@ -170,6 +174,25 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {t('loyaltyTab.noRedemptions')}
         </Typography>
+      ) : isPhone ? (
+        <PhoneRows>
+          {summary.recent_redemptions.map((redemption) => (
+            <PhoneRow key={redemption.id}>
+              <MobileCardRow
+                title={redemption.reward_name ?? t('loyaltyTab.rewardFallback')}
+                subtitle={formatHotelDate(redemption.created_at)}
+                meta={`${t('loyaltyTab.colPoints')}: ${formatNumber(redemption.points)}`}
+                status={
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={statusLabel(t, 'loyalty_redemption', redemption.status)}
+                  />
+                }
+              />
+            </PhoneRow>
+          ))}
+        </PhoneRows>
       ) : (
         <TableContainer>
           <Table size="small" aria-label={t('loyaltyTab.redemptionsAria')}>
@@ -285,6 +308,33 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {t('loyaltyTab.vouchersEmpty')}
           </Typography>
+        ) : isPhone ? (
+          <PhoneRows>
+            {vouchers.map((voucher) => {
+              const status = voucherDisplayStatus(voucher);
+              const dates = [
+                voucher.expires_at ? `${t('loyaltyTab.colExpires')}: ${formatHotelDate(voucher.expires_at)}` : null,
+                voucher.redeemed_at ? `${t('loyaltyTab.colRedeemed')}: ${formatHotelDateTime(voucher.redeemed_at)}` : null,
+              ].filter(Boolean);
+              return (
+                <PhoneRow key={voucher.id}>
+                  <MobileCardRow
+                    title={<Box component="span" sx={{ fontFamily: 'monospace' }}>{voucher.code}</Box>}
+                    subtitle={`${voucher.promotion_name ?? `#${voucher.promotion_id}`} · ${statusLabel(t, 'generic', voucher.source)}`}
+                    meta={dates.length > 0 ? dates.join(' · ') : undefined}
+                    status={
+                      <Chip
+                        size="small"
+                        label={statusLabel(t, 'voucher', status)}
+                        color={voucherStatusColor(status)}
+                        variant={status === 'available' ? 'filled' : 'outlined'}
+                      />
+                    }
+                  />
+                </PhoneRow>
+              );
+            })}
+          </PhoneRows>
         ) : (
           <TableContainer>
             <Table size="small" aria-label={t('loyaltyTab.vouchersAria')}>

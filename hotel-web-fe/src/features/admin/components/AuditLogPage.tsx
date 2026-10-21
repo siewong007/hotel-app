@@ -589,8 +589,25 @@ const AuditLogPage: React.FC = () => {
           )}
         </Box>
       </Box>
-      {/* Category rail */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)', lg: 'repeat(7,1fr)' }, gap: 1.25, mb: 2 }}>
+      {/* Category rail — on a phone one swipeable row (StatStrip's recipe):
+          seven cards in two columns would fill the first screen before any
+          event shows. */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: `repeat(${CATEGORIES.length}, minmax(150px, 1fr))`,
+            sm: 'repeat(2,1fr)',
+            md: 'repeat(4,1fr)',
+            lg: 'repeat(7,1fr)',
+          },
+          overflowX: { xs: 'auto', sm: 'visible' },
+          scrollSnapType: { xs: 'x proximity', sm: 'none' },
+          pb: { xs: 1, sm: 0 },
+          gap: 1.25,
+          mb: 2,
+        }}
+      >
         {CATEGORIES.map((cat) => {
           const on = cat.id === activeCat;
           const n = countFor(cat.id);
@@ -601,7 +618,7 @@ const AuditLogPage: React.FC = () => {
               aria-pressed={on}
               onClick={() => patchParams({ category: cat.id === 'all' ? undefined : cat.id })}
               sx={{
-                position: 'relative', textAlign: 'left', cursor: 'pointer',
+                position: 'relative', textAlign: 'left', cursor: 'pointer', scrollSnapAlign: 'start',
                 bgcolor: T.surface, border: `1px solid ${on ? T.ink : T.border}`,
                 borderRadius: '12px', p: '14px 16px 12px', overflow: 'hidden',
                 boxShadow: on ? 'var(--hotel-shadow-sm)' : 'none',
