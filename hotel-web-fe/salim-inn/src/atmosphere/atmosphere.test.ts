@@ -150,7 +150,7 @@ describe('who is open', () => {
   });
 
   it('never closes the hotel; the shops and the supermarket keep the listed hours', () => {
-    expect(SHOP_HOURS).toEqual(daily); // the supermarket's, which the rows borrow
+    expect(SHOP_HOURS).toEqual(daily); // the owner's, 21 Oct 2026 (the supermarket's listed hours are the same)
     expect(tradingAt(sibu(10, 19))).toEqual({ hotel: 1, mart: 1, shops: 1 });
     expect(tradingAt(sibu(23, 30))).toEqual({ hotel: 1, mart: 0, shops: 0 });
     expect(tradingAt(sibu(3, 0))).toEqual({ hotel: 1, mart: 0, shops: 0 });

@@ -2,9 +2,7 @@
 // while it trades, whatever hour its scripted dusk shows (World.setTrading):
 // the hotel's front desk never closes (config/site.ts, 24-hour reception);
 // the supermarket keeps its listed hours (data/neighbourhood.json); the shop
-// rows have no hours on record, so they trade as the supermarket does. That
-// last one is an assumption, listed in OPEN_QUESTIONS until the owner gives
-// the rows' real hours.
+// rows and cafe.cafe trade 08:00–22:00 every day (the owner, 21 Oct 2026).
 import { places, type Opening } from '../data/neighbourhood';
 import { sibuDay, sibuMinutes } from './solar';
 
@@ -15,11 +13,11 @@ export interface Trading {
   shops: number;
 }
 
-/** Every day 08:00–22:00: the supermarket's listed hours, should its entry lose them. */
 const DAILY: Opening[] = [{ days: [0, 1, 2, 3, 4, 5, 6], times: ['08:00-22:00'] }];
-const MART_HOURS: Opening[] = places({ includeUnverified: true }).find((p) => p.kind === 'supermarket')?.opening ?? DAILY;
-/** The shop rows' ground floors (an assumption: see above). */
-export const SHOP_HOURS: Opening[] = MART_HOURS;
+/** The shop rows' ground floors and cafe.cafe (the owner, 21 Oct 2026). */
+export const SHOP_HOURS: Opening[] = DAILY;
+/** The supermarket's listed hours (the same today), or the shops' should its entry lose them. */
+const MART_HOURS: Opening[] = places({ includeUnverified: true }).find((p) => p.kind === 'supermarket')?.opening ?? SHOP_HOURS;
 
 const minutes = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);

@@ -107,5 +107,4 @@ export const OPEN_QUESTIONS = [
   'Booking portal pre-fill: the portal ignores the dates, guests and room the panel sends, so guests re-enter them (the panel shows a copyable summary). A small portal change would make them carry over.',
   'Link preview: replaced the room photo with the chapter 3 hero render (salim-inn-hero-v3.jpg since the shop rows’ roofs were rebuilt, 21 Oct 2026); the older images are still published.',
   'Extra bed: RM35 is shown without a unit (per night or per stay?), and children count towards each room’s maximum occupancy.',
-  'Opening hours in the film: windows stay lit while a business is open on Sibu’s clock. The hotel never closes; the supermarket keeps its listed 08:00–22:00; the shop rows and cafe.cafe have no hours on record, so they borrow the supermarket’s (atmosphere/hours.ts).',
 ];
