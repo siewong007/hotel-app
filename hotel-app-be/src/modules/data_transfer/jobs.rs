@@ -1359,73 +1359,17 @@ pub fn import_job_status(job_id: Uuid) -> Option<ImportJobStatus> {
 // Execute + job runner
 // ---------------------------------------------------------------------------
 
-/// Validate the execute request, register the job, and spawn the import task.
-/// The actual file parse happens inside the job — the response is 202 as soon
-/// as the job exists.
-/// Needle scanned for in a staged file: `"public.<sensitive-table>"` as a
-/// JSON key. Row *values* containing the same text produce a false positive —
-/// the file is then treated as sensitive, which fails closed.
-const ENTITY_KEY_PREFIX: &[u8] = b"\"public.";
-/// The header flag — matched loosely (the value is checked separately).
-const SENSITIVE_FLAG_KEY: &[u8] = b"\"includesSensitiveData\"";
-
-fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || needle.len() > haystack.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
-/// Whether the staged file carries sensitive content — decides if execute
-/// needs `data_transfer:import_sensitive` without paying for a full parse.
-///
-/// A `hotel-backup` file is sensitive when the header declares it or any
-/// `"public.<name>"` entity key names a [`SENSITIVE_TABLES`] entry. Legacy
-/// files always carried guest data, and anything unrecognizable fails closed.
+/// Classify decoded JSON using the same parser as the importer. Raw-text
+/// searches are unsafe here: JSON escapes can hide table names and flags.
+/// Unreadable files fail closed; execute surfaces the parse error later.
 fn staged_file_is_sensitive_sync(path: &Path, passphrase: Option<&str>) -> bool {
-    let Some(bytes) = staged_plaintext(path, passphrase) else {
-        // Unreadable files fail closed; execute surfaces the real error later.
+    let Ok(file) = parse_staged_file(path, passphrase) else {
         return true;
     };
-    let head = &bytes[..bytes.len().min(SNIFF_PREFIX_BYTES)];
-    if detect_backup_format(head) != "v1" {
-        return true;
-    }
-
-    // `"includesSensitiveData": true` — whitespace between key/colon/value is
-    // tolerated so pretty-printed foreign files are still caught.
-    if let Some(index) = find_subslice(&bytes, SENSITIVE_FLAG_KEY) {
-        let mut cursor = index + SENSITIVE_FLAG_KEY.len();
-        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-            cursor += 1;
-        }
-        if cursor < bytes.len() && bytes[cursor] == b':' {
-            cursor += 1;
-            while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-                cursor += 1;
-            }
-            if bytes[cursor..].starts_with(b"true") {
-                return true;
-            }
-        }
-    }
-
-    let mut cursor = 0_usize;
-    while let Some(found) = find_subslice(&bytes[cursor..], ENTITY_KEY_PREFIX) {
-        let name_start = cursor + found + ENTITY_KEY_PREFIX.len();
-        let name_end = bytes[name_start..]
-            .iter()
-            .position(|byte| *byte == b'"')
-            .map(|offset| name_start + offset)
-            .unwrap_or(bytes.len());
-        if let Ok(name) = std::str::from_utf8(&bytes[name_start..name_end])
-            && table_is_sensitive(name)
-        {
-            return true;
-        }
-        cursor = name_start;
-    }
-    false
+    file.format != "hotel-backup"
+        || file.version != 1
+        || file.includes_sensitive_data == Some(true)
+        || file.tables.keys().any(|key| table_is_sensitive(key))
 }
 
 async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -> bool {
@@ -1439,26 +1383,6 @@ async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -
         .unwrap_or(true)
 }
 
-/// The staged document as plaintext bytes, decrypting first when the file is
-/// an encrypted envelope. `None` means it could not be read at all, which
-/// every caller treats as "fail closed".
-///
-/// This materializes the document, matching what the plaintext sniff has
-/// always done; the 256 MB upload cap is what bounds it.
-fn staged_plaintext(path: &Path, passphrase: Option<&str>) -> Option<Vec<u8>> {
-    let mut file = fs::File::open(path).ok()?;
-    let mut prefix = [0u8; ENVELOPE_SNIFF_BYTES];
-    let read = read_prefix(&mut file, &mut prefix).ok()?;
-    if !is_encrypted_backup(&prefix[..read]) {
-        return fs::read(path).ok();
-    }
-    let reader = reopen(path).ok()?;
-    let mut decrypting = DecryptingReader::new(reader, passphrase?).ok()?;
-    let mut plain = Vec::new();
-    decrypting.read_to_end(&mut plain).ok()?;
-    Some(plain)
-}
-
 /// Which tier a staged file demands, decided by what it actually contains
 /// rather than by the `exportType` it declares — a hand-edited header must
 /// not be able to smuggle `public.users` in under a `full` label.
@@ -1466,17 +1390,19 @@ fn staged_plaintext(path: &Path, passphrase: Option<&str>) -> Option<Vec<u8>> {
 /// Fails closed: anything unreadable is treated as a system file so the
 /// stricter gate applies and execute reports the real error later.
 fn staged_file_tier_sync(path: &Path, passphrase: Option<&str>) -> TransferTier {
-    let Some(bytes) = staged_plaintext(path, passphrase) else {
+    let Ok(file) = parse_staged_file(path, passphrase) else {
         return TransferTier::System;
     };
-    let protected: Vec<String> = protected_table_keys();
-    for key in protected {
-        let needle = format!("\"{key}\"");
-        if find_subslice(&bytes, needle.as_bytes()).is_some() {
-            return TransferTier::System;
-        }
+    if file.format != "hotel-backup"
+        || file.version != 1
+        || protected_table_keys()
+            .iter()
+            .any(|key| file.tables.contains_key(key))
+    {
+        TransferTier::System
+    } else {
+        TransferTier::Business
     }
-    TransferTier::Business
 }
 
 async fn staged_file_tier(upload_id: Uuid, passphrase: Option<String>) -> TransferTier {
@@ -2166,6 +2092,118 @@ mod tests {
         let mut row = Map::from_iter([("created_by".to_string(), Value::Number(9.into()))]);
         assert_eq!(scan.apply("public.child", &mut row), None);
         assert_eq!(row["created_by"], Value::Number(9.into()));
+    }
+
+    fn permission_test_document(tables: &str, flag: &str) -> String {
+        format!(
+            r#"{{
+            "format":"hotel-backup","version":1,"kind":"business-data",
+            "exportId":"11111111-1111-1111-1111-111111111111",
+            "exportedAt":"x","applicationVersion":"0",
+            "source":{{"environment":"test","databaseProvider":"postgresql"}},
+            "manifest":{{"entities":[],"exclusions":[]}},
+            {flag},"tables":{{{tables}}},
+            "integrity":{{"entities":0,"rows":0,"entityRows":{{}},"completedAt":"x"}}
+        }}"#
+        )
+    }
+
+    #[test]
+    fn import_permissions_decode_json_keys() {
+        let path = std::env::temp_dir().join(format!("backup-permissions-{}.json", Uuid::new_v4()));
+        for (tables, flag, sensitive, tier) in [
+            (
+                r#""public.rooms":[]"#,
+                r#""includesSensitiveData":false"#,
+                false,
+                TransferTier::Business,
+            ),
+            (
+                r#""public.guests":[]"#,
+                r#""includesSensitiveData":false"#,
+                true,
+                TransferTier::Business,
+            ),
+            (
+                r#""public.\u0067uests":[]"#,
+                r#""includesSensitiveData":false"#,
+                true,
+                TransferTier::Business,
+            ),
+            (
+                r#""\u0070ublic.users":[]"#,
+                r#""includesSensitiveData":false"#,
+                false,
+                TransferTier::System,
+            ),
+            (
+                r#""public.\u0075sers":[]"#,
+                r#""includesSensitiveData":false"#,
+                false,
+                TransferTier::System,
+            ),
+            (
+                "",
+                r#""includesSensitive\u0044ata":true"#,
+                true,
+                TransferTier::Business,
+            ),
+        ] {
+            fs::write(&path, permission_test_document(tables, flag)).unwrap();
+            // Confirm the importer accepts the same document being classified.
+            parse_staged_file(&path, None).unwrap();
+            assert_eq!(
+                staged_file_is_sensitive_sync(&path, None),
+                sensitive,
+                "{tables} {flag}"
+            );
+            assert_eq!(staged_file_tier_sync(&path, None), tier, "{tables} {flag}");
+        }
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn import_permissions_decode_encrypted_backup_keys() {
+        use super::super::crypto::BackupEncryptor;
+
+        let path = std::env::temp_dir().join(format!("backup-permissions-{}.json", Uuid::new_v4()));
+        let passphrase = "test-backup-passphrase";
+        let document = permission_test_document(
+            r#""public.\u0067uests":[],"public.\u0075sers":[]"#,
+            r#""includesSensitiveData":false"#,
+        );
+        let mut encryptor = BackupEncryptor::new(passphrase).unwrap();
+        let mut encrypted = encryptor.push(document.as_bytes()).unwrap();
+        encrypted.extend(encryptor.finish().unwrap());
+        fs::write(&path, encrypted).unwrap();
+        parse_staged_file(&path, Some(passphrase)).unwrap();
+        assert!(staged_file_is_sensitive_sync(&path, Some(passphrase)));
+        assert_eq!(
+            staged_file_tier_sync(&path, Some(passphrase)),
+            TransferTier::System
+        );
+        assert!(staged_file_is_sensitive_sync(&path, None));
+        assert_eq!(
+            staged_file_tier_sync(&path, Some("wrong-password")),
+            TransferTier::System
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn import_permissions_fail_closed_for_invalid_files() {
+        let path = std::env::temp_dir().join(format!("backup-permissions-{}.json", Uuid::new_v4()));
+        for document in [
+            r#"{"format":"hotel-backup","version":1,"tables":{}}"#,
+            "not json",
+        ] {
+            fs::write(&path, document).unwrap();
+            assert!(staged_file_is_sensitive_sync(&path, None));
+            assert_eq!(staged_file_tier_sync(&path, None), TransferTier::System);
+        }
+        fs::remove_file(&path).unwrap();
+        assert!(staged_file_is_sensitive_sync(&path, None));
+        assert_eq!(staged_file_tier_sync(&path, None), TransferTier::System);
     }
 
     #[test]
