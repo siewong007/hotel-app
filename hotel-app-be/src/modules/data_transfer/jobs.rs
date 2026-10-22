@@ -369,7 +369,9 @@ fn parse_staged_file(path: &Path, passphrase: Option<&str>) -> Result<BackupFile
         .map_err(|error| error.to_string())?;
     let encrypted = is_encrypted_backup(&prefix);
     if !encrypted && detect_backup_format(&prefix) == "legacy" {
-        return Err(format!("{RETIRED_FORMAT_ERROR} (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead"));
+        return Err(format!(
+            "{RETIRED_FORMAT_ERROR} (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead"
+        ));
     }
     parse_reader::<BackupFile>(path, passphrase).map_err(|error| {
         // A decryption failure names a fixable cause (wrong passphrase, or a
