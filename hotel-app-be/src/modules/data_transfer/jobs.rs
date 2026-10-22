@@ -1383,6 +1383,23 @@ async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -
         .unwrap_or(true)
 }
 
+/// Whether the staged file is an unencrypted retired-format document.
+fn staged_file_is_plaintext_legacy(path: &Path) -> bool {
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut prefix = Vec::new();
+    if file
+        .by_ref()
+        .take(SNIFF_PREFIX_BYTES as u64)
+        .read_to_end(&mut prefix)
+        .is_err()
+    {
+        return false;
+    }
+    !is_encrypted_backup(&prefix) && detect_backup_format(&prefix) == "legacy"
+}
+
 /// Which tier a staged file demands, decided by what it actually contains
 /// rather than by the `exportType` it declares — a hand-edited header must
 /// not be able to smuggle `public.users` in under a `full` label.
@@ -1391,7 +1408,14 @@ async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -
 /// stricter gate applies and execute reports the real error later.
 fn staged_file_tier_sync(path: &Path, passphrase: Option<&str>) -> TransferTier {
     let Ok(file) = parse_staged_file(path, passphrase) else {
-        return TransferTier::System;
+        // A plaintext retired-format file is rejected by the job itself and
+        // never imports anything, so it only needs the business tier (it is
+        // still gated as sensitive). Everything else unreadable fails closed.
+        return if staged_file_is_plaintext_legacy(path) {
+            TransferTier::Business
+        } else {
+            TransferTier::System
+        };
     };
     if file.format != "hotel-backup"
         || file.version != 1
