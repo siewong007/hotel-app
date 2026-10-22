@@ -437,3 +437,19 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
         Ok(crate::models::row_mappers::row_to_invoice(row))
     }
 }
+
+/// Read-only preview of how voiding a payment would post, computed with the
+/// same rule the void itself uses (`PaymentBusinessDays::reversal_date`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PaymentVoidPreview {
+    pub payment_id: i64,
+    /// The payment's business date: its created time in the hotel timezone.
+    pub original_business_date: NaiveDate,
+    /// Whether the night audit has already closed that business date.
+    pub day_closed: bool,
+    /// The latest completed night-audit date, if any.
+    pub last_closed_audit_date: Option<NaiveDate>,
+    /// Where the automatic reversal would post; `None` while the day is open
+    /// (the void simply removes the payment from its own day).
+    pub reversal_date: Option<NaiveDate>,
+}

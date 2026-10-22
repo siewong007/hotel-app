@@ -62,6 +62,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
         .route("/payments/{payment_id}/void", post(void_payment))
+        .route("/payments/{payment_id}/void-preview", get(get_void_preview))
         .route("/payments", post(create_payment))
         // Guest-payment claim review queue (staff)
         .route("/admin/payments/pending", get(list_pending_payments))
@@ -254,6 +255,16 @@ async fn delete_payment(
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
     let body = reason_body(&body)?;
     handlers::delete_payment_handler(State(pool), Extension(user_id), path, body).await
+}
+
+// Read-only, but gated like the void itself: only staff who can void see it.
+async fn get_void_preview(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::PaymentVoidPreview>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
+    handlers::void_preview_handler(State(pool), path).await
 }
 
 async fn void_payment(

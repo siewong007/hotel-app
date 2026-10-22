@@ -24,7 +24,8 @@
       "voidPayment": {
         "title": "Void payment",
         "message": "Voids this {{amount}} payment. The record is kept on the folio, shown as voided with your reason, name and time, and no longer counts toward the balance. If the night audit already closed its day, that day is unchanged and a reversing entry posts on the next open business day (normally today).",
-        "confirmText": "Void payment"
+        "confirmText": "Void payment",
+        "closedDayWarning": "⚠️ Night audit for {{originalDate}} is already closed. This void will not change that day's report. A reversal of {{amount}} will be posted automatically to {{reversalDate}}'s night audit. Do not make a manual adjustment for this amount."
       },
       "revertRefund": {
         "confirmText": "Revert refund",

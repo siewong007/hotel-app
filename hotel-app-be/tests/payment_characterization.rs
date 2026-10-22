@@ -6029,3 +6029,76 @@ async fn receptionist_approval_is_stamped_and_listed_on_the_folio() {
     );
     assert!(listed.approved_at.is_some());
 }
+
+/// The read-only void preview reports what the void itself will do: an open
+/// day needs no reversal; once the night audit closes the payment's day the
+/// preview names the closed date and the reversal date, and that is exactly
+/// the date the real void then records. The preview itself changes nothing.
+#[tokio::test]
+async fn void_preview_matches_the_reversal_the_void_posts() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (941_930, 941_931, 941_932, 941_933, 941_934);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "manager").await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-941934-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+    sqlx::query("UPDATE payments SET created_at = '2020-02-15 04:00:00+00' WHERE id = $1")
+        .bind(payment_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let open_preview = payments::void_preview(&pool, payment_id).await;
+    let run_id = close_night_audit_day(&pool, "2020-02-15").await;
+    let closed_preview = payments::void_preview(&pool, payment_id).await;
+    let status_after_preview = fetch_payment_status(&pool, payment_id).await;
+    let voided =
+        payments::delete_payment(&pool, actor_id, payment_id, Some("Payment keyed twice")).await;
+    let stored: Option<chrono::NaiveDate> =
+        sqlx::query_scalar("SELECT void_reversal_date FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let missing = payments::void_preview(&pool, -1).await;
+
+    reopen_night_audit_day(&pool, run_id).await;
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    let day = chrono::NaiveDate::from_ymd_opt(2020, 2, 15).unwrap();
+    let open_preview = open_preview.unwrap();
+    assert_eq!(open_preview.original_business_date, day);
+    // Other tests or real data may have closed later days; only assert the
+    // open case when nothing at or after this date is closed.
+    if open_preview
+        .last_closed_audit_date
+        .is_none_or(|closed| closed < day)
+    {
+        assert!(!open_preview.day_closed);
+        assert_eq!(open_preview.reversal_date, None);
+    }
+    let closed_preview = closed_preview.unwrap();
+    assert!(closed_preview.day_closed, "{closed_preview:?}");
+    assert_eq!(closed_preview.original_business_date, day);
+    let reversal = closed_preview
+        .reversal_date
+        .expect("closed day has a reversal date");
+    assert!(reversal > day);
+    assert_eq!(
+        status_after_preview, "completed",
+        "the preview is read-only"
+    );
+    assert!(voided.is_ok(), "{voided:?}");
+    assert_eq!(stored, Some(reversal), "preview and void agree");
+    assert!(matches!(missing, Err(ApiError::NotFound(_))), "{missing:?}");
+}

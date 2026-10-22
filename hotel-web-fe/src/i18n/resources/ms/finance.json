@@ -24,7 +24,8 @@
       "voidPayment": {
         "title": "Batalkan bayaran",
         "message": "Membatalkan bayaran {{amount}} ini. Rekod kekal dalam folio, ditunjukkan sebagai dibatalkan bersama sebab, nama dan masa anda, dan tidak lagi dikira dalam baki. Jika audit malam telah menutup hari tersebut, hari itu tidak berubah dan catatan pembalikan dicatat pada hari perniagaan terbuka berikutnya (biasanya hari ini).",
-        "confirmText": "Batalkan bayaran"
+        "confirmText": "Batalkan bayaran",
+        "closedDayWarning": "⚠️ Night audit untuk {{originalDate}} sudah ditutup. Void ini tidak akan mengubah laporan hari tersebut. Pembalikan sebanyak {{amount}} akan direkodkan secara automatik dalam night audit {{reversalDate}}. Jangan buat pelarasan manual untuk jumlah ini."
       },
       "revertRefund": {
         "confirmText": "Batalkan bayaran balik",

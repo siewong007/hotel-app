@@ -1007,6 +1007,14 @@ pub async fn update_payment(
 /// `deposit_forfeited` row additionally needs `payments:manage`. When the night audit has already closed the
 /// payment's own day, that day keeps its line and the void posts as a
 /// reversing line on the first open business date (`void_reversal_date`).
+/// Read-only: how a void of `payment_id` would post (closed day → reversal).
+pub async fn void_preview(
+    pool: &DbPool,
+    payment_id: i64,
+) -> Result<crate::models::PaymentVoidPreview, ApiError> {
+    PaymentRepository::void_preview(pool, payment_id).await
+}
+
 pub async fn delete_payment(
     pool: &DbPool,
     user_id: i64,
