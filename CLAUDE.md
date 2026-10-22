@@ -34,7 +34,7 @@ bundling its own PostgreSQL. Three projects, no root workspace — run commands 
 
 - `hotel-app-be/` — Rust 1.95.0 (edition 2024), Axum 0.8, SQLx 0.9, tonic 0.14, PostgreSQL, JWT + bcrypt.
 - `hotel-web-fe/` — React 19, TypeScript ~6.0, Vite 8, MUI v9, TanStack Query/Router/Table, ky 2, Nivo. Three
-  documents: `index.html` (staff), `guest.html`, `salim-inn/index.html` (landing; cookie-less `/` 302s there).
+  documents: `index.html` (staff), `guest.html`, `salim-inn/index.html` (landing; served internally at cookie-less `/`).
 - `hotel-desktop/` — Tauri 2; backend sidecar + embedded PostgreSQL in `src-tauri/pgsql/`.
 
 `bun` is the FE/desktop package manager (`bun.lock`, no package-lock.json). `.codegraph/` is Git-ignored

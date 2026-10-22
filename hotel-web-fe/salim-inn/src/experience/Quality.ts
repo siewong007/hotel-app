@@ -12,7 +12,7 @@ export async function detectTier(): Promise<{ tier: Tier; gpu: string; reason: s
   const forced = new URLSearchParams(location.search).get('quality') as TierName | null;
   if (forced && forced in TIERS) return { tier: TIERS[forced], gpu: 'forced', reason: 'url', blocked: false };
   try {
-    const r = await getGPUTier({ benchmarksURL: new URL('assets/benchmarks', document.baseURI).href.replace(/\/$/, '') });
+    const r = await getGPUTier({ benchmarksURL: new URL('/salim-inn/assets/benchmarks', document.baseURI).href.replace(/\/$/, '') });
     const gpu = r.gpu ?? 'unknown';
     // detect-gpu tiers: 0 (blocklisted) … 3 (fast)
     const name: TierName = r.tier >= 3 ? 'high' : r.tier === 2 ? (r.isMobile ? 'medium' : 'high') : r.tier === 1 ? 'medium' : 'low';
