@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   createLedgerPayment: vi.fn(),
   updatePayment: vi.fn(),
   voidPayment: vi.fn(),
+  getVoidPreview: vi.fn(),
   revertDepositRefund: vi.fn(),
   revertDepositVoid: vi.fn(),
   hasPermission: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('../../../api/invoices.service', () => ({
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
     updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
     voidPayment: (...args: unknown[]) => mocks.voidPayment(...args),
+    getVoidPreview: (...args: unknown[]) => mocks.getVoidPreview(...args),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
     revertDepositRefund: (...args: unknown[]) => mocks.revertDepositRefund(...args),
@@ -197,6 +199,7 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
     await screen.findByRole('dialog');
     await expectNoCriticalAxeViolations(document.body);
   });
+    mocks.getVoidPreview.mockReset().mockResolvedValue(null);
 
   beforeEach(() => {
     mocks.recordPayment.mockReset();
@@ -1043,6 +1046,46 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(mocks.reloadPayments).toHaveBeenCalled();
     // The row is not dropped locally — the reload brings it back voided.
     expect(mocks.setPayments).not.toHaveBeenCalled();
+  });
+
+  it('warns in the void dialog when the payment day is already closed by night audit', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.getVoidPreview.mockReset().mockResolvedValue({
+      payment_id: billPayment.id,
+      original_business_date: '2026-10-16',
+      day_closed: true,
+      last_closed_audit_date: '2026-10-16',
+      reversal_date: '2026-10-17',
+    });
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Void payment' }));
+    const voidDialog = await screen.findByRole('dialog', { name: 'Void payment' });
+    const notice = await within(voidDialog).findByTestId('reason-dialog-notice');
+    expect(mocks.getVoidPreview).toHaveBeenCalledWith(billPayment.id);
+    expect(notice.textContent).toMatch(/^⚠️ Night audit for .*16.* is already closed\./);
+    expect(notice.textContent).toContain(`A reversal of RM${Number(billPayment.total_amount).toFixed(2)} will be posted automatically`);
+    expect(notice.textContent).toMatch(/17.*'s night audit\. Do not make a manual adjustment for this amount\./);
+    expect(mocks.voidPayment).not.toHaveBeenCalled();
+  });
+
+  it('shows no closed-day warning when the payment day is still open', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.getVoidPreview.mockReset().mockResolvedValue({
+      payment_id: billPayment.id,
+      original_business_date: '2026-10-17',
+      day_closed: false,
+      last_closed_audit_date: '2026-10-16',
+      reversal_date: null,
+    });
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Void payment' }));
+    const voidDialog = await screen.findByRole('dialog', { name: 'Void payment' });
+    await waitFor(() => expect(mocks.getVoidPreview).toHaveBeenCalledWith(billPayment.id));
+    expect(within(voidDialog).queryByTestId('reason-dialog-notice')).toBeNull();
   });
 
   it('cancelling the reason dialog voids nothing', async () => {

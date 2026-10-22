@@ -143,6 +143,19 @@ export class InvoicesService {
   }
 
   /**
+   * Read-only preview of how voiding this payment would post: whether its
+   * business day is already closed by the night audit and, if so, the date
+   * the automatic reversal would post on. Nothing is changed.
+   */
+  static async getVoidPreview(paymentId: number): Promise<PaymentVoidPreview> {
+    try {
+      return await api.get(`payments/${paymentId}/void-preview`).json<PaymentVoidPreview>();
+    } catch (error) {
+      throw toApiError(error, t('generic', undefined, 'errors'));
+    }
+  }
+
+  /**
    * Void a payment. The row is kept with status 'void' (never deleted) and
    * the backend requires a staff reason; it records who voided it and when.
    */
@@ -153,4 +166,15 @@ export class InvoicesService {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
+}
+
+export interface PaymentVoidPreview {
+  payment_id: number;
+  /** Payment's business date (hotel timezone), YYYY-MM-DD. */
+  original_business_date: string;
+  /** True when the night audit has already closed that date. */
+  day_closed: boolean;
+  last_closed_audit_date: string | null;
+  /** Where the automatic reversal would post; null while the day is open. */
+  reversal_date: string | null;
 }

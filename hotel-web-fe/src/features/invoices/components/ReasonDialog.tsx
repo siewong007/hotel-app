@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   Button,
   CircularProgress,
   Dialog,
@@ -16,6 +17,8 @@ export interface ReasonDialogProps {
   open: boolean;
   title: string;
   message: React.ReactNode;
+  /** Prominent warning shown above the message (e.g. a closed night-audit day). */
+  notice?: React.ReactNode;
   confirmText: string;
   /** Destructive voids use `error`; reversible corrections `warning`. */
   severity?: 'error' | 'warning';
@@ -34,6 +37,7 @@ const ReasonDialog: React.FC<ReasonDialogProps> = ({
   open,
   title,
   message,
+  notice,
   confirmText,
   severity = 'warning',
   busy = false,
@@ -62,6 +66,17 @@ const ReasonDialog: React.FC<ReasonDialogProps> = ({
     <Dialog open={open} onClose={close} maxWidth="xs" fullWidth aria-labelledby="reason-dialog-title">
       <DialogTitle id="reason-dialog-title">{title}</DialogTitle>
       <DialogContent>
+        {notice ? (
+          <Alert
+            severity="warning"
+            icon={false}
+            role="alert"
+            data-testid="reason-dialog-notice"
+            sx={{ mb: 2, fontWeight: 600, overflowWrap: 'anywhere' }}
+          >
+            {notice}
+          </Alert>
+        ) : null}
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
           {message}
         </Typography>

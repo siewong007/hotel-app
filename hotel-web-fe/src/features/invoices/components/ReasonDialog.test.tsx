@@ -52,4 +52,14 @@ describe('ReasonDialog', () => {
     buttons.forEach((b) => expect(b.disabled).toBe(true));
     expect(props.onConfirm).not.toHaveBeenCalled();
   });
+
+  it('renders a notice only when one is given', () => {
+    const { dialog } = renderDialog({ notice: '⚠️ Night audit closed' });
+    expect(within(dialog).getByTestId('reason-dialog-notice').textContent).toBe('⚠️ Night audit closed');
+  });
+
+  it('renders no notice by default', () => {
+    const { dialog } = renderDialog();
+    expect(within(dialog).queryByTestId('reason-dialog-notice')).toBeNull();
+  });
 });

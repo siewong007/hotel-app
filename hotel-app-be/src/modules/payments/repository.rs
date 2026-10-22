@@ -56,6 +56,19 @@ impl PaymentBusinessDays {
         Some(self.today.max(first_open))
     }
 
+    /// The read-only void preview for this payment. Shares
+    /// [`Self::reversal_date`] with the real void so the two cannot drift.
+    pub fn void_preview(&self, payment_id: i64) -> crate::models::PaymentVoidPreview {
+        let reversal_date = self.reversal_date();
+        crate::models::PaymentVoidPreview {
+            payment_id,
+            original_business_date: self.payment_day,
+            day_closed: reversal_date.is_some(),
+            last_closed_audit_date: self.last_closed,
+            reversal_date,
+        }
+    }
+
     /// Whether un-voiding this row would change a closed day's journal.
     pub fn restore_touches_closed_day(&self) -> bool {
         match self.void_reversal_date {
@@ -1754,6 +1767,17 @@ impl PaymentRepository {
         })
     }
 
+    /// Read-only preview of [`Self::void_reversal_date_tx`] for one payment.
+    pub async fn void_preview(
+        pool: &DbPool,
+        payment_id: i64,
+    ) -> Result<crate::models::PaymentVoidPreview, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        let days = Self::payment_business_days_tx(&mut tx, payment_id).await?;
+        tx.rollback().await.map_err(ApiError::from)?;
+        Ok(days.void_preview(payment_id))
+    }
+
     /// Where a void of this payment posts. `None` while the payment's own
     /// business day is still open — the void simply drops it from that day.
     /// Once the night audit has closed that day, the original line stays on
@@ -2557,5 +2581,51 @@ fn map_workflow_summary_row(row: &DbRow) -> PaymentWorkflowSummaryRow {
         deposit_refunded: row_mappers::get_decimal(row, "deposit_refunded"),
         deposit_forfeited: row_mappers::get_decimal(row, "deposit_forfeited"),
         has_failed_payment: row_mappers::get_bool(row, "has_failed_payment"),
+    }
+}
+
+#[cfg(test)]
+mod business_day_tests {
+    use super::PaymentBusinessDays;
+    use chrono::NaiveDate;
+
+    fn day(s: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
+    fn days(payment: &str, today: &str, closed: Option<&str>) -> PaymentBusinessDays {
+        PaymentBusinessDays {
+            payment_day: day(payment),
+            today: day(today),
+            last_closed: closed.map(day),
+            void_reversal_date: None,
+        }
+    }
+
+    #[test]
+    fn preview_open_day_has_no_reversal() {
+        let p = days("2026-10-16", "2026-10-16", Some("2026-10-15")).void_preview(1);
+        assert!(!p.day_closed);
+        assert_eq!(p.reversal_date, None);
+        assert_eq!(p.original_business_date, day("2026-10-16"));
+        let none = days("2026-10-16", "2026-10-16", None).void_preview(1);
+        assert!(!none.day_closed);
+    }
+
+    #[test]
+    fn preview_closed_day_posts_on_today() {
+        // #6689: taken 16/10, audit closed 16/10, voided 17/10 -> reverses 17/10.
+        let p = days("2026-10-16", "2026-10-17", Some("2026-10-16")).void_preview(6689);
+        assert!(p.day_closed);
+        assert_eq!(p.reversal_date, Some(day("2026-10-17")));
+    }
+
+    #[test]
+    fn preview_closed_day_posts_after_last_audit_when_later() {
+        let b = days("2026-10-16", "2026-10-17", Some("2026-10-18"));
+        let p = b.void_preview(2);
+        assert!(p.day_closed);
+        assert_eq!(p.reversal_date, Some(day("2026-10-19")));
+        assert_eq!(p.reversal_date, b.reversal_date(), "same rule as the void");
     }
 }

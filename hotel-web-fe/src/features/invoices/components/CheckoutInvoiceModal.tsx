@@ -38,7 +38,7 @@ import {
 import { BookingWithDetails, CustomerLedger } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { BookingsService } from '../../../api';
-import { InvoicesService } from '../../../api/invoices.service';
+import { InvoicesService, type PaymentVoidPreview } from '../../../api/invoices.service';
 import { LedgerService } from '../../../api/ledger.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
@@ -194,6 +194,26 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     | { kind: 'restoreDeposit' }
     | null
   >(null);
+
+  // Read-only void preview for the payment in the void prompt: when the
+  // night audit already closed its day the dialog warns that a reversal
+  // posts automatically (so staff do not also adjust it by hand).
+  const [voidPreview, setVoidPreview] = useState<PaymentVoidPreview | null>(null);
+  const voidPromptPaymentId = reasonPrompt?.kind === 'void' ? reasonPrompt.payment.id : null;
+  useEffect(() => {
+    setVoidPreview(null);
+    if (voidPromptPaymentId === null) return;
+    let cancelled = false;
+    InvoicesService.getVoidPreview(voidPromptPaymentId)
+      .then((preview) => {
+        if (!cancelled && preview?.payment_id === voidPromptPaymentId) setVoidPreview(preview);
+      })
+      // The preview is advisory only; the void itself still works without it.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [voidPromptPaymentId]);
 
   // Deposit waive state — the local flag bridges the gap between a
   // successful waive-path cancel and the booking-mirror refetch (the hook
@@ -2216,6 +2236,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           : reasonPrompt?.kind === 'revertRefund'
             ? t('checkout.confirm.revertRefund.message')
             : t('checkout.confirm.restoreDeposit.message')}
+        notice={reasonPrompt?.kind === 'void'
+          && voidPreview?.day_closed
+          && voidPreview.reversal_date
+          && voidPreview.payment_id === reasonPrompt.payment.id
+          ? t('checkout.confirm.voidPayment.closedDayWarning', {
+            originalDate: formatHotelDate(voidPreview.original_business_date),
+            reversalDate: formatHotelDate(voidPreview.reversal_date),
+            amount: formatCurrency(toMoneyNumber(reasonPrompt.payment.total_amount)),
+          })
+          : undefined}
         confirmText={reasonPrompt?.kind === 'void'
           ? t('checkout.confirm.voidPayment.confirmText')
           : reasonPrompt?.kind === 'revertRefund'

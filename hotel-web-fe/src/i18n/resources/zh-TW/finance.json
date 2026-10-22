@@ -24,7 +24,8 @@
       "voidPayment": {
         "title": "作廢付款",
         "message": "作廢這筆 {{amount}} 的付款。紀錄仍保留在帳單中，顯示為已作廢，並附上您的原因、姓名與時間，且不再計入餘額。若夜審已關閉該日，該日數據不變，沖銷分錄將記在下一個未關閉的營業日（通常為今天）。",
-        "confirmText": "作廢付款"
+        "confirmText": "作廢付款",
+        "closedDayWarning": "⚠️ {{originalDate}} 的 night audit 已關帳，這次 void 不會改動當天報表。系統會自動在 {{reversalDate}} 的 night audit 記一筆 {{amount}} 的沖銷，請不要再手動調整。"
       },
       "revertRefund": {
         "confirmText": "撤回退款",

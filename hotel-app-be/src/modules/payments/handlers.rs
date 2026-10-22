@@ -170,6 +170,14 @@ pub async fn update_payment_handler(
     ))
 }
 
+/// Read-only preview of how voiding a payment would post.
+pub async fn void_preview_handler(
+    State(pool): State<DbPool>,
+    Path(payment_id): Path<i64>,
+) -> Result<Json<PaymentVoidPreview>, ApiError> {
+    Ok(Json(service::void_preview(&pool, payment_id).await?))
+}
+
 /// Void a payment record (never a hard delete; reason required)
 pub async fn delete_payment_handler(
     State(pool): State<DbPool>,

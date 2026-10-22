@@ -881,6 +881,9 @@
     "/api/payments/{payment_id}/void": {
       "POST": {}
     },
+    "/api/payments/{payment_id}/void-preview": {
+      "GET": {}
+    },
     "/api/profile": {
       "GET": {},
       "PATCH": {}
