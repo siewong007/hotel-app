@@ -60,6 +60,8 @@ const MAX_UPLOAD_BYTES: u64 = 256 * 1024 * 1024;
 /// inside preview/execute. Every writer this service emits puts the format
 /// markers well inside 4 KB.
 const SNIFF_PREFIX_BYTES: usize = 4096;
+/// Prefix of the parse error for retired export formats.
+const RETIRED_FORMAT_ERROR: &str = "the file uses a retired export format";
 
 /// Staged files abandoned past this age are swept on startup and per upload.
 const STAGED_UPLOAD_TTL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -367,7 +369,9 @@ fn parse_staged_file(path: &Path, passphrase: Option<&str>) -> Result<BackupFile
         .map_err(|error| error.to_string())?;
     let encrypted = is_encrypted_backup(&prefix);
     if !encrypted && detect_backup_format(&prefix) == "legacy" {
-        return Err("the file uses a retired export format (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead".to_string());
+        return Err(format!(
+            "{RETIRED_FORMAT_ERROR} (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead"
+        ));
     }
     parse_reader::<BackupFile>(path, passphrase).map_err(|error| {
         // A decryption failure names a fixable cause (wrong passphrase, or a
@@ -1390,8 +1394,15 @@ async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -
 /// Fails closed: anything unreadable is treated as a system file so the
 /// stricter gate applies and execute reports the real error later.
 fn staged_file_tier_sync(path: &Path, passphrase: Option<&str>) -> TransferTier {
-    let Ok(file) = parse_staged_file(path, passphrase) else {
-        return TransferTier::System;
+    let file = match parse_staged_file(path, passphrase) {
+        Ok(file) => file,
+        // A plaintext retired-format file is rejected by the job itself and
+        // never imports anything, so it only needs the business tier (it is
+        // still gated as sensitive). Everything else unreadable fails closed.
+        Err(error) if error.starts_with(RETIRED_FORMAT_ERROR) => {
+            return TransferTier::Business;
+        }
+        Err(_) => return TransferTier::System,
     };
     if file.format != "hotel-backup"
         || file.version != 1
