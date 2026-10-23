@@ -174,6 +174,10 @@ export class Post {
     if (params.get('sharpen') === '0') this.sharpen.blendMode.opacity.value = 0;
     this.grade = new GradeEffect();
     this.aaPass = new EffectPass(camera, this.smaa, this.grade, this.vignette, this.noise);
+    // the half-float chain quantises to 8 bits only here: dither it, or the
+    // lobby's warm ceiling gradient shows its steps (the grain alone is too
+    // faint to hide them in the dark tones)
+    this.aaPass.dithering = true;
     this.composer.addPass(this.aaPass);
   }
 
