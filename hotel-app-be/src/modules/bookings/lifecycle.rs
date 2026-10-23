@@ -848,7 +848,19 @@ pub async fn stale_unpaid_hold_ids(
                 AND p.status = 'completed'
                 AND COALESCE(p.payment_type, 'booking') != 'refund'
           ), 0) = 0
-        ORDER BY b.created_at
+          -- A multi-room group is held and released as one unit: while any
+          -- room has money in or a claim under review, no room is released.
+          AND (b.booking_group_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM bookings m
+              WHERE m.booking_group_id = b.booking_group_id
+                AND (m.status = 'pending_confirmation' OR EXISTS (
+                    SELECT 1 FROM payments mp
+                    WHERE mp.booking_id = m.id
+                      AND mp.status IN ('completed', 'pending', 'processing')
+                      AND COALESCE(mp.payment_type, 'booking') != 'refund'
+                ))
+          ))
+        ORDER BY b.booking_group_id NULLS FIRST, b.created_at, b.id
         LIMIT $2
         "#,
     )
@@ -3760,4 +3772,39 @@ pub async fn record_booking_reactivation_modification(
 
     result.map_err(|e| ApiError::Database(e.to_string()))?;
     Ok(())
+}
+
+/// True when the booking belongs to a group in which some room has a
+/// completed or in-flight payment, or a claim under review — the whole group
+/// then keeps its hold.
+pub async fn group_hold_is_engaged(pool: &DbPool, booking_id: i64) -> Result<bool, ApiError> {
+    sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+            SELECT 1 FROM bookings b
+            JOIN bookings m ON m.booking_group_id = b.booking_group_id
+            WHERE b.id = $1
+              AND (m.status = 'pending_confirmation' OR EXISTS (
+                  SELECT 1 FROM payments mp
+                  WHERE mp.booking_id = m.id
+                    AND mp.status IN ('completed', 'pending', 'processing')
+                    AND COALESCE(mp.payment_type, 'booking') != 'refund'
+              ))
+        )
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))
+}
+
+/// The group a booking belongs to, if any.
+pub async fn booking_group_id(pool: &DbPool, booking_id: i64) -> Result<Option<i64>, ApiError> {
+    sqlx::query_scalar::<_, Option<i64>>("SELECT booking_group_id FROM bookings WHERE id = $1")
+        .bind(booking_id)
+        .fetch_optional(pool)
+        .await
+        .map(Option::flatten)
+        .map_err(|e| ApiError::Database(e.to_string()))
 }

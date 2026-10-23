@@ -384,6 +384,7 @@ pub async fn release_stale_unpaid_holds(pool: &DbPool) -> Result<u64, ApiError> 
     let reason = format!("Automatically released: unpaid for more than {hold_hours} hour(s)");
 
     let mut released = 0_u64;
+    let mut touched_groups = std::collections::BTreeSet::new();
     for booking_id in candidates {
         let booking = match booking_service::fetch_booking_by_id(pool, booking_id).await {
             Ok(booking) => booking,
@@ -415,11 +416,44 @@ pub async fn release_stale_unpaid_holds(pool: &DbPool) -> Result<u64, ApiError> 
             }
         }
 
+        match booking_repo::group_hold_is_engaged(pool, booking_id).await {
+            Ok(true) => continue,
+            Ok(false) => {}
+            Err(error) => {
+                log::warn!("Auto-release could not verify group of booking {booking_id}: {error}");
+                continue;
+            }
+        }
+
         match perform_release(pool, &booking, None, &reason, true).await {
-            Ok(_) => released += 1,
+            Ok(_) => {
+                released += 1;
+                if let Ok(Some(group_id)) = booking_repo::booking_group_id(pool, booking_id).await {
+                    touched_groups.insert(group_id);
+                }
+            }
             Err(error) => {
                 log::warn!("Auto-release failed for booking {booking_id}: {error}");
             }
+        }
+    }
+
+    for group_id in touched_groups {
+        let refreshed = async {
+            let mut tx = pool.begin().await.map_err(ApiError::from)?;
+            crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
+                &mut tx, group_id,
+            )
+            .await?;
+            crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+                &mut tx, group_id,
+            )
+            .await?;
+            tx.commit().await.map_err(ApiError::from)
+        }
+        .await;
+        if let Err(error) = refreshed {
+            log::warn!("Auto-release could not refresh booking group {group_id}: {error}");
         }
     }
 
