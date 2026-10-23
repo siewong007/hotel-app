@@ -140,7 +140,7 @@ describe('PortalBookingPage multi-room cart', () => {
     window.sessionStorage.clear();
     mocks.listVouchers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
     mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: true });
-    mocks.paymentConfig.mockReset().mockResolvedValue({ paypal_enabled: false, bank_transfer_enabled: true });
+    mocks.paymentConfig.mockReset().mockResolvedValue({ paypal_enabled: false, paypal_client_id: null, bank_transfer_enabled: true, bank_details: { bank_name: 'Test Bank', account_name: 'Salim Inn', account_number: '123' } });
     mocks.search.mockReset().mockResolvedValue([offer]);
     mocks.groupQuote.mockReset().mockImplementation((request: { rooms: unknown[] }) => Promise.resolve(groupQuoteFor(request.rooms.length)));
     mocks.groupCreate.mockReset();
@@ -216,7 +216,7 @@ describe('PortalBookingPage multi-room cart', () => {
     const [request] = mocks.groupCreate.mock.calls[0] as [{ rooms: unknown[]; expected_total: string }];
     expect(request.rooms).toHaveLength(2);
     expect(request.expected_total).toBe('500');
-    expect(window.sessionStorage.getItem(CART_STORAGE_KEY)).toBeNull();
+    await waitFor(() => expect(window.sessionStorage.getItem(CART_STORAGE_KEY)).toBeNull());
   });
 
   it('keeps the cart and shows the server error when a room is taken mid-checkout', async () => {
