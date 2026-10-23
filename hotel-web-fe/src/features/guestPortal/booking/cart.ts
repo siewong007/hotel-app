@@ -28,11 +28,29 @@ export interface CartRoom extends GroupRoomRequest {
 export interface Cart {
   check_in_date: string;
   check_out_date: string;
+  /** The party searched for, so the capacity notice survives a refresh. */
+  search_adults?: number;
+  search_children?: number;
   rooms: CartRoom[];
 }
 
-export function emptyCart(search: Pick<GuestBookingSearch, 'check_in_date' | 'check_out_date'>): Cart {
-  return { check_in_date: search.check_in_date, check_out_date: search.check_out_date, rooms: [] };
+interface SearchParty extends Pick<GuestBookingSearch, 'check_in_date' | 'check_out_date'> {
+  adults?: number;
+  children?: number;
+}
+
+export function emptyCart(search: SearchParty): Cart {
+  return withSearchParty({ check_in_date: search.check_in_date, check_out_date: search.check_out_date, rooms: [] }, search);
+}
+
+/** Record the searched party on the cart (no-op when unchanged). */
+export function withSearchParty(cart: Cart, search: Partial<Pick<GuestBookingSearch, 'adults' | 'children'>>): Cart {
+  const adults = Number(search.adults);
+  const children = Number(search.children);
+  if (!Number.isFinite(adults) || adults < 1) return cart;
+  const kids = Number.isFinite(children) && children > 0 ? children : 0;
+  if (cart.search_adults === adults && cart.search_children === kids) return cart;
+  return { ...cart, search_adults: adults, search_children: kids };
 }
 
 function lineId(): string {
@@ -170,7 +188,8 @@ export function loadCart(storage: Pick<Storage, 'getItem'> | undefined = safeSes
     if (typeof parsed.check_in_date !== 'string' || typeof parsed.check_out_date !== 'string') return null;
     const rooms = Array.isArray(parsed.rooms) ? parsed.rooms.filter(isCartRoom).slice(0, MAX_CART_ROOMS) : [];
     if (rooms.length === 0) return null;
-    return { check_in_date: parsed.check_in_date, check_out_date: parsed.check_out_date, rooms };
+    const cart: Cart = { check_in_date: parsed.check_in_date, check_out_date: parsed.check_out_date, rooms };
+    return typeof parsed.search_adults === 'number' ? withSearchParty(cart, { adults: parsed.search_adults, children: parsed.search_children }) : cart;
   } catch {
     return null;
   }

@@ -505,6 +505,19 @@ async fn apply_online_allocation(
     Ok(room_type)
 }
 
+/// The search party clamped to what one room of this type can hold, so a
+/// room type smaller than the whole party can still be priced as an offer.
+fn stay_for_room(stay: ValidatedStay, max_occupancy: i32) -> ValidatedStay {
+    let max_occupancy = max_occupancy.max(1);
+    let adults = stay.adults.clamp(1, max_occupancy);
+    let children = stay.children.min(max_occupancy - adults).max(0);
+    ValidatedStay {
+        adults,
+        children,
+        ..stay
+    }
+}
+
 /// Price every bookable room type for a stay.
 ///
 /// `guest_id` is `None` for an anonymous (not signed-in) booker, who is quoted
@@ -522,13 +535,11 @@ pub async fn search(
         query.children,
     )
     .await?;
-    let room_types = Repository::list_inventory(
-        pool,
-        stay.check_in_date,
-        stay.check_out_date,
-        stay.adults + stay.children,
-    )
-    .await?;
+    // Multi-room: a party larger than one room can still book several rooms,
+    // so every available type is offered (the portal warns when the cart's
+    // combined capacity falls short). Prices don't depend on head count.
+    let room_types =
+        Repository::list_inventory(pool, stay.check_in_date, stay.check_out_date, 1).await?;
     let mut offers = Vec::with_capacity(room_types.len());
     for room_type in room_types {
         let room_type = apply_online_allocation(pool, room_type, stay).await?;
@@ -549,7 +560,7 @@ pub async fn search(
             pool,
             guest_id,
             room_type,
-            stay,
+            stay_for_room(stay, max_occupancy),
             None,
             &ComplimentaryContext::default(),
             None,
@@ -2577,5 +2588,34 @@ mod tests {
                 { "room_type_id": 3, "stay_date": "2026-12-16" }
             ])
         );
+    }
+}
+
+#[cfg(test)]
+mod stay_for_room_tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    fn stay(adults: i32, children: i32) -> ValidatedStay {
+        ValidatedStay {
+            check_in_date: NaiveDate::from_ymd_opt(2030, 1, 1).unwrap(),
+            check_out_date: NaiveDate::from_ymd_opt(2030, 1, 2).unwrap(),
+            adults,
+            children,
+        }
+    }
+
+    #[test]
+    fn keeps_a_party_that_fits() {
+        let s = stay_for_room(stay(2, 1), 4);
+        assert_eq!((s.adults, s.children), (2, 1));
+    }
+
+    #[test]
+    fn clamps_a_large_party_to_one_room() {
+        let s = stay_for_room(stay(8, 0), 2);
+        assert_eq!((s.adults, s.children), (2, 0));
+        let s = stay_for_room(stay(3, 2), 4);
+        assert_eq!((s.adults, s.children), (3, 1));
     }
 }
