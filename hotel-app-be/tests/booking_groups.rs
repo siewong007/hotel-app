@@ -316,4 +316,218 @@ mod postgres_tests {
         assert!(result.is_err(), "check_out must be after check_in");
         tx.rollback().await.unwrap();
     }
+
+    /// End to end through the anonymous multi-room checkout: 2 × X + 1 × Y in
+    /// one transaction, linked to one group with matching totals; a replay is
+    /// idempotent; a cart that no longer fits is refused with nothing written.
+    #[tokio::test]
+    async fn postgres_anonymous_group_checkout_is_all_or_nothing() {
+        use chrono::Duration;
+        use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
+        use hotel_app_be::modules::guest_booking::availability::AvailabilityHub;
+        use hotel_app_be::modules::guest_booking::group::{
+            self, AnonymousGroupBookingRequest, GroupQuoteRequest, GroupRoomRequest,
+        };
+        use hotel_app_be::modules::guest_booking::models::AnonymousGuestDetails;
+
+        let Ok(database_url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .after_connect(|conn, _| {
+                Box::pin(async move {
+                    sqlx::query("SET app.allow_audit_mutation = 'on'")
+                        .execute(conn)
+                        .await
+                        .map(|_| ())
+                })
+            })
+            .connect(&database_url)
+            .await
+            .expect("connect");
+        if std::env::var("JWT_SECRET").is_err() {
+            // SAFETY: set before any config read in this binary.
+            unsafe { std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret") };
+        }
+        let _ = hotel_app_be::core::config::init_from_env();
+
+        let suffix = unique_suffix();
+        let tag = format!("{suffix:x}");
+        let mut type_ids = Vec::new();
+        for (prefix, rooms) in [("P", 2), ("Q", 1)] {
+            let type_id: i64 = sqlx::query_scalar(
+                "INSERT INTO room_types (code, name, base_price, max_occupancy) \
+                 VALUES ($1, $2, 100.00, 2) RETURNING id",
+            )
+            .bind(format!("{prefix}{tag}"))
+            .bind(format!("Cart Type {prefix} {suffix}"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            for n in 0..rooms {
+                sqlx::query(
+                    "INSERT INTO rooms (room_number, room_type_id, status, is_active) \
+                     VALUES ($1, $2, 'available', true)",
+                )
+                .bind(format!("{prefix}{n}{tag}"))
+                .bind(type_id)
+                .execute(&pool)
+                .await
+                .unwrap();
+            }
+            type_ids.push(type_id);
+        }
+        let (x, y) = (type_ids[0], type_ids[1]);
+        let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let check_in = (today + Duration::days(14)).format("%Y-%m-%d").to_string();
+        let check_out = (today + Duration::days(16)).format("%Y-%m-%d").to_string();
+        let room = |room_type_id| GroupRoomRequest {
+            room_type_id,
+            adults: Some(1),
+            children: Some(0),
+            extra_beds: None,
+        };
+        let cart = vec![room(x), room(x), room(y)];
+        let quote = group::quote_group(
+            &pool,
+            None,
+            &GroupQuoteRequest {
+                check_in_date: check_in.clone(),
+                check_out_date: check_out.clone(),
+                rooms: cart.clone(),
+                tourism_type: Some("local".to_string()),
+            },
+        )
+        .await
+        .expect("group quote");
+        assert_eq!(quote.room_count, 3);
+        let granted = |document: ConsentDocument| ConsentAcceptance {
+            document,
+            version: document.current_version().to_string(),
+            granted: true,
+            locale: "en".to_string(),
+        };
+        let request =
+            |n: u8, rooms: Vec<GroupRoomRequest>, total: Decimal| AnonymousGroupBookingRequest {
+                client_request_id: format!("group-e2e-{suffix}-{n}"),
+                check_in_date: check_in.clone(),
+                check_out_date: check_out.clone(),
+                rooms,
+                expected_total: total,
+                special_requests: None,
+                cleaning_preference: None,
+                smoking_preference: None,
+                guest: AnonymousGuestDetails {
+                    first_name: format!("Cart{tag}{n}"),
+                    last_name: None,
+                    email: format!("group-cart-{suffix}-{n}@hotel.test"),
+                    phone: None,
+                    tourism_type: "local".to_string(),
+                },
+                consents: vec![
+                    granted(ConsentDocument::TermsOfService),
+                    granted(ConsentDocument::PrivacyNotice),
+                ],
+                marketing_opt_in: false,
+            };
+        let hub = AvailabilityHub::default();
+        let first = group::create_anonymous(
+            &pool,
+            &hub,
+            request(1, cart.clone(), quote.total_amount),
+            None,
+            None,
+        )
+        .await
+        .expect("group checkout");
+        assert_eq!(first.rooms.len(), 3);
+        assert_eq!(first.room_count, 3);
+        assert_eq!(first.total_amount, quote.total_amount);
+        assert!(first.access_token.is_some());
+        let linked: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT room_id) FROM bookings WHERE booking_group_id = $1",
+        )
+        .bind(first.group_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(linked, 3, "three distinct rooms in one group");
+
+        let replay = group::create_anonymous(
+            &pool,
+            &hub,
+            request(1, cart.clone(), quote.total_amount),
+            None,
+            None,
+        )
+        .await
+        .expect("replay");
+        assert_eq!(replay.group_id, first.group_id);
+
+        // X is now full: a cart with one X room is refused, nothing written.
+        let one_x_total = first.rooms[0].total_amount;
+        let full = group::create_anonymous(
+            &pool,
+            &hub,
+            request(2, vec![room(x)], one_x_total),
+            None,
+            None,
+        )
+        .await;
+        assert!(full.is_err(), "sold-out type must be refused");
+        let leaked: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_groups g JOIN guests gu ON gu.id = g.guest_id \
+             WHERE gu.email = $1",
+        )
+        .bind(format!("group-cart-{suffix}-2@hotel.test"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(leaked, 0);
+
+        // Cleanup of committed fixtures.
+        let booking_ids: Vec<i64> = first.rooms.iter().map(|r| r.booking_id).collect();
+        let guest_id: i64 = sqlx::query_scalar("SELECT guest_id FROM booking_groups WHERE id = $1")
+            .bind(first.group_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        for statement in [
+            "DELETE FROM consent_records WHERE booking_id = ANY($1)",
+            "DELETE FROM booking_history WHERE booking_id = ANY($1)",
+            "DELETE FROM bookings WHERE id = ANY($1)",
+        ] {
+            let _ = sqlx::query(statement)
+                .bind(&booking_ids)
+                .execute(&pool)
+                .await;
+        }
+        let _ = sqlx::query("DELETE FROM email_deliveries WHERE idempotency_key = $1")
+            .bind(format!("booking-group-confirmation:{}", first.group_id))
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM booking_groups WHERE id = $1")
+            .bind(first.group_id)
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM guests WHERE id = $1 OR email = $2")
+            .bind(guest_id)
+            .bind(format!("group-cart-{suffix}-2@hotel.test"))
+            .execute(&pool)
+            .await;
+        for type_id in type_ids {
+            let _ = sqlx::query("DELETE FROM rooms WHERE room_type_id = $1")
+                .bind(type_id)
+                .execute(&pool)
+                .await;
+            let _ = sqlx::query("DELETE FROM room_types WHERE id = $1")
+                .bind(type_id)
+                .execute(&pool)
+                .await;
+        }
+    }
 }
