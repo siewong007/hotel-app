@@ -34,7 +34,10 @@ export interface Cart {
   rooms: CartRoom[];
 }
 
-type SearchParty = Pick<GuestBookingSearch, 'check_in_date' | 'check_out_date'> & Partial<Pick<GuestBookingSearch, 'adults' | 'children'>>;
+interface SearchParty extends Pick<GuestBookingSearch, 'check_in_date' | 'check_out_date'> {
+  adults?: number;
+  children?: number;
+}
 
 export function emptyCart(search: SearchParty): Cart {
   return withSearchParty({ check_in_date: search.check_in_date, check_out_date: search.check_out_date, rooms: [] }, search);
