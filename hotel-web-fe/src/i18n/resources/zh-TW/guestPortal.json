@@ -96,6 +96,16 @@
     "priceSummary": "價格摘要",
     "retry": "重試",
     "reviewStay": "檢閱您的住宿",
+    "media": {
+      "photo": "照片",
+      "model": "3D 檢視",
+      "viewAria": "選擇檢視此房間的方式",
+      "modelAlt": "{{name}} 客房的互動式 3D 模型",
+      "dragHint": "拖曳以環視",
+      "noWebgl": "此裝置不支援 3D 檢視。",
+      "previous": "上一張照片",
+      "next": "下一張照片"
+    },
     "roomImageAlt": "{{name}} 客房",
     "roomsLeft_other": "剩 {{count}} 間客房",
     "search": "搜尋",

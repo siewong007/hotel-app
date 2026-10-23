@@ -97,6 +97,16 @@
     "priceSummary": "Price summary",
     "retry": "Retry",
     "reviewStay": "Review your stay",
+    "media": {
+      "photo": "Photo",
+      "model": "3D view",
+      "viewAria": "Choose how to view this room",
+      "modelAlt": "Interactive 3D model of the {{name}} room",
+      "dragHint": "Drag to look around",
+      "noWebgl": "3D view isn't supported on this device.",
+      "previous": "Previous photo",
+      "next": "Next photo"
+    },
     "roomImageAlt": "{{name}} room",
     "roomsLeft_one": "{{count}} room left",
     "roomsLeft_other": "{{count}} rooms left",
