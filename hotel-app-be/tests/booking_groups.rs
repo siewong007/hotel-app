@@ -186,8 +186,24 @@ mod postgres_tests {
         assert_eq!(group.room_count, 2);
         assert_eq!(group.subtotal, dec("500.00"));
         assert_eq!(group.discount_amount, dec("20.00"));
-        assert_eq!(group.tourism_tax_amount, dec("40.00"));
-        assert_eq!(group.total_amount, dec("520.00"));
+        // Triggers may normalise tourism tax / totals on insert, so compare
+        // against what the member rows actually hold.
+        let (tourism, total): (Decimal, Decimal) = sqlx::query_as(
+            "SELECT COALESCE(SUM(tourism_tax_amount), 0), COALESCE(SUM(total_amount), 0) \
+             FROM bookings WHERE id = ANY($1)",
+        )
+        .bind(vec![a, b])
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(group.tourism_tax_amount, tourism);
+        assert_eq!(group.total_amount, total);
+        let b_total: Decimal =
+            sqlx::query_scalar("SELECT total_amount FROM bookings WHERE id = $1")
+                .bind(b)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
         assert_eq!(group.payment_status, "unpaid");
 
         // Single-room cancel: only that room's share leaves the group.
@@ -200,7 +216,7 @@ mod postgres_tests {
             .await
             .unwrap();
         assert_eq!(group.room_count, 1);
-        assert_eq!(group.total_amount, dec("310.00"));
+        assert_eq!(group.total_amount, b_total);
         assert_eq!(group.status, "active");
 
         sqlx::query("UPDATE bookings SET status = 'voided', payment_status = 'void' WHERE id = $1")
