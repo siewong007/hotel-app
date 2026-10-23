@@ -28,7 +28,10 @@ pub fn prorate_fixed_discount(discount: Decimal, subtotals: &[Decimal]) -> Vec<D
     }
     let mut shares: Vec<Decimal> = subtotals
         .iter()
-        .map(|subtotal| (discount * *subtotal / total).round_dp_with_strategy(2, rust_decimal::RoundingStrategy::ToZero))
+        .map(|subtotal| {
+            (discount * *subtotal / total)
+                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::ToZero)
+        })
         .collect();
     let mut remainder = discount - shares.iter().copied().sum::<Decimal>();
     let cent = Decimal::new(1, 2);
@@ -69,7 +72,10 @@ pub fn default_credit_assignment(
     nights: &[RoomNight],
     room_count: usize,
 ) -> Vec<Vec<NaiveDate>> {
-    let mut sorted: Vec<&RoomNight> = nights.iter().filter(|n| n.room_index < room_count).collect();
+    let mut sorted: Vec<&RoomNight> = nights
+        .iter()
+        .filter(|n| n.room_index < room_count)
+        .collect();
     sorted.sort_by(|a, b| {
         a.amount
             .cmp(&b.amount)
@@ -105,7 +111,10 @@ mod tests {
         assert_eq!(shares, vec![dec("50"), dec("25"), dec("25")]);
 
         let shares = prorate_fixed_discount(dec("10"), &[dec("100"), dec("100"), dec("100")]);
-        assert_eq!(shares.iter().copied().sum::<rust_decimal::Decimal>(), dec("10"));
+        assert_eq!(
+            shares.iter().copied().sum::<rust_decimal::Decimal>(),
+            dec("10")
+        );
         assert_eq!(shares, vec![dec("3.34"), dec("3.33"), dec("3.33")]);
     }
 
@@ -113,24 +122,49 @@ mod tests {
     fn fixed_discount_never_exceeds_room_or_group_subtotal() {
         let shares = prorate_fixed_discount(dec("500"), &[dec("120"), dec("80")]);
         assert_eq!(shares, vec![dec("120"), dec("80")]);
-        assert_eq!(prorate_fixed_discount(dec("50"), &[]), Vec::<rust_decimal::Decimal>::new());
-        assert_eq!(prorate_fixed_discount(dec("50"), &[dec("0")]), vec![dec("0")]);
+        assert_eq!(
+            prorate_fixed_discount(dec("50"), &[]),
+            Vec::<rust_decimal::Decimal>::new()
+        );
+        assert_eq!(
+            prorate_fixed_discount(dec("50"), &[dec("0")]),
+            vec![dec("0")]
+        );
     }
 
     #[test]
     fn credits_default_to_cheapest_room_nights() {
         let d = |day| NaiveDate::from_ymd_opt(2026, 11, day).unwrap();
         let nights = [
-            RoomNight { room_index: 0, date: d(1), amount: dec("200") },
-            RoomNight { room_index: 0, date: d(2), amount: dec("250") },
-            RoomNight { room_index: 1, date: d(1), amount: dec("120") },
-            RoomNight { room_index: 1, date: d(2), amount: dec("150") },
+            RoomNight {
+                room_index: 0,
+                date: d(1),
+                amount: dec("200"),
+            },
+            RoomNight {
+                room_index: 0,
+                date: d(2),
+                amount: dec("250"),
+            },
+            RoomNight {
+                room_index: 1,
+                date: d(1),
+                amount: dec("120"),
+            },
+            RoomNight {
+                room_index: 1,
+                date: d(2),
+                amount: dec("150"),
+            },
         ];
         assert_eq!(
             default_credit_assignment(3, &nights, 2),
             vec![vec![d(1)], vec![d(1), d(2)]]
         );
-        assert_eq!(default_credit_assignment(0, &nights, 2), vec![vec![], vec![]]);
+        assert_eq!(
+            default_credit_assignment(0, &nights, 2),
+            vec![vec![], vec![]]
+        );
         assert_eq!(default_credit_assignment(9, &nights, 2).concat().len(), 4);
     }
 }

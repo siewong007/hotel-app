@@ -211,7 +211,10 @@ impl BookingGroupRepository {
         group_from_row(&row)
     }
 
-    pub async fn find_by_id(pool: &DbPool, group_id: i64) -> Result<Option<BookingGroup>, ApiError> {
+    pub async fn find_by_id(
+        pool: &DbPool,
+        group_id: i64,
+    ) -> Result<Option<BookingGroup>, ApiError> {
         let sql = format!("SELECT {GROUP_COLUMNS} FROM booking_groups WHERE id = $1");
         let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(group_id)
@@ -227,9 +230,8 @@ impl BookingGroupRepository {
         group_id: i64,
         guest_id: i64,
     ) -> Result<Option<BookingGroup>, ApiError> {
-        let sql = format!(
-            "SELECT {GROUP_COLUMNS} FROM booking_groups WHERE id = $1 AND guest_id = $2"
-        );
+        let sql =
+            format!("SELECT {GROUP_COLUMNS} FROM booking_groups WHERE id = $1 AND guest_id = $2");
         let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(group_id)
             .bind(guest_id)
@@ -255,7 +257,10 @@ impl BookingGroupRepository {
     }
 
     /// Member rooms in booking order, including voided ones (callers filter).
-    pub async fn members(pool: &DbPool, group_id: i64) -> Result<Vec<BookingGroupMember>, ApiError> {
+    pub async fn members(
+        pool: &DbPool,
+        group_id: i64,
+    ) -> Result<Vec<BookingGroupMember>, ApiError> {
         let rows = sqlx::query(
             r#"
             SELECT b.id, b.booking_number, b.room_id, r.room_number, r.room_type_id,

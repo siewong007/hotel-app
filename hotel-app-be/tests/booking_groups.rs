@@ -51,13 +51,14 @@ mod postgres_tests {
 
     async fn seed(tx: &mut Transaction<'_, Postgres>, suffix: u64) -> Seed {
         let tag = format!("{suffix:x}");
-        let guest_id: i64 =
-            sqlx::query_scalar("INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id")
-                .bind(format!("Group Guest {suffix}"))
-                .bind(format!("group-guest-{suffix}@hotel.test"))
-                .fetch_one(&mut **tx)
-                .await
-                .unwrap();
+        let guest_id: i64 = sqlx::query_scalar(
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
+        )
+        .bind(format!("Group Guest {suffix}"))
+        .bind(format!("group-guest-{suffix}@hotel.test"))
+        .fetch_one(&mut **tx)
+        .await
+        .unwrap();
         let mut room_type_ids = Vec::new();
         let mut room_ids = Vec::new();
         for (index, prefix) in ["X", "Y"].iter().enumerate() {
@@ -126,7 +127,11 @@ mod postgres_tests {
 
         BookingGroupRepository::lock_room_types_tx(
             &mut tx,
-            &[seed.room_type_ids[1], seed.room_type_ids[0], seed.room_type_ids[1]],
+            &[
+                seed.room_type_ids[1],
+                seed.room_type_ids[0],
+                seed.room_type_ids[1],
+            ],
         )
         .await
         .expect("locks every cart room type");
@@ -151,11 +156,33 @@ mod postgres_tests {
         assert_eq!(group.status, "active");
         assert_eq!(group.room_count, 0);
 
-        let a = insert_booking(&mut tx, seed.guest_id, seed.room_ids[0], format!("GA-{suffix:x}"), "200.00", "210.00", "unpaid").await;
-        let b = insert_booking(&mut tx, seed.guest_id, seed.room_ids[1], format!("GB-{suffix:x}"), "300.00", "310.00", "unpaid").await;
-        BookingGroupRepository::attach_tx(&mut tx, group.id, &[a, b]).await.unwrap();
+        let a = insert_booking(
+            &mut tx,
+            seed.guest_id,
+            seed.room_ids[0],
+            format!("GA-{suffix:x}"),
+            "200.00",
+            "210.00",
+            "unpaid",
+        )
+        .await;
+        let b = insert_booking(
+            &mut tx,
+            seed.guest_id,
+            seed.room_ids[1],
+            format!("GB-{suffix:x}"),
+            "300.00",
+            "310.00",
+            "unpaid",
+        )
+        .await;
+        BookingGroupRepository::attach_tx(&mut tx, group.id, &[a, b])
+            .await
+            .unwrap();
 
-        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id).await.unwrap();
+        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id)
+            .await
+            .unwrap();
         assert_eq!(group.room_count, 2);
         assert_eq!(group.subtotal, dec("500.00"));
         assert_eq!(group.discount_amount, dec("20.00"));
@@ -169,7 +196,9 @@ mod postgres_tests {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id).await.unwrap();
+        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id)
+            .await
+            .unwrap();
         assert_eq!(group.room_count, 1);
         assert_eq!(group.total_amount, dec("310.00"));
         assert_eq!(group.status, "active");
@@ -179,7 +208,9 @@ mod postgres_tests {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id).await.unwrap();
+        let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id)
+            .await
+            .unwrap();
         assert_eq!(group.room_count, 0);
         assert_eq!(group.status, "voided");
         assert_eq!(group.payment_status, "void");
@@ -224,8 +255,21 @@ mod postgres_tests {
         )
         .await
         .unwrap();
-        let foreign = insert_booking(&mut tx, other, seed.room_ids[0], format!("GF-{suffix:x}"), "200.00", "200.00", "unpaid").await;
-        assert!(BookingGroupRepository::attach_tx(&mut tx, group.id, &[foreign]).await.is_err());
+        let foreign = insert_booking(
+            &mut tx,
+            other,
+            seed.room_ids[0],
+            format!("GF-{suffix:x}"),
+            "200.00",
+            "200.00",
+            "unpaid",
+        )
+        .await;
+        assert!(
+            BookingGroupRepository::attach_tx(&mut tx, group.id, &[foreign])
+                .await
+                .is_err()
+        );
         tx.rollback().await.unwrap();
     }
 
