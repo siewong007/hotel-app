@@ -4,6 +4,7 @@ import { copy, fill } from '../content';
 import { CHAPTERS, type ChapterDef } from '../experience/Timeline';
 import { SITE, WEB_RATES } from '../config/site';
 import { regCardHtml } from './BookingPanel';
+import { filmViewport } from '../experience/viewport';
 
 const minRate = Math.min(...Object.values(WEB_RATES));
 
@@ -69,8 +70,8 @@ export class Chapters {
 
   /** Film length: ~15 screens on desktop, ~13 on phones. */
   layout(): void {
-    const vh = window.innerHeight;
-    const screens = window.innerWidth < 760 ? 13 : 15;
+    const { w: vw, h: vh } = filmViewport();
+    const screens = vw < 760 ? 13 : 15;
     this.scrollLength = Math.round(vh * screens);
     CHAPTERS.forEach((def: ChapterDef, i) => {
       const h = (def.p1 - def.p0) * this.scrollLength + (i === CHAPTERS.length - 1 ? vh : 0);
