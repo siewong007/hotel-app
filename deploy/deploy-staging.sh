@@ -85,6 +85,7 @@ required_payload=(
   database/patches/0022_audit_logs_append_only_guards.sql
   database/patches/0023_channel_settlement_methods.sql
   database/patches/0024_runtime_capabilities.sql
+  database/patches/0025_booking_groups.sql
   database/db-least-privilege.sql
 )
 for payload in "${required_payload[@]}"; do
@@ -341,6 +342,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0022_audit_logs_append_only_guards.sql" "$APP_DIR/database/patches/0022_audit_logs_append_only_guards.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0023_channel_settlement_methods.sql" "$APP_DIR/database/patches/0023_channel_settlement_methods.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0024_runtime_capabilities.sql" "$APP_DIR/database/patches/0024_runtime_capabilities.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0025_booking_groups.sql" "$APP_DIR/database/patches/0025_booking_groups.sql"
   install -m 0644 "$RELEASE_DIR/database/db-least-privilege.sql" "$APP_DIR/database/db-least-privilege.sql"
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
