@@ -31,7 +31,7 @@ import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayO
 import { useAvailabilitySocket } from './useAvailabilitySocket';
 import { findPrefilledOffer, parseBookingPrefill } from './prefill';
 import { guestErrorMessage } from '../utils/feedback';
-import { apiUrl } from '../../../desktop/runtimeApi';
+import { RoomMedia, ROOM_MEDIA_HEIGHT } from './RoomMedia';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { numberFormatter } from '../../../i18n/format';
 
@@ -50,7 +50,6 @@ function guestDetailsError(
   if (details.tourism_type !== 'local' && details.tourism_type !== 'foreign') return t('book.errors.tourismType');
   return null;
 }
-const FALLBACK_ROOM_IMAGE = 'linear-gradient(135deg, var(--hotel-surface-raised) 0%, var(--hotel-surface-sunken) 55%, var(--hotel-primary) 160%)';
 
 function money(amount: string | number, currency: string): string {
   const value = typeof amount === 'number' ? amount : Number(amount);
@@ -101,14 +100,6 @@ function readGuestNameTaken(error: unknown): boolean {
   if (!(error instanceof HTTPError) || error.response.status !== 409) return false;
   const body = (error as { data?: unknown }).data;
   return Boolean(body && typeof body === 'object' && (body as { code?: unknown }).code === 'guest_name_taken');
-}
-
-function offerImage(offer: GuestBookingOffer): string | null {
-  const raw = offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
-  // Uploaded photos are stored as relative /uploads/... paths; in the desktop
-  // webview they must resolve against the sidecar backend, not the page origin.
-  // Absolute URLs pass through untouched.
-  return raw?.startsWith('/') ? apiUrl(raw) : raw;
 }
 
 const PortalBookingPage: React.FC = () => {
@@ -505,12 +496,9 @@ function OfferCard({ offer, highlighted = false, disabled, onSelect }: { offer: 
   useEffect(() => {
     if (highlighted) cardRef.current?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
   }, [highlighted]);
-  const image = offerImage(offer);
-  const [imageFailed, setImageFailed] = useState(false);
-  const shouldShowImage = Boolean(image && !imageFailed);
   const roomsLabel = t('book.roomsLeft', { count: offer.available_rooms });
   return (
-    <Card ref={cardRef} component="article" variant="outlined" data-prefilled-room={highlighted ? 'true' : undefined} aria-label={highlighted ? `${t('book.yourSelection')}: ${offer.room_type_name}` : undefined} sx={{ height: '100%', overflow: 'hidden', ...(highlighted && { borderColor: 'primary.main', borderWidth: 2, boxShadow: '0 0 0 3px var(--hotel-primary-subtle)' }), transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={t('book.roomImageAlt', { name: offer.room_type_name })} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
+    <Card ref={cardRef} component="article" variant="outlined" data-prefilled-room={highlighted ? 'true' : undefined} aria-label={highlighted ? `${t('book.yourSelection')}: ${offer.room_type_name}` : undefined} sx={{ height: '100%', overflow: 'hidden', ...(highlighted && { borderColor: 'primary.main', borderWidth: 2, boxShadow: '0 0 0 3px var(--hotel-primary-subtle)' }), transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}><RoomMedia offer={offer} /><CardContent sx={{ display: 'flex', flexDirection: 'column', height: `calc(100% - ${ROOM_MEDIA_HEIGHT}px)` }}><Stack direction="row" spacing={2} sx={{
       justifyContent: "space-between"
     }}><Box>{highlighted && <Chip size="small" color="primary" icon={<CheckCircleIcon />} label={t('book.yourSelection')} sx={{ mb: 1 }} />}<Typography variant="h5" component="h3">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"

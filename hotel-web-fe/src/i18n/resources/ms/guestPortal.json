@@ -96,6 +96,16 @@
     "priceSummary": "Ringkasan harga",
     "retry": "Cuba lagi",
     "reviewStay": "Semak penginapan anda",
+    "media": {
+      "photo": "Foto",
+      "model": "Paparan 3D",
+      "viewAria": "Pilih cara melihat bilik ini",
+      "modelAlt": "Model 3D interaktif bilik {{name}}",
+      "dragHint": "Seret untuk melihat sekeliling",
+      "noWebgl": "Paparan 3D tidak disokong pada peranti ini.",
+      "previous": "Foto sebelumnya",
+      "next": "Foto seterusnya"
+    },
     "roomImageAlt": "Bilik {{name}}",
     "roomsLeft_other": "{{count}} bilik berbaki",
     "search": "Cari",
