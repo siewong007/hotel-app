@@ -14,6 +14,7 @@
   "questionsTitle": "對本文件有疑問嗎？",
   "consent": {
     "languageToggle": "法律聲明語言",
+    "languageHint": "可透過頁面頂端的地球圖示切換語言。",
     "requiredToContinue": "您需要同意此內容才能繼續。"
   }
 }

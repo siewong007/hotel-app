@@ -1,31 +1,18 @@
 import React from 'react';
-import { Box, Button, Container, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { cookieUsage, LEGAL_LOCALES, LEGAL_LOCALE_LABELS, localize, type LegalLocale } from '../content';
+import { Box, Button, Container, Paper, Stack, Typography } from '@mui/material';
+import { cookieUsage, localize } from '../content';
 import { useLegalLocale } from '../LegalLocaleContext';
 
 const CookieUsagePage: React.FC = () => {
-  const { locale, setLocale } = useLegalLocale();
+  const { locale } = useLegalLocale();
 
   return (
-    <Box sx={{ minHeight: '100vh', py: { xs: 4, sm: 8 }, bgcolor: 'background.default' }}>
+    <Box lang={locale} sx={{ minHeight: '100vh', py: { xs: 4, sm: 8 }, bgcolor: 'background.default' }}>
       <Container maxWidth="md">
         <Paper component="article" elevation={0} sx={{ p: { xs: 3, sm: 6 }, border: 1, borderColor: 'divider', borderRadius: 3 }}>
           <Stack spacing={4}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
               <Button href="/salim-inn/">Salim Inn</Button>
-              <ToggleButtonGroup
-                aria-label={localize(cookieUsage.languageLabel, locale)}
-                exclusive
-                size="small"
-                value={locale}
-                onChange={(_, value: LegalLocale | null) => value && setLocale(value)}
-              >
-                {LEGAL_LOCALES.map((code) => (
-                  <ToggleButton key={code} value={code} aria-label={LEGAL_LOCALE_LABELS[code]}>
-                    {LEGAL_LOCALE_LABELS[code]}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
             </Box>
             <Box>
               <Typography component="h1" variant="h3" sx={{ mb: 3 }}>

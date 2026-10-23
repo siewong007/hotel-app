@@ -14,6 +14,7 @@
   "questionsTitle": "Ada soalan tentang dokumen ini?",
   "consent": {
     "languageToggle": "Bahasa notis undang-undang",
+    "languageHint": "Tukar bahasa menggunakan ikon glob di bahagian atas halaman.",
     "requiredToContinue": "Anda perlu bersetuju dengan perkara ini untuk meneruskan."
   }
 }
