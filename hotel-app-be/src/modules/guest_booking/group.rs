@@ -1500,4 +1500,56 @@ mod tests {
         assert_eq!(extra_bed_total(2, charge, 3), "300.00".parse().unwrap());
         assert_eq!(extra_bed_total(0, charge, 3), Decimal::ZERO);
     }
+
+    fn voucher(kind: &str, value: i64, cap: Option<i64>) -> VoucherPricing {
+        VoucherPricing {
+            voucher_id: 1,
+            promotion_id: 1,
+            promotion_name: "Test".to_string(),
+            discount_type: kind.to_string(),
+            discount_value: Decimal::from(value),
+            max_discount_amount: cap.map(Decimal::from),
+            is_cancellable: true,
+        }
+    }
+
+    fn d(value: i64) -> Decimal {
+        Decimal::from(value)
+    }
+
+    #[test]
+    fn percentage_voucher_applies_to_each_room() {
+        let shares = group_voucher_shares(
+            &voucher("percentage", 10, None),
+            &[vec![d(100), d(100)], vec![d(300)]],
+        )
+        .unwrap();
+        assert_eq!(shares, vec![d(20), d(30)]);
+    }
+
+    #[test]
+    fn percentage_voucher_cap_is_group_wide() {
+        let shares = group_voucher_shares(
+            &voucher("percentage", 50, Some(100)),
+            &[vec![d(100)], vec![d(300)]],
+        )
+        .unwrap();
+        assert_eq!(shares.iter().copied().sum::<Decimal>(), d(100));
+        assert_eq!(shares, vec![d(25), d(75)]);
+    }
+
+    #[test]
+    fn fixed_voucher_applies_once_pro_rata() {
+        let shares =
+            group_voucher_shares(&voucher("fixed", 40, None), &[vec![d(100)], vec![d(300)]])
+                .unwrap();
+        assert_eq!(shares, vec![d(10), d(30)]);
+    }
+
+    #[test]
+    fn fixed_voucher_skips_fully_comped_rooms() {
+        let shares =
+            group_voucher_shares(&voucher("fixed", 40, None), &[vec![d(0)], vec![d(200)]]).unwrap();
+        assert_eq!(shares, vec![d(0), d(40)]);
+    }
 }
