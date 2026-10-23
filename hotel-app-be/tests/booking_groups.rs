@@ -400,6 +400,7 @@ mod postgres_tests {
                 check_out_date: check_out.clone(),
                 rooms: cart.clone(),
                 tourism_type: Some("local".to_string()),
+                discounts: Default::default(),
             },
         )
         .await

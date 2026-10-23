@@ -19,11 +19,14 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use super::availability::{AvailabilityEvent, AvailabilityHub};
+use super::models::VoucherPricing;
 use super::models::{
     AnonymousGuestDetails, BookingInsert, BookingQuoteRequest, GuestBookingConfirmation,
     GuestBookingQuote,
 };
-use super::repository::GuestBookingRepository as Repository;
+use super::repository::{
+    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionAllocation,
+};
 use super::service::{
     self, PORTAL_SOURCE, PortalBookingMail, channel_economics, portal_booking_mail,
     profile_incomplete_error,
@@ -36,6 +39,9 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::modules::booking_groups::MAX_ROOMS_PER_GUEST_BOOKING;
+use crate::modules::booking_groups::allocation::{
+    RoomNight, default_credit_assignment, prorate_fixed_discount,
+};
 use crate::modules::booking_groups::models::{BookingGroup, NewBookingGroup};
 use crate::modules::booking_groups::repository::BookingGroupRepository;
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
@@ -44,6 +50,9 @@ use crate::modules::consent::models::{ConsentAcceptance, ConsentDocument, Consen
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
 use crate::modules::profile::service::completion_for_guest;
+use crate::modules::promotions::pricing::{
+    PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
+};
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 
@@ -70,6 +79,41 @@ pub struct GroupQuoteRequest {
     /// to the profile.
     #[serde(default)]
     pub tourism_type: Option<String>,
+    #[serde(flatten)]
+    pub discounts: GroupDiscountRequest,
+}
+
+/// Account-only discounts for a cart. Anonymous carts must leave these empty.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct GroupDiscountRequest {
+    /// One voucher for the whole cart. Percentage vouchers discount every
+    /// eligible room independently; fixed-amount vouchers apply once and are
+    /// split across eligible rooms by their payable subtotal. Min-spend is
+    /// checked against the cart total.
+    #[serde(default)]
+    pub voucher_id: Option<i64>,
+    /// Spend complimentary-night credits. Without an explicit placement the
+    /// credits settle the cheapest room-nights first.
+    #[serde(default)]
+    pub use_credits: bool,
+    /// Explicit placement chosen by the guest (overrides the default).
+    #[serde(default)]
+    pub complimentary: Option<Vec<GroupCreditNight>>,
+}
+
+impl GroupDiscountRequest {
+    fn is_empty(&self) -> bool {
+        self.voucher_id.is_none()
+            && !self.use_credits
+            && self.complimentary.as_ref().is_none_or(Vec::is_empty)
+    }
+}
+
+/// One complimentary credit placed on one room-night.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct GroupCreditNight {
+    pub room_index: usize,
+    pub date: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -103,6 +147,8 @@ pub struct GuestGroupBookingRequest {
     pub smoking_preference: Option<String>,
     #[serde(default)]
     pub consents: Vec<ConsentAcceptance>,
+    #[serde(flatten)]
+    pub discounts: GroupDiscountRequest,
 }
 
 // --------------------------------------------------------------- responses
@@ -142,6 +188,20 @@ pub struct GroupQuote {
     /// What the guest pays for the whole cart.
     pub total_amount: Decimal,
     pub hold_release_hours: Option<i32>,
+    pub voucher_id: Option<i64>,
+    pub voucher_name: Option<String>,
+    pub voucher_discount: Decimal,
+    pub voucher_is_cancellable: Option<bool>,
+    pub complimentary_nights: i32,
+    pub complimentary_discount: Decimal,
+    /// Credits the guest holds per room type in the cart (signed-in only).
+    pub credits_available: Vec<GroupCreditBalance>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupCreditBalance {
+    pub room_type_id: i64,
+    pub nights_available: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -231,6 +291,11 @@ pub async fn quote_group(
     request: &GroupQuoteRequest,
 ) -> Result<GroupQuote, ApiError> {
     validate_cart_shape(&request.rooms)?;
+    if guest_id.is_none() && !request.discounts.is_empty() {
+        return Err(ApiError::BadRequest(
+            "Vouchers and complimentary nights require a signed-in account.".to_string(),
+        ));
+    }
     let stay = validate_stay(
         pool,
         &request.check_in_date,
@@ -309,6 +374,58 @@ pub async fn quote_group(
         });
     }
 
+    let mut credits_available = Vec::new();
+    let mut voucher_info: Option<VoucherPricing> = None;
+    let mut voucher_discount = Decimal::ZERO;
+    if let Some(guest_id) = guest_id {
+        for room_type_id in rooms_per_type(&request.rooms).into_keys() {
+            credits_available.push(GroupCreditBalance {
+                room_type_id,
+                nights_available: Repository::complimentary_credits_available(
+                    pool,
+                    guest_id,
+                    room_type_id,
+                )
+                .await?,
+            });
+        }
+        let placement = credit_placement(&rooms, &request.discounts, &credits_available)?;
+        if placement.iter().any(|dates| !dates.is_empty()) {
+            for (room, dates) in rooms.iter_mut().zip(&placement) {
+                if dates.is_empty() {
+                    continue;
+                }
+                room.quote = service::quote(
+                    pool,
+                    Some(guest_id),
+                    BookingQuoteRequest {
+                        room_type_id: room.quote.room_type_id,
+                        check_in_date: request.check_in_date.clone(),
+                        check_out_date: request.check_out_date.clone(),
+                        adults: Some(room.quote.adults),
+                        children: Some(room.quote.children),
+                        voucher_id: None,
+                        complimentary_dates: Some(
+                            dates.iter().map(|date| date.to_string()).collect(),
+                        ),
+                        tourism_type: None,
+                    },
+                )
+                .await
+                .map_err(|error| room_error(room.index, error))?;
+            }
+        }
+        if let Some(voucher_id) = request.discounts.voucher_id {
+            let (voucher, total) =
+                apply_group_voucher(pool, guest_id, voucher_id, stay, &mut rooms).await?;
+            voucher_info = Some(voucher);
+            voucher_discount = total;
+        }
+        for room in &mut rooms {
+            room.room_total = (room.quote.total_amount + room.extra_bed_charge).round_dp(2);
+        }
+    }
+
     let sum = |f: &dyn Fn(&GroupRoomQuote) -> Decimal| {
         rooms
             .iter()
@@ -331,9 +448,251 @@ pub async fn quote_group(
         extra_bed_charge: sum(&|room| room.extra_bed_charge),
         total_amount: sum(&|room| room.room_total),
         hold_release_hours: rooms.first().and_then(|room| room.quote.hold_release_hours),
+        voucher_id: voucher_info.as_ref().map(|voucher| voucher.voucher_id),
+        voucher_name: voucher_info
+            .as_ref()
+            .map(|voucher| voucher.promotion_name.clone()),
+        voucher_is_cancellable: voucher_info.as_ref().map(|voucher| voucher.is_cancellable),
+        voucher_discount,
+        complimentary_nights: rooms
+            .iter()
+            .map(|room| room.quote.complimentary_nights)
+            .sum(),
+        complimentary_discount: sum(&|room| room.quote.complimentary_discount),
+        credits_available,
         rooms,
         availability,
     })
+}
+
+/// Which dates each room spends a credit on (indexed like the cart).
+///
+/// One credit settles one room-night of its own room type. An explicit
+/// placement is validated against the stay and the per-type balance; with
+/// `use_credits` and no placement, each type's credits go to its cheapest
+/// room-nights first.
+fn credit_placement(
+    rooms: &[GroupRoomQuote],
+    discounts: &GroupDiscountRequest,
+    balances: &[GroupCreditBalance],
+) -> Result<Vec<Vec<NaiveDate>>, ApiError> {
+    let balance = |room_type_id: i64| {
+        balances
+            .iter()
+            .find(|b| b.room_type_id == room_type_id)
+            .map(|b| b.nights_available.max(0) as usize)
+            .unwrap_or(0)
+    };
+    let mut placement = vec![Vec::new(); rooms.len()];
+    if let Some(explicit) = discounts.complimentary.as_ref().filter(|v| !v.is_empty()) {
+        let mut used: BTreeMap<i64, usize> = BTreeMap::new();
+        for night in explicit {
+            let room = rooms.get(night.room_index).ok_or_else(|| {
+                ApiError::BadRequest("Complimentary night refers to an unknown room".to_string())
+            })?;
+            let date = NaiveDate::parse_from_str(night.date.trim(), "%Y-%m-%d").map_err(|_| {
+                ApiError::BadRequest("Invalid complimentary date. Use YYYY-MM-DD".to_string())
+            })?;
+            if !room
+                .quote
+                .nightly_rates
+                .iter()
+                .any(|rate| rate.date == date)
+            {
+                return Err(ApiError::BadRequest(format!(
+                    "Room {}: {date} is not a night of this stay",
+                    night.room_index + 1
+                )));
+            }
+            let dates: &mut Vec<NaiveDate> = &mut placement[night.room_index];
+            if dates.contains(&date) {
+                return Err(ApiError::BadRequest(format!(
+                    "Room {}: {date} was selected twice",
+                    night.room_index + 1
+                )));
+            }
+            dates.push(date);
+            *used.entry(room.quote.room_type_id).or_insert(0) += 1;
+        }
+        for (room_type_id, count) in used {
+            let available = balance(room_type_id);
+            if count > available {
+                return Err(ApiError::BadRequest(format!(
+                    "You have {available} complimentary night(s) for this room type but selected {count}"
+                )));
+            }
+        }
+    } else if discounts.use_credits {
+        for room_type_id in rooms_per_type_from_quotes(rooms).into_keys() {
+            let nights: Vec<RoomNight> = rooms
+                .iter()
+                .filter(|room| room.quote.room_type_id == room_type_id)
+                .flat_map(|room| {
+                    room.quote.nightly_rates.iter().map(move |rate| RoomNight {
+                        room_index: room.index,
+                        date: rate.date,
+                        amount: rate.amount,
+                    })
+                })
+                .collect();
+            let assigned = default_credit_assignment(balance(room_type_id), &nights, rooms.len());
+            for (index, dates) in assigned.into_iter().enumerate() {
+                if rooms[index].quote.room_type_id == room_type_id {
+                    placement[index].extend(dates);
+                }
+            }
+        }
+    }
+    for dates in &mut placement {
+        dates.sort_unstable();
+    }
+    Ok(placement)
+}
+
+fn rooms_per_type_from_quotes(rooms: &[GroupRoomQuote]) -> BTreeMap<i64, i64> {
+    let mut counts = BTreeMap::new();
+    for room in rooms {
+        *counts.entry(room.quote.room_type_id).or_insert(0) += 1;
+    }
+    counts
+}
+
+/// Payable per-night amounts for a room once its credits are spent.
+fn payable_nights(quote: &GuestBookingQuote) -> Vec<Decimal> {
+    quote
+        .nightly_rates
+        .iter()
+        .map(|rate| {
+            if quote.complimentary_dates.contains(&rate.date) {
+                Decimal::ZERO
+            } else {
+                rate.amount
+            }
+        })
+        .collect()
+}
+
+/// Split one voucher's discount across the cart (see `GroupDiscountRequest`)
+/// and fold each room's share into its quote. Returns the voucher and the
+/// cart-level voucher discount.
+async fn apply_group_voucher(
+    pool: &DbPool,
+    guest_id: i64,
+    voucher_id: i64,
+    stay: super::validation::ValidatedStay,
+    rooms: &mut [GroupRoomQuote],
+) -> Result<(VoucherPricing, Decimal), ApiError> {
+    let currency = rooms
+        .first()
+        .map(|room| room.quote.currency.clone())
+        .unwrap_or_default();
+    let group_subtotal: Decimal = rooms.iter().map(|room| room.quote.subtotal).sum();
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
+    let mut voucher: Option<VoucherPricing> = None;
+    let mut eligible_types = Vec::new();
+    for room_type_id in rooms_per_type_from_quotes(rooms).into_keys() {
+        match Repository::eligible_voucher(
+            pool,
+            voucher_id,
+            VoucherEligibilityQuery {
+                guest_id,
+                room_type_id,
+                check_in: stay.check_in_date,
+                check_out: stay.check_out_date,
+                nights: (stay.check_out_date - stay.check_in_date).num_days(),
+                subtotal: group_subtotal,
+                currency: &currency,
+                booking_channel_id,
+            },
+        )
+        .await
+        {
+            Ok(found) => {
+                eligible_types.push(room_type_id);
+                voucher = Some(found);
+            }
+            Err(ApiError::Conflict(_)) => {}
+            Err(other) => return Err(other),
+        }
+    }
+    let voucher = voucher.ok_or_else(|| {
+        ApiError::Conflict("This voucher is not eligible for the selected stay".to_string())
+    })?;
+    let payable: Vec<Vec<Decimal>> = rooms
+        .iter()
+        .map(|room| {
+            if eligible_types.contains(&room.quote.room_type_id) {
+                payable_nights(&room.quote)
+            } else {
+                vec![Decimal::ZERO; room.quote.nightly_rates.len()]
+            }
+        })
+        .collect();
+    let payable_subtotals: Vec<Decimal> = payable
+        .iter()
+        .map(|nights| nights.iter().copied().sum())
+        .collect();
+    let shares = group_voucher_shares(&voucher, &payable)?;
+    debug_assert_eq!(shares.len(), payable_subtotals.len());
+    let mut total = Decimal::ZERO;
+    for ((room, nights), share) in rooms.iter_mut().zip(&payable).zip(&shares) {
+        let pricing = engine(nights, PromotionDiscount::fixed(*share, None))?;
+        room.quote.discount_amount = (room.quote.discount_amount + pricing.discount).round_dp(2);
+        room.quote.total_amount = (room.quote.total_amount - pricing.discount).round_dp(2);
+        room.quote.voucher_id = Some(voucher.voucher_id);
+        room.quote.voucher_name = Some(voucher.promotion_name.clone());
+        room.quote.voucher_is_cancellable = Some(voucher.is_cancellable);
+        room.quote.voucher_pricing = Some(pricing.clone());
+        total += pricing.discount;
+    }
+    Ok((voucher, total.round_dp(2)))
+}
+
+fn engine(nights: &[Decimal], discount: PromotionDiscount) -> Result<PromotionPricing, ApiError> {
+    if nights.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A booking requires at least one night".to_string(),
+        ));
+    }
+    calculate_promotion_pricing(nights, discount, 2)
+        .map_err(|error| ApiError::Internal(format!("Voucher pricing failed: {error}")))
+}
+
+/// Per-room voucher discount for a cart (pure; `payable` is per room, per
+/// night, with ineligible rooms all zero).
+pub fn group_voucher_shares(
+    voucher: &VoucherPricing,
+    payable: &[Vec<Decimal>],
+) -> Result<Vec<Decimal>, ApiError> {
+    let subtotals: Vec<Decimal> = payable
+        .iter()
+        .map(|nights| nights.iter().copied().sum())
+        .collect();
+    if voucher.discount_type == "percentage" {
+        let mut per_room = Vec::new();
+        for nights in payable {
+            per_room.push(if nights.iter().all(|n| n.is_zero()) {
+                Decimal::ZERO
+            } else {
+                engine(
+                    nights,
+                    PromotionDiscount::percentage(voucher.discount_value, None),
+                )?
+                .discount
+            });
+        }
+        let total: Decimal = per_room.iter().copied().sum();
+        Ok(match voucher.max_discount_amount {
+            Some(cap) if total > cap => prorate_fixed_discount(cap, &per_room),
+            _ => per_room,
+        })
+    } else {
+        let amount = match voucher.max_discount_amount {
+            Some(cap) => voucher.discount_value.min(cap),
+            None => voucher.discount_value,
+        };
+        Ok(prorate_fixed_discount(amount, &subtotals))
+    }
 }
 
 fn room_error(index: usize, error: ApiError) -> ApiError {
@@ -364,6 +723,7 @@ struct GroupCreate<'a> {
     cleaning_preference: Option<bool>,
     smoking_preference: Option<&'a str>,
     consents: &'a [ConsentAcceptance],
+    discounts: GroupDiscountRequest,
     ip_address: Option<String>,
     user_agent: Option<String>,
 }
@@ -405,6 +765,7 @@ async fn create_group_inner(
             check_out_date: input.check_out_date.to_string(),
             rooms: input.rooms.to_vec(),
             tourism_type,
+            discounts: input.discounts.clone(),
         },
     )
     .await?;
@@ -472,7 +833,7 @@ async fn create_group_inner(
             check_out_date: group_quote.check_out_date,
             source: PORTAL_SOURCE.to_string(),
             currency: group_quote.currency.clone(),
-            voucher_id: None,
+            voucher_id: group_quote.voucher_id,
             hold_expires_at,
             portal_request_id: Some(input.request_id.clone()),
             created_by: actor_user_id,
@@ -542,8 +903,8 @@ async fn create_group_inner(
             internal_notes: preference_note.clone(),
             booking_channel_id,
             nightly_rates: daily_rates,
-            complimentary_reason: None,
-            settled_by_credits: false,
+            complimentary_reason: complimentary_reason(quote),
+            settled_by_credits: room_settled_by_credits(room),
             is_tourist: quote.tax_amount > Decimal::ZERO,
             tourism_tax_amount: quote.tax_amount,
             commission_amount,
@@ -567,7 +928,11 @@ async fn create_group_inner(
             &mut tx,
             booking_id,
             None,
-            "pending_payment",
+            if room_settled_by_credits(room) {
+                "confirmed"
+            } else {
+                "pending_payment"
+            },
             actor_user_id,
             Some(
                 "Booking created in guest portal as part of a multi-room booking (pending payment)",
@@ -604,6 +969,7 @@ async fn create_group_inner(
         booking_ids.push(booking_id);
     }
     BookingGroupRepository::attach_tx(&mut tx, group.id, &booking_ids).await?;
+    redeem_group_discounts_tx(&mut tx, guest_id, actor_user_id, &group_quote, &booking_ids).await?;
     let group = BookingGroupRepository::refresh_totals_tx(&mut tx, group.id).await?;
 
     let lead_booking_id = booking_ids[0];
@@ -702,6 +1068,157 @@ async fn create_group_inner(
         confirmation.access_token_expires_at = Some(expires_at);
     }
     Ok(confirmation)
+}
+
+fn complimentary_reason(quote: &GuestBookingQuote) -> Option<String> {
+    (quote.complimentary_nights > 0).then(|| {
+        let dates = quote
+            .complimentary_dates
+            .iter()
+            .map(|date| date.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "Guest portal (multi-room): {} of {} night(s) funded by complimentary credits for {} (dates: {})",
+            quote.complimentary_nights,
+            quote.nightly_rates.len(),
+            quote.room_type_name,
+            dates
+        )
+    })
+}
+
+/// A room whose every payable cent was settled by credits is confirmed at
+/// once, exactly like a fully comped single-room booking.
+fn room_settled_by_credits(room: &GroupRoomQuote) -> bool {
+    room.quote.complimentary_nights > 0 && room.room_total <= Decimal::ZERO
+}
+
+/// Spend the cart's credits (per room type) and its voucher.
+///
+/// A voucher redeems once: one `voucher_redemptions` row on the lead room's
+/// booking carrying the cart totals, with one allocation per room-night on the
+/// booking that night belongs to — so each room's share stays traceable for a
+/// later single-room cancellation.
+async fn redeem_group_discounts_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    guest_id: i64,
+    actor_user_id: Option<i64>,
+    quote: &GroupQuote,
+    booking_ids: &[i64],
+) -> Result<(), ApiError> {
+    let mut credits: BTreeMap<i64, i32> = BTreeMap::new();
+    for room in &quote.rooms {
+        if room.quote.complimentary_nights > 0 {
+            *credits.entry(room.quote.room_type_id).or_insert(0) += room.quote.complimentary_nights;
+        }
+    }
+    for (room_type_id, nights) in credits {
+        Repository::redeem_complimentary_credits_tx(tx, guest_id, room_type_id, nights).await?;
+    }
+
+    let Some(voucher_id) = quote.voucher_id else {
+        return Ok(());
+    };
+    let first = quote
+        .rooms
+        .iter()
+        .find(|room| room.quote.voucher_pricing.is_some())
+        .ok_or_else(|| ApiError::Internal("Voucher quote lost its pricing".to_string()))?;
+    let promotion: (i64, String, Decimal) = sqlx::query_as(
+        "SELECT p.id, p.discount_type, p.discount_value FROM vouchers v \
+         JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1",
+    )
+    .bind(voucher_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(ApiError::from)?;
+    let updated = sqlx::query(
+        "UPDATE vouchers SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP, \
+         updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND guest_id = $2 AND status = 'available'",
+    )
+    .bind(voucher_id)
+    .bind(guest_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(ApiError::from)?
+    .rows_affected();
+    if updated != 1 {
+        return Err(ApiError::Conflict(
+            "This voucher was already used".to_string(),
+        ));
+    }
+    let mut allocations: Vec<(i64, VoucherRedemptionAllocation)> = Vec::new();
+    for (room, booking_id) in quote.rooms.iter().zip(booking_ids) {
+        for (index, rate) in room.quote.nightly_rates.iter().enumerate() {
+            let credit = if room.quote.complimentary_dates.contains(&rate.date) {
+                rate.amount
+            } else {
+                Decimal::ZERO
+            };
+            let voucher_share = room
+                .quote
+                .voucher_pricing
+                .as_ref()
+                .and_then(|pricing| pricing.nights.get(index))
+                .map(|night| night.discount)
+                .unwrap_or(Decimal::ZERO);
+            let discount_amount = (credit + voucher_share).min(rate.amount);
+            allocations.push((
+                *booking_id,
+                VoucherRedemptionAllocation {
+                    stay_date: rate.date,
+                    gross_amount: rate.amount,
+                    discount_amount,
+                    net_amount: rate.amount - discount_amount,
+                },
+            ));
+        }
+    }
+    let gross: Decimal = allocations.iter().map(|(_, a)| a.gross_amount).sum();
+    let discount: Decimal = allocations.iter().map(|(_, a)| a.discount_amount).sum();
+    let lead_booking_id = booking_ids[first.index.min(booking_ids.len() - 1)];
+    let redemption_id: i64 = sqlx::query_scalar(
+        r#"
+        INSERT INTO voucher_redemptions (
+            voucher_id, promotion_id, booking_id, guest_id, status,
+            gross_subtotal, discount_type, discount_value,
+            discount_amount, net_total, applied_by
+        ) VALUES ($1, $2, $3, $4, 'applied', $5, $6, $7, $8, $9, $10)
+        RETURNING id
+        "#,
+    )
+    .bind(voucher_id)
+    .bind(promotion.0)
+    .bind(lead_booking_id)
+    .bind(guest_id)
+    .bind(gross)
+    .bind(&promotion.1)
+    .bind(promotion.2)
+    .bind(discount)
+    .bind(gross - discount)
+    .bind(actor_user_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(ApiError::from)?;
+    let mut builder = sqlx::QueryBuilder::new(
+        "INSERT INTO voucher_redemption_allocations \
+         (redemption_id, booking_id, stay_date, gross_amount, discount_amount, net_amount) ",
+    );
+    builder.push_values(allocations.iter(), |mut row, (booking_id, allocation)| {
+        row.push_bind(redemption_id)
+            .push_bind(*booking_id)
+            .push_bind(allocation.stay_date)
+            .push_bind(allocation.gross_amount)
+            .push_bind(allocation.discount_amount)
+            .push_bind(allocation.net_amount);
+    });
+    builder
+        .build()
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+    Ok(())
 }
 
 /// "2 × Deluxe, 1 × Suite" — the room line of the confirmation email.
@@ -823,6 +1340,7 @@ pub async fn create_for_guest(
             cleaning_preference: request.cleaning_preference,
             smoking_preference: request.smoking_preference.as_deref(),
             consents: &request.consents,
+            discounts: request.discounts.clone(),
             ip_address,
             user_agent,
         },
@@ -894,6 +1412,7 @@ pub async fn create_anonymous(
             cleaning_preference: request.cleaning_preference,
             smoking_preference: request.smoking_preference.as_deref(),
             consents: &request.consents,
+            discounts: GroupDiscountRequest::default(),
             ip_address: ip_address.clone(),
             user_agent: user_agent.clone(),
         },
