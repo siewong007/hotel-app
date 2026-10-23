@@ -1,6 +1,7 @@
 //! Authenticated guest-portal room search and direct booking.
 
 pub mod availability;
+pub mod group;
 pub mod handlers;
 pub mod models;
 pub mod repository;

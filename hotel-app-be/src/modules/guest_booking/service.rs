@@ -39,7 +39,7 @@ use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
 use crate::utils::sanitization::Sanitizer;
 
-const PORTAL_SOURCE: &str = "website";
+pub(super) const PORTAL_SOURCE: &str = "website";
 
 /// Minimum life of an anonymous booking's access token.
 const ANONYMOUS_ACCESS_TOKEN_DAYS: i64 = 14;
@@ -71,7 +71,7 @@ fn tourism_tax_for_type(tourism_type: &str, nights: i64, rate: Decimal) -> Decim
     rate * Decimal::from(nights.max(1))
 }
 
-fn is_foreign_tourist(tourism_type: &str) -> bool {
+pub(super) fn is_foreign_tourist(tourism_type: &str) -> bool {
     tourism_type.eq_ignore_ascii_case("foreign")
 }
 
@@ -683,7 +683,7 @@ pub const MAX_ONLINE_INVENTORY_SPAN_DAYS: i64 = 30;
 /// commission on the room revenue actually charged (post-credit, post-voucher,
 /// before tourism tax) and the hotel's estimated net revenue. The snapshot is
 /// frozen at booking write time — later channel edits never rewrite it.
-async fn channel_economics(
+pub(super) async fn channel_economics(
     pool: &DbPool,
     channel_id: Option<i64>,
     quote: &GuestBookingQuote,
@@ -1170,7 +1170,7 @@ pub async fn bulk_update_online_inventory(
 
 /// Maps an incomplete profile-completion verdict into the 422 the booking
 /// guard returns, carrying the missing field names for the client.
-fn profile_incomplete_error(completion: ProfileCompletion) -> ApiError {
+pub(super) fn profile_incomplete_error(completion: ProfileCompletion) -> ApiError {
     ApiError::ProfileIncomplete(
         completion
             .missing_fields
@@ -1785,24 +1785,24 @@ fn money_label(currency: &str, amount: Decimal) -> String {
     }
 }
 
-struct PortalBookingMail<'a> {
-    guest_name: &'a str,
-    booking_number: &'a str,
-    room_type_name: &'a str,
-    check_in: NaiveDate,
-    check_out: NaiveDate,
-    currency: &'a str,
-    total: Decimal,
-    settled_by_credits: bool,
-    anonymous: bool,
+pub(super) struct PortalBookingMail<'a> {
+    pub(super) guest_name: &'a str,
+    pub(super) booking_number: &'a str,
+    pub(super) room_type_name: &'a str,
+    pub(super) check_in: NaiveDate,
+    pub(super) check_out: NaiveDate,
+    pub(super) currency: &'a str,
+    pub(super) total: Decimal,
+    pub(super) settled_by_credits: bool,
+    pub(super) anonymous: bool,
     /// Booking access token for anonymous pending-payment deep links.
     /// Logged-in portal bookings leave this `None`.
-    access_token: Option<&'a str>,
+    pub(super) access_token: Option<&'a str>,
     /// Resolved from the guest's `language_preference` chain by the caller.
-    locale: crate::core::i18n::Locale,
+    pub(super) locale: crate::core::i18n::Locale,
 }
 
-fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) {
+pub(super) fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) {
     let PortalBookingMail {
         guest_name,
         booking_number,

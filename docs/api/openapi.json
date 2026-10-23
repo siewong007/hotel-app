@@ -311,6 +311,12 @@
       "GET": {},
       "POST": {}
     },
+    "/api/booking/group-quote": {
+      "POST": {}
+    },
+    "/api/booking/group-reservations": {
+      "POST": {}
+    },
     "/api/booking/offers": {
       "GET": {}
     },
@@ -559,6 +565,15 @@
       "GET": {}
     },
     "/api/guest-portal/me/benefits": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/booking-group-quote": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/booking-groups": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/booking-groups/{id}": {
       "GET": {}
     },
     "/api/guest-portal/me/booking-options": {

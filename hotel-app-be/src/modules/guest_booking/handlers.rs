@@ -328,3 +328,127 @@ mod tests {
         assert_eq!(websocket_token(&headers), Some("abc123"));
     }
 }
+
+// ------------------------------------------------------- multi-room carts
+
+use super::group::{
+    AnonymousGroupBookingRequest, GroupBookingConfirmation, GroupQuote, GroupQuoteRequest,
+    GuestGroupBookingRequest,
+};
+
+/// `POST /booking/group-quote` — price a multi-room cart, no account needed.
+pub async fn public_group_quote_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<GroupQuoteRequest>,
+) -> Result<Json<GroupQuote>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_read_ip, ip, "booking quotes").await?;
+    Ok(Json(
+        super::group::quote_group(&pool, None, &request).await?,
+    ))
+}
+
+/// `POST /booking/group-reservations` — book several rooms without an account.
+pub async fn public_create_group_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<AvailabilityHub>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<AnonymousGroupBookingRequest>,
+) -> Result<Json<GroupBookingConfirmation>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_create_ip, ip, "booking attempts").await?;
+    Ok(Json(
+        super::group::create_anonymous(
+            &pool,
+            &hub,
+            request,
+            Some(ip.to_string()),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
+}
+
+/// `POST /guest-portal/me/booking-group-quote` — signed-in cart quote.
+pub async fn group_quote_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(request): Json<GroupQuoteRequest>,
+) -> Result<Json<GroupQuote>, ApiError> {
+    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
+    // The profile decides tourism tax for a signed-in guest.
+    let request = GroupQuoteRequest {
+        tourism_type: None,
+        ..request
+    };
+    Ok(Json(
+        super::group::quote_group(&pool, Some(guest_id), &request).await?,
+    ))
+}
+
+/// `POST /guest-portal/me/booking-groups` — signed-in multi-room checkout.
+pub async fn create_group_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<AvailabilityHub>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<GuestGroupBookingRequest>,
+) -> Result<Json<GroupBookingConfirmation>, ApiError> {
+    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    let (ip_allowed, ip_retry_after) = limiters
+        .guest_portal_booking_create_ip
+        .check_with_retry(ip)
+        .await;
+    if !ip_allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many booking attempts from this connection. Please try again in {ip_retry_after} seconds."
+            ),
+            ip_retry_after,
+        ));
+    }
+    let (allowed, retry_after) = limiters
+        .guest_portal_booking_create
+        .check_with_retry(format!("guest:{guest_id}"))
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many booking attempts. Please try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+    Ok(Json(
+        super::group::create_for_guest(
+            &pool,
+            &hub,
+            guest_id,
+            request,
+            Some(ip.to_string()),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
+}
+
+/// `GET /guest-portal/me/booking-groups/{id}` — one of the guest's own groups.
+pub async fn get_group_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    axum::extract::Path(group_id): axum::extract::Path<i64>,
+) -> Result<Json<GroupBookingConfirmation>, ApiError> {
+    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
+    Ok(Json(
+        super::group::get_for_guest(&pool, guest_id, group_id).await?,
+    ))
+}
