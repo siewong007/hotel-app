@@ -525,6 +525,9 @@
     "/api/guest-portal/booking": {
       "GET": {}
     },
+    "/api/guest-portal/booking/group-payments/bank-transfer": {
+      "POST": {}
+    },
     "/api/guest-portal/booking/payments/bank-transfer": {
       "POST": {}
     },
@@ -575,6 +578,9 @@
     },
     "/api/guest-portal/me/booking-groups/{id}": {
       "GET": {}
+    },
+    "/api/guest-portal/me/booking-groups/{id}/payments/bank-transfer": {
+      "POST": {}
     },
     "/api/guest-portal/me/booking-options": {
       "GET": {}
