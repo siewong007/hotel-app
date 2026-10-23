@@ -104,13 +104,14 @@ const RoomModel3D: React.FC<Props> = ({ code, height, label, hint, unsupported }
     let visible = true;
     const io = new IntersectionObserver(([e]) => { visible = Boolean(e?.isIntersecting); });
     io.observe(host);
-    const clock = new THREE.Clock();
+    const timer = new THREE.Timer();
     const tick = () => {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
       if (!visible || document.hidden) return;
       controls.update();
-      room.update(clock.getDelta());
+      timer.update();
+      room.update(timer.getDelta());
       room.group.worldToLocal(local.copy(camera.position));
       room.cutawayFor(local);
       renderer.render(scene, camera);
@@ -124,6 +125,7 @@ const RoomModel3D: React.FC<Props> = ({ code, height, label, hint, unsupported }
       ro.disconnect();
       io.disconnect();
       controls.dispose();
+      timer.dispose();
       dispose(scene);
       renderer.dispose();
       renderer.forceContextLoss();

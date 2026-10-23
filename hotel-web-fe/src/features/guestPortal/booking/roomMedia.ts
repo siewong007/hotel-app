@@ -26,11 +26,12 @@ export function modelCodeFor(code: string | null | undefined): ModelCode | null 
 
 /** Uploaded photos first (relative /uploads paths resolve against the API —
  *  the desktop sidecar in the webview); else the bundled landing photo. */
-export function offerPhotos(offer: Pick<GuestBookingOffer, 'images' | 'room_type_code'>): { urls: string[]; uploaded: boolean } {
+export function offerPhotos(offer: Pick<GuestBookingOffer, 'images' | 'room_type_code'>): { urls: string[]; uploaded: boolean; bundled: string | null } {
   const uploaded = (offer.images ?? [])
     .filter((image): image is string => typeof image === 'string' && image.trim().length > 0)
     .map((raw) => (raw.startsWith('/') ? apiUrl(raw) : raw));
-  if (uploaded.length > 0) return { urls: uploaded, uploaded: true };
   const code = modelCodeFor(offer.room_type_code);
-  return { urls: code ? [BUNDLED_PHOTOS[code]] : [], uploaded: false };
+  const bundled = code ? BUNDLED_PHOTOS[code] : null;
+  if (uploaded.length > 0) return { urls: uploaded, uploaded: true, bundled };
+  return { urls: bundled ? [bundled] : [], uploaded: false, bundled };
 }

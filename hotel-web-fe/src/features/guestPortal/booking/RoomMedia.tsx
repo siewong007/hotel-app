@@ -16,11 +16,13 @@ const FALLBACK = 'linear-gradient(135deg, var(--hotel-surface-raised) 0%, var(--
 
 export function RoomMedia({ offer }: { offer: GuestBookingOffer }) {
   const { t } = useTranslation('guestPortal');
-  const { urls } = offerPhotos(offer);
+  const { urls, bundled } = offerPhotos(offer);
   const modelCode = modelCodeFor(offer.room_type_code);
   const [view, setView] = useState<'photo' | '3d'>('photo');
   const [failed, setFailed] = useState<ReadonlySet<string>>(new Set());
-  const photos = urls.filter((u) => !failed.has(u));
+  const working = urls.filter((u) => !failed.has(u));
+  // every uploaded photo broken: the bundled landing photo, then the placeholder
+  const photos = working.length > 0 ? working : bundled && !failed.has(bundled) ? [bundled] : [];
   const [index, setIndex] = useState(0);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const current = Math.min(index, Math.max(0, photos.length - 1));
