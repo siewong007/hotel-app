@@ -263,7 +263,7 @@ pub async fn quote_group(
         )));
     }
 
-    let mut rooms = Vec::with_capacity(request.rooms.len());
+    let mut rooms = Vec::new();
     for (index, room) in request.rooms.iter().enumerate() {
         let quote = service::quote(
             pool,
@@ -420,7 +420,7 @@ async fn create_group_inner(
         .map(Sanitizer::sanitize_notes)
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let mut economics = Vec::with_capacity(group_quote.rooms.len());
+    let mut economics = Vec::new();
     for room in &group_quote.rooms {
         economics.push(channel_economics(pool, booking_channel_id, &room.quote).await?);
     }
@@ -480,7 +480,7 @@ async fn create_group_inner(
     )
     .await?;
 
-    let mut booking_ids = Vec::with_capacity(group_quote.rooms.len());
+    let mut booking_ids = Vec::new();
     for (room, (commission_amount, net_revenue, snapshot)) in
         group_quote.rooms.iter().zip(economics)
     {
@@ -734,7 +734,7 @@ async fn confirmation_for(
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-    let mut rooms = Vec::with_capacity(ids.len());
+    let mut rooms = Vec::new();
     for id in ids {
         rooms.push(Repository::confirmation_by_id(pool, id).await?);
     }
