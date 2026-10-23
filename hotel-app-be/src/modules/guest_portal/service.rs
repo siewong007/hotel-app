@@ -934,6 +934,71 @@ pub async fn session_bank_transfer(
     crate::modules::payments::service::create_bank_transfer_claim(pool, &booking).await
 }
 
+/// One bank-transfer claim covering every unpaid room of the guest's group.
+pub async fn session_group_bank_transfer(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
+) -> Result<crate::modules::payments::service::GroupPaymentActionResponse, ApiError> {
+    let lead = group_lead_booking(pool, group_id, guest_id).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(guest_id).with_booking(lead),
+        consents,
+        context,
+    )
+    .await?;
+    crate::modules::payments::service::create_group_bank_transfer_claim(pool, guest_id, group_id)
+        .await
+}
+
+/// Token variant: any room's booking token pays for its whole group.
+pub async fn token_group_bank_transfer(
+    pool: &DbPool,
+    token: &str,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
+) -> Result<crate::modules::payments::service::GroupPaymentActionResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    let group_id: Option<i64> =
+        sqlx::query_scalar("SELECT booking_group_id FROM bookings WHERE id = $1")
+            .bind(booking.id)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+    let group_id = group_id.ok_or_else(|| {
+        ApiError::BadRequest("This booking is not part of a multi-room booking.".to_string())
+    })?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(booking.guest_id).with_booking(booking.id),
+        consents,
+        context,
+    )
+    .await?;
+    crate::modules::payments::service::create_group_bank_transfer_claim(
+        pool,
+        booking.guest_id,
+        group_id,
+    )
+    .await
+}
+
+async fn group_lead_booking(pool: &DbPool, group_id: i64, guest_id: i64) -> Result<i64, ApiError> {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT b.id FROM bookings b JOIN booking_groups g ON g.id = b.booking_group_id \
+         WHERE g.id = $1 AND g.guest_id = $2 ORDER BY b.id LIMIT 1",
+    )
+    .bind(group_id)
+    .bind(guest_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(ApiError::from)?
+    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))
+}
+
 pub async fn session_upload_payment_receipt(
     pool: &DbPool,
     guest_id: i64,

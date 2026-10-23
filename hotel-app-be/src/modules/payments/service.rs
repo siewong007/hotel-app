@@ -2253,6 +2253,23 @@ pub async fn approve_payment(
     )
     .await?;
 
+    // A group claim is approved once: its sibling room payments follow.
+    if let Some(reference) = group_payment_ref(pool, payment_id).await? {
+        for (sibling_id, sibling_booking) in
+            pending_group_siblings(pool, &reference, payment_id).await?
+        {
+            complete_and_confirm(
+                pool,
+                sibling_id,
+                sibling_booking,
+                Some(actor_user_id),
+                "payment_approved",
+            )
+            .await?;
+        }
+        refresh_group_for_booking(pool, review.booking_id).await;
+    }
+
     // Guest-facing confirmation that staff accepted the payment and the
     // booking is confirmed. Best-effort and post-commit: a mail failure must
     // not undo an approval that has already been committed. The online
@@ -2757,7 +2774,23 @@ pub async fn reject_payment(
     payment_id: i64,
     reason: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
-    reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await
+    let reference = group_payment_ref(pool, payment_id).await?;
+    let response = reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await?;
+    if let Some(reference) = reference {
+        for (sibling_id, _) in pending_group_siblings(pool, &reference, payment_id).await? {
+            reject_payment_by(pool, Some(actor_user_id), sibling_id, reason).await?;
+        }
+        refresh_group_for_booking(pool, response_booking(pool, payment_id).await?).await;
+    }
+    Ok(response)
+}
+
+async fn response_booking(pool: &DbPool, payment_id: i64) -> Result<i64, ApiError> {
+    sqlx::query_scalar("SELECT booking_id FROM payments WHERE id = $1")
+        .bind(payment_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
 }
 
 /// Reject overdue receipt requests without attributing the automated decision
@@ -3272,4 +3305,207 @@ mod paypal_expiry_tests {
             "A PayPal payment for this booking is already pending. Please wait up to 10 minutes before trying again."
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-room groups: one bank-transfer claim and one approval per group.
+// ---------------------------------------------------------------------------
+
+/// Result of a group bank-transfer claim: one pending payment per room, tied
+/// together by `payments.metadata.group_payment_ref`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GroupPaymentActionResponse {
+    pub booking_group_id: i64,
+    pub group_payment_ref: String,
+    pub payment_ids: Vec<i64>,
+    pub amount: Decimal,
+    pub status: String,
+}
+
+/// The group a payment belongs to, if it was made as part of a group claim.
+async fn group_payment_ref(pool: &DbPool, payment_id: i64) -> Result<Option<String>, ApiError> {
+    sqlx::query_scalar::<_, Option<String>>(
+        "SELECT metadata->>'group_payment_ref' FROM payments WHERE id = $1",
+    )
+    .bind(payment_id)
+    .fetch_optional(pool)
+    .await
+    .map(Option::flatten)
+    .map_err(ApiError::from)
+}
+
+/// The other still-pending payments of the same group claim.
+async fn pending_group_siblings(
+    pool: &DbPool,
+    reference: &str,
+    payment_id: i64,
+) -> Result<Vec<(i64, i64)>, ApiError> {
+    sqlx::query_as(
+        "SELECT id, booking_id FROM payments \
+         WHERE metadata->>'group_payment_ref' = $1 AND id <> $2 AND status = 'pending' \
+         ORDER BY booking_id",
+    )
+    .bind(reference)
+    .bind(payment_id)
+    .fetch_all(pool)
+    .await
+    .map_err(ApiError::from)
+}
+
+async fn refresh_group_for_booking(pool: &DbPool, booking_id: i64) {
+    let group_id: Option<i64> =
+        sqlx::query_scalar("SELECT booking_group_id FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+    let Some(group_id) = group_id else { return };
+    let result = async {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+        crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+        tx.commit().await.map_err(ApiError::from)
+    }
+    .await;
+    if let Err(error) = result {
+        log::warn!("Failed to refresh booking group {group_id} totals: {error}");
+    }
+}
+
+/// Guest action: one bank-transfer claim for every unpaid room of a group.
+///
+/// All rooms move to `pending_confirmation` together in one transaction; each
+/// gets its own pending payment for its own payable amount (so ledgers and a
+/// later single-room refund stay per booking), and staff review the claim once.
+pub async fn create_group_bank_transfer_claim(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+) -> Result<GroupPaymentActionResponse, ApiError> {
+    use crate::modules::booking_groups::repository::BookingGroupRepository;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let group = BookingGroupRepository::lock_tx(&mut tx, group_id).await?;
+    if group.guest_id != guest_id {
+        return Err(ApiError::NotFound("Booking not found".to_string()));
+    }
+    let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
+        "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
+         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' ORDER BY id",
+    )
+    .bind(group_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(ApiError::from)?;
+    let payable: Vec<_> = members
+        .into_iter()
+        .filter(|(_, _, _, total, _)| *total > Decimal::ZERO)
+        .collect();
+    if payable.is_empty() {
+        return Err(ApiError::BadRequest(
+            "This booking has nothing left to pay.".to_string(),
+        ));
+    }
+
+    let reference = uuid::Uuid::new_v4().to_string();
+    let method = PaymentMethod::BankTransfer.to_string();
+    let mut payment_ids = Vec::new();
+    let mut amount = Decimal::ZERO;
+    for (booking_id, booking_number, status, total, currency) in &payable {
+        PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
+        ensure_booking_awaiting_payment(status).map_err(|_| {
+            ApiError::Conflict(format!(
+                "Room booking {booking_number} is no longer awaiting payment."
+            ))
+        })?;
+        ensure_no_active_booking_payment_tx(&mut tx, *booking_id).await?;
+        super::settlement_lock::enforce_payment(&mut *tx, *booking_id, "booking", &method).await?;
+        let currency = currency
+            .as_deref()
+            .filter(|c| !c.trim().is_empty())
+            .unwrap_or(DEFAULT_CURRENCY);
+        let payment_id = PaymentRepository::insert_pending_payment_tx(
+            &mut tx,
+            PendingPaymentValues {
+                booking_id: *booking_id,
+                guest_id,
+                amount: *total,
+                currency,
+                payment_method: &method,
+                payment_gateway: None,
+                gateway_order_id: None,
+                description: Some(
+                    "Guest-submitted bank transfer claim for a multi-room booking (pending staff review)",
+                ),
+                created_by: None,
+            },
+        )
+        .await?;
+        sqlx::query(
+            "UPDATE payments SET metadata = COALESCE(metadata, '{}'::jsonb) || \
+             jsonb_build_object('booking_group_id', $2::bigint, 'group_payment_ref', $3::text, \
+             'group_number', $4::text) WHERE id = $1",
+        )
+        .bind(payment_id)
+        .bind(group_id)
+        .bind(&reference)
+        .bind(&group.group_number)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        if crate::modules::bookings::move_booking_to_pending_confirmation_tx(&mut tx, *booking_id)
+            .await?
+        {
+            crate::modules::bookings::record_booking_history_tx(
+                &mut tx,
+                *booking_id,
+                Some(status),
+                "pending_confirmation",
+                None,
+                Some("Bank transfer submitted for staff confirmation (multi-room booking)"),
+                serde_json::json!({ "payment_id": payment_id, "booking_group_id": group_id }),
+            )
+            .await?;
+        }
+        payment_ids.push(payment_id);
+        amount += *total;
+    }
+
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: None,
+            action: "payment_pending_approval",
+            resource_type: "booking_group",
+            resource_id: Some(group_id),
+            details: Some(serde_json::json!({
+                "payment_ids": payment_ids,
+                "amount": amount.to_string(),
+                "method": "bank_transfer",
+                "source": "guest_portal",
+                "group_payment_ref": reference,
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+    notify_bank_transfer_claim_tx(&mut tx, &group.group_number).await?;
+    BookingGroupRepository::refresh_totals_tx(&mut tx, group_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(GroupPaymentActionResponse {
+        booking_group_id: group_id,
+        group_payment_ref: reference,
+        payment_ids,
+        amount,
+        status: "pending".to_string(),
+    })
 }
