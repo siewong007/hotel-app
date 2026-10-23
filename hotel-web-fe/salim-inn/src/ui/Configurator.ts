@@ -163,6 +163,14 @@ export class Configurator {
       const on = ROOM_ORDER[i] === code;
       b.setAttribute('aria-selected', String(on));
       b.tabIndex = on ? 0 : -1;
+      // phones scroll the tab row: keep the chosen type in view
+      if (on && b.parentElement && b.parentElement.scrollWidth > b.parentElement.clientWidth) {
+        const row = b.parentElement;
+        const left = b.offsetLeft - row.offsetLeft;
+        if (left < row.scrollLeft || left + b.offsetWidth > row.scrollLeft + row.clientWidth) {
+          row.scrollTo({ left: Math.max(0, left - 16), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        }
+      }
     });
     this.panel.setAttribute('aria-labelledby', `cfg-tab-${code}`);
     this.panel.innerHTML = roomFactsHtml(l);

@@ -285,7 +285,9 @@ html.film-live .poster { visibility: hidden; }
 .mobile-cta { display: none; }
 
 /* ---------------------------------------------------------------- room configurator (ch. 6) */
-.configurator { margin-top: 22px; display: grid; gap: 12px; justify-items: start; }
+/* .chapter .line sets display:block, which used to win here and drop the gap:
+   the configurator selector is doubled for the specificity to hold */
+.chapter .configurator.line { margin-top: 22px; display: grid; gap: 14px; justify-items: start; }
 .chapter.is-active .configurator.line { opacity: 0.35; }
 .chapter.is-active .configurator.line.is-active { opacity: 1; }
 .configurator:not(.is-active) { pointer-events: none; }
@@ -600,18 +602,27 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   }
   .chapter__copy {
     justify-content: flex-end; width: 100%;
-    padding: calc(var(--topbar) + 12px) 22px calc(96px + env(safe-area-inset-bottom));
+    padding: calc(var(--topbar) + 12px) 22px calc(104px + env(safe-area-inset-bottom));
   }
   .chapter h1 { font-size: clamp(2.3rem, 11vw, 3.1rem); }
   .chapter h2 { font-size: clamp(1.9rem, 8.6vw, 2.6rem); margin-bottom: 14px; }
   .eyebrow { margin-bottom: 12px; font-size: 0.66rem; }
   .chapter__body { font-size: 0.98rem; }
   .chapter--rooms .chapter__body { display: none; }
-  .configurator { margin-top: 12px; gap: 10px; }
-  .cfg-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+  /* stacked tabs / facts / button with even 12px gaps, kept clear of the
+     section dots on the right (.chapter-nav, ~34px) */
+  .chapter .configurator.line { margin-top: 12px; gap: 12px; justify-items: stretch; margin-right: 26px; }
+  .configurator .cfg-real { justify-self: start; }
+  .configurator .cfg-panel { width: 100%; }
+  .cfg-tabs {
+    flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 8px; padding-bottom: 2px; scrollbar-width: none;
+    scroll-snap-type: x proximity; scroll-padding-inline: 2px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+  }
+  .cfg-tabs::-webkit-scrollbar { display: none; }
+  .cfg-tab { scroll-snap-align: start; }
   /* more tabs beyond the edge (Configurator.ts): a fade says so */
   .cfg-tabs.has-more { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
-  .cfg-tab { flex: 0 0 auto; min-height: 36px; padding: 0 12px; font-size: 0.72rem; }
+  .cfg-tab { flex: 0 0 auto; min-height: 40px; padding: 0 14px; font-size: 0.72rem; }
   .cfg-panel { padding: 12px 14px; }
   .cfg-facts { gap: 8px 14px; }
   .cfg-facts dd { font-size: 0.84rem; }
