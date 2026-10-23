@@ -78,6 +78,7 @@ export class CameraRig {
   private vw = 1600;
   private vh = 900;
   private tmp = new THREE.Vector3();
+  private tmpVel = new THREE.Vector3(); // no allocation per frame
 
   constructor(camera: THREE.PerspectiveCamera, chapters: PathChapter[] = PATH) {
     this.camera = camera;
@@ -263,7 +264,7 @@ export class CameraRig {
       const x = omega * Math.min(dt, 0.1);
       const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
       const change = this.tmp.copy(this.look).sub(f.target);
-      const temp = this.lookVel.clone().addScaledVector(change, omega).multiplyScalar(Math.min(dt, 0.1));
+      const temp = this.tmpVel.copy(this.lookVel).addScaledVector(change, omega).multiplyScalar(Math.min(dt, 0.1));
       this.lookVel.addScaledVector(temp, -omega).multiplyScalar(exp);
       this.look.copy(f.target).add(change.add(temp).multiplyScalar(exp));
     }
