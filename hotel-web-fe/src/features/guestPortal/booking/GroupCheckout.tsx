@@ -14,7 +14,7 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Divider,
-  FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Paper, Select,
+  FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Paper, Portal, Select,
   Stack, Typography,
 } from '@mui/material';
 
@@ -114,7 +114,10 @@ export function CartBar({
 }) {
   const { t } = useTranslation('guestPortal');
   if (roomCount < 1) return null;
+  // Portalled to <body>: the app shell's <main> carries a transform from its
+  // page transition, which would make `position: fixed` scroll with the page.
   return (
+    <Portal>
     <Paper
       component="aside"
       aria-label={t('book.cart.barLabel')}
@@ -148,6 +151,7 @@ export function CartBar({
         </Button>
       </Stack>
     </Paper>
+    </Portal>
   );
 }
 
