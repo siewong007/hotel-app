@@ -1788,6 +1788,7 @@ END),
     total_guests integer GENERATED ALWAYS AS (((adults + children) + infants)),
     channel_pricing_snapshot jsonb,
     smoking_preference character varying(20),
+    booking_group_id bigint,
     CONSTRAINT bookings_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[]))),
     CONSTRAINT bookings_smoking_preference_check CHECK (((smoking_preference)::text = ANY ((ARRAY['smoking'::character varying, 'non_smoking'::character varying])::text[]))),
     CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
@@ -10876,6 +10877,56 @@ CREATE TABLE public.staff_notification_reads (
     read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (notification_id, user_id)
 );
+
+-- One guest booking that holds several rooms. Each room stays an ordinary
+-- `bookings` row (room status, night audit, folio and the same-room overlap
+-- constraint keep working per room); `bookings.booking_group_id` ties them to
+-- this parent, which carries the shared payment state, the group-level
+-- totals and the shared unpaid-hold expiry. Each member booking persists its
+-- own allocated discount/credit/tax, so a single-room cancel or refund never
+-- recomputes the group. Totals here are the sum over non-voided members.
+CREATE TABLE public.booking_groups (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid uuid DEFAULT public.gen_uuidv7() NOT NULL UNIQUE,
+    group_number character varying(50) NOT NULL UNIQUE,
+    guest_id bigint NOT NULL REFERENCES public.guests(id) ON DELETE CASCADE,
+    check_in_date date NOT NULL,
+    check_out_date date NOT NULL,
+    source character varying(50) DEFAULT 'website'::character varying NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    payment_status character varying(30) DEFAULT 'unpaid'::character varying NOT NULL,
+    payment_method character varying(100),
+    room_count integer DEFAULT 0 NOT NULL,
+    subtotal numeric(12,2) DEFAULT 0 NOT NULL,
+    discount_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    tax_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    tourism_tax_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    total_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    currency character varying(3) DEFAULT 'MYR'::character varying NOT NULL,
+    voucher_id bigint REFERENCES public.vouchers(id) ON DELETE SET NULL,
+    hold_expires_at timestamp with time zone,
+    portal_request_id character varying(128),
+    created_by bigint REFERENCES public.users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT booking_groups_dates_check CHECK ((check_out_date > check_in_date)),
+    CONSTRAINT booking_groups_room_count_check CHECK ((room_count >= 0)),
+    CONSTRAINT booking_groups_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'voided'::character varying])::text[]))),
+    CONSTRAINT booking_groups_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
+);
+
+CREATE INDEX idx_booking_groups_guest ON public.booking_groups USING btree (guest_id, created_at DESC);
+CREATE INDEX idx_booking_groups_hold_expiry ON public.booking_groups USING btree (hold_expires_at)
+    WHERE ((hold_expires_at IS NOT NULL) AND ((status)::text = 'active'::text));
+CREATE UNIQUE INDEX uq_booking_groups_portal_request ON public.booking_groups USING btree (guest_id, portal_request_id)
+    WHERE (portal_request_id IS NOT NULL);
+
+ALTER TABLE ONLY public.bookings
+    ADD CONSTRAINT bookings_booking_group_id_fkey FOREIGN KEY (booking_group_id)
+    REFERENCES public.booking_groups(id) ON DELETE SET NULL;
+CREATE INDEX idx_bookings_booking_group ON public.bookings USING btree (booking_group_id)
+    WHERE (booking_group_id IS NOT NULL);
+COMMENT ON COLUMN public.bookings.booking_group_id IS 'Parent multi-room booking group; NULL for a standalone single-room booking.';
 
 -- Restricted runtime capabilities. Table allowlist mirrors data_transfer/service.rs.
 -- No general SQL, ownership, or role switching is exposed to the runtime.

@@ -47,7 +47,7 @@ was folded into the baseline and the catalog republished from empty. Since
 then it has grown again, one converge-style patch at a time. A fresh install
 records revision 1 plus one row per manifest entry. The manifest is the only
 list; read it rather than repeating it (`grep -vc '^#' patches/manifest.tsv`
-counts the entries). As of 2026-10-12 it runs from version 2 to 22.
+counts the entries). As of 2026-10-23 it runs from version 2 to 25.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -217,7 +217,8 @@ Deliberately not seeded:
 - Payroll/HR tables (none exist; only `teams`/`team_members`).
 - `cancelled`/`expired` booking statuses (the model uses `voided`, and the
   unpaid-hold scheduler handles expiry).
-- Multi-room reservations (`bookings.room_id` is scalar).
+- Multi-room reservations (each room is its own `bookings` row; groups link
+  them through `bookings.booking_group_id` → `booking_groups`).
 - Overlapping same-room bookings. The exclusion constraint makes them
   impossible, so overlap rejection is tested through the API instead.
 - Passkeys, eKYC evidence, and `two_factor_challenges` rows. Credentials

@@ -74,6 +74,8 @@ pub const TABLE_INSERT_ORDER: &[&str] = &[
     "room_type_amenities",
     "rooms",
     "room_events",
+    // multi-room parent; member bookings reference it.
+    "booking_groups",
     "bookings",
     "voucher_redemptions",
     "voucher_redemption_allocations",
@@ -139,6 +141,7 @@ pub const SENSITIVE_TABLES: &[&str] = &[
     "corporate_accounts",
     "corporate_account_contacts",
     // bookings and everything hanging off them
+    "booking_groups",
     "bookings",
     "booking_guests",
     "booking_history",
@@ -937,16 +940,16 @@ mod tests {
             "TABLE_INSERT_ORDER must not contain duplicates"
         );
         // The business-data set the API exports/imports — 75 plus the four
-        // channel-pricing tables. The protected set is counted separately in
+        // channel-pricing tables and `booking_groups`. The protected set is counted separately in
         // `the_system_tier_carries_every_excluded_table`.
-        assert_eq!(TABLE_INSERT_ORDER.len(), 79);
+        assert_eq!(TABLE_INSERT_ORDER.len(), 80);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
     }
 
     #[test]
     fn ddl_capability_allowlist_matches_transfer_tables() {
-        let sql = include_str!("../../../database/postgres/patches/0024_runtime_capabilities.sql");
+        let sql = include_str!("../../../database/postgres/patches/0025_booking_groups.sql");
         let allowlist = sql
             .split_once("p_schema || '.' || p_table = ANY(ARRAY[")
             .expect("DDL capability table allowlist must be present")

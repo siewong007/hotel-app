@@ -204,6 +204,11 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
         run: cargo test --all-features --test guest_booking_smoking_preference
 
+      - name: PostgreSQL booking-group tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
+        run: cargo test --all-features --test booking_groups
+
       - name: Cargo clippy
         run: cargo clippy --all-features -- -D warnings
 
