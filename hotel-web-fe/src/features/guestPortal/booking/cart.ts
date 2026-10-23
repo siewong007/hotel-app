@@ -105,6 +105,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.trunc(value), min), Math.max(min, max));
 }
 
+/**
+ * Guests the cart can sleep: each room type's max occupancy. Extra beds are
+ * not counted — the server prices them but does not let them raise a room's
+ * occupancy limit, so counting them would promise space that is not there.
+ */
+export function cartCapacity(cart: Cart): number {
+  return cart.rooms.reduce((sum, room) => sum + Math.max(0, room.max_occupancy), 0);
+}
+
 export function nightsOf(cart: Cart): number {
   const start = Date.parse(`${cart.check_in_date}T00:00:00Z`);
   const end = Date.parse(`${cart.check_out_date}T00:00:00Z`);

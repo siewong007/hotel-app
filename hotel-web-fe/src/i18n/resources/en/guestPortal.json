@@ -163,7 +163,9 @@
       "useCredits_one": "Use my {{count}} complimentary night (cheapest nights first)",
       "useCredits_other": "Use my {{count}} complimentary nights (cheapest nights first)",
       "groupNumber": "Group booking number",
-      "emailNote": "We've emailed a confirmation listing every room."
+      "emailNote": "We've emailed a confirmation listing every room.",
+      "capacityShort_one": "Your rooms fit {{count}} guest but you searched for {{guests}}. Add another room so everyone has a bed.",
+      "capacityShort_other": "Your rooms fit {{count}} guests but you searched for {{guests}}. Add another room so everyone has a bed."
     }
   },
   "booking": {

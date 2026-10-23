@@ -147,6 +147,32 @@ describe('PortalBookingPage multi-room cart', () => {
   });
   afterEach(() => cleanup());
 
+  it('warns, without blocking, when the rooms sleep fewer guests than searched', async () => {
+    render(<PortalBookingPage />);
+    fireEvent.change(screen.getByLabelText('Adults'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Children'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    const add = await screen.findByRole('button', { name: 'Add a Deluxe Room room' });
+    fireEvent.click(add);
+    expect(screen.getByTestId('capacity-notice').textContent).toBe(
+      'Your rooms fit 2 guests but you searched for 5. Add another room so everyone has a bed.',
+    );
+    fireEvent.click(add);
+    expect(screen.getByTestId('capacity-notice').textContent).toContain('fit 4 guests');
+    expect(screen.getByRole('button', { name: 'Checkout' }).hasAttribute('disabled')).toBe(false);
+    fireEvent.click(add);
+    expect(screen.queryByTestId('capacity-notice')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove a Deluxe Room room' }));
+    expect(screen.getByTestId('capacity-notice').textContent).toContain('fit 4 guests');
+  });
+
+  it('has no per-card Select button', async () => {
+    render(<PortalBookingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await screen.findByRole('button', { name: 'Add a Deluxe Room room' });
+    expect(screen.queryByRole('button', { name: 'Select' })).toBeNull();
+  });
+
   it('shows the sticky bar from the first room and caps the stepper at availability', async () => {
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -196,7 +222,9 @@ describe('PortalBookingPage multi-room cart', () => {
   it('keeps the cart and shows the server error when a room is taken mid-checkout', async () => {
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add a Deluxe Room room' }));
+    const add = await screen.findByRole('button', { name: 'Add a Deluxe Room room' });
+    fireEvent.click(add);
+    fireEvent.click(add);
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Continue to payment' }).hasAttribute('disabled')).toBe(false));
     const body = { error: 'Room 1: Deluxe Room is no longer available for these dates' };
@@ -211,6 +239,6 @@ describe('PortalBookingPage multi-room cart', () => {
     acceptRequiredConsents();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
     await screen.findByText('Room 1: Deluxe Room is no longer available for these dates');
-    expect(screen.getByTestId('cart-bar').textContent).toContain('1 room');
+    expect(screen.getByTestId('cart-bar').textContent).toContain('2 rooms');
   });
 });

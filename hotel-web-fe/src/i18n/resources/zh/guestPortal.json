@@ -163,7 +163,9 @@
       "useCredits_one": "使用我的 {{count}} 晚免费住宿（优先最便宜的晚上）",
       "useCredits_other": "使用我的 {{count}} 晚免费住宿（优先最便宜的晚上）",
       "groupNumber": "团体预订编号",
-      "emailNote": "我们已发送列出所有房间的确认邮件。"
+      "emailNote": "我们已发送列出所有房间的确认邮件。",
+      "capacityShort_one": "您的房间可容纳 {{count}} 位客人，但您搜索的是 {{guests}} 位。请再添加一间房，让每个人都有床位。",
+      "capacityShort_other": "您的房间可容纳 {{count}} 位客人，但您搜索的是 {{guests}} 位。请再添加一间房，让每个人都有床位。"
     }
   },
   "booking": {

@@ -14,7 +14,7 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Divider,
-  FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Paper, Select,
+  FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Paper, Portal, Select,
   Stack, Typography,
 } from '@mui/material';
 
@@ -40,6 +40,17 @@ const stepButtonSx = {
   border: '1px solid',
   borderColor: 'divider',
 } as const;
+
+/** Friendly, non-blocking notice when the cart sleeps fewer guests than searched. */
+export function CapacityNotice({ capacity, partySize, compact = false }: { capacity: number; partySize: number; compact?: boolean }) {
+  const { t } = useTranslation('guestPortal');
+  if (capacity <= 0 || capacity >= partySize) return null;
+  return (
+    <Alert severity="warning" role="status" data-testid="capacity-notice" sx={compact ? { py: 0, mb: 1, '& .MuiAlert-message': { py: 0.75 } } : { mt: 2 }}>
+      {t('book.cart.capacityShort', { count: capacity, guests: partySize })}
+    </Alert>
+  );
+}
 
 /** "− n +" with a visible count and a labelled live value. */
 export function QuantityStepper({
@@ -102,8 +113,11 @@ export function OfferRoomStepper({
  * it reads "Checkout", inside checkout it submits ("Continue to payment").
  */
 export function CartBar({
-  roomCount, total, currency, estimated, phase, busy, onPrimary,
+  roomCount, total, currency, estimated, phase, busy, onPrimary, primaryLabel, capacity = 0, partySize = 0,
 }: {
+  primaryLabel?: string;
+  capacity?: number;
+  partySize?: number;
   roomCount: number;
   total: number | string;
   currency: string;
@@ -114,7 +128,10 @@ export function CartBar({
 }) {
   const { t } = useTranslation('guestPortal');
   if (roomCount < 1) return null;
+  // Portalled to <body>: the app shell's <main> carries a transform from its
+  // page transition, which would make `position: fixed` scroll with the page.
   return (
+    <Portal>
     <Paper
       component="aside"
       aria-label={t('book.cart.barLabel')}
@@ -127,6 +144,7 @@ export function CartBar({
         px: { xs: 2, sm: 3 }, pt: 1.5, pb: 'calc(12px + env(safe-area-inset-bottom, 0px))',
       }}
     >
+      <Box sx={{ maxWidth: 1200, mx: 'auto' }}><CapacityNotice capacity={capacity} partySize={partySize} compact /></Box>
       <Stack direction="row" spacing={2} sx={{ maxWidth: 1200, mx: 'auto', alignItems: 'center', justifyContent: 'space-between' }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
           <ShoppingBagOutlinedIcon color="primary" aria-hidden />
@@ -144,10 +162,11 @@ export function CartBar({
           onClick={onPrimary}
           sx={{ minHeight: TOUCH_TARGET, px: { xs: 2.5, sm: 4 }, flexShrink: 0, fontWeight: 700 }}
         >
-          {busy ? <CircularProgress size={22} color="inherit" /> : phase === 'browse' ? t('book.cart.checkout') : t('book.continueToPayment')}
+          {busy ? <CircularProgress size={22} color="inherit" /> : primaryLabel ?? (phase === 'browse' ? t('book.cart.checkout') : t('book.continueToPayment'))}
         </Button>
       </Stack>
     </Paper>
+    </Portal>
   );
 }
 
@@ -244,7 +263,7 @@ export function GroupSummary({ quote }: { quote: GroupQuote }) {
 }
 
 export function GroupCheckoutStage({
-  cart, quote, isQuoting, isSubmitting, isAnonymous, vouchers, voucherId, useCredits,
+  cart, quote, isQuoting, isSubmitting, isAnonymous, capacity, partySize, vouchers, voucherId, useCredits,
   onVoucher, onUseCredits, onChangeRoom, onRemoveRoom, onAddMore, details, consent, extras,
 }: {
   cart: Cart;
@@ -252,6 +271,8 @@ export function GroupCheckoutStage({
   isQuoting: boolean;
   isSubmitting: boolean;
   isAnonymous: boolean;
+  capacity: number;
+  partySize: number;
   vouchers: Voucher[];
   voucherId: number | '';
   useCredits: boolean;
@@ -277,7 +298,8 @@ export function GroupCheckoutStage({
           <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}>
             <Typography id="group-checkout-heading" variant="h5" component="h2">{t('book.cart.title')}</Typography>
             <Chip label={t('book.cart.stay', { checkIn: cart.check_in_date, checkOut: cart.check_out_date })} size="small" />
-          </Stack>
+ </Stack>
+          <CapacityNotice capacity={capacity} partySize={partySize} />
           <Box component="ol" sx={{ p: 0, m: 0, mt: 2, display: 'grid', gap: 2 }}>
             {cart.rooms.map((room, index) => (
               <RoomLine
