@@ -178,14 +178,6 @@ export interface Copy {
     /** `{{methods}}`, joined with `listSep`. */
     payLine: string;
     webRate: string;
-    summaryLabel: string;
-    copy: string;
-    copied: string;
-    selectToCopy: string;
-    continue: string;
-    reopen: string;
-    leadDesktop: string;
-    leadMobile: string;
     /** A room select option: `{{room}}`, `{{n}}` guests; then `{{rate}}`. */
     roomOption: string;
     roomOptionRate: string;
@@ -578,14 +570,6 @@ export const en: Copy = {
     call: 'Call',
     payLine: 'Pay by {{methods}}',
     webRate: 'Web rate — best when you book direct.',
-    summaryLabel: 'Your booking details',
-    copy: 'Copy details',
-    copied: 'Copied',
-    selectToCopy: 'Selected — copy it',
-    continue: 'Continue to booking',
-    reopen: 'Open the booking portal again',
-    leadDesktop: 'The booking portal opened in a new tab. It starts at its own search step — use these details there:',
-    leadMobile: 'The booking portal starts at its own search step. Copy your details, then continue:',
     roomOption: '{{room}} · sleeps {{n}}',
     roomOptionRate: ' · from RM{{rate}}',
     errors: {

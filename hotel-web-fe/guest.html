@@ -4,13 +4,13 @@
     <meta charset="utf-8" />
     <link id="app-favicon" rel="icon" href="/salim-inn/salim-inn-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#123a2e" />
+    <meta name="theme-color" content="#06110e" />
     <meta name="description" content="Salim Inn guest booking and payment" />
     <link rel="apple-touch-icon" href="/salim-inn/salim-inn-icon.svg" />
     <title>Salim Inn</title>
     <script src="/guest-branding.js"></script>
-    <!-- Static boot splash — same monogram handoff as index.html, but on the
-         guest palette (deep forest / warm ivory). -->
+    <!-- Static boot splash — same monogram as index.html on the public
+         site's dark ground in both themes; held until the first page is ready. -->
     <style>
       #boot-splash {
         position: fixed;
@@ -21,11 +21,10 @@
         justify-content: center;
         padding: env(safe-area-inset-top) env(safe-area-inset-right)
           env(safe-area-inset-bottom) env(safe-area-inset-left);
-        background: #0b1814;
-        transition: opacity 160ms ease-out;
-      }
-      html[data-boot-theme='light'] #boot-splash {
-        background: #f3efe4;
+        /* Always the public site's dark ground: the guest arrives here from
+           the dark landing page, so a light splash would flash. */
+        background: #06110e;
+        transition: opacity 220ms ease-out;
       }
       #boot-splash.boot-splash--exit {
         opacity: 0;

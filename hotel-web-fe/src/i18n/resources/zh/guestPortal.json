@@ -25,6 +25,7 @@
     "children": "儿童",
     "childrenSuffix": " · {{count}} 位儿童",
     "chooseRoom": "选择您的房间",
+    "yourSelection": "您的选择",
     "complimentaryNights": "免费房晚（{{count}}）",
     "confirmFreeStay": "确认免费住宿",
     "confirmation": {

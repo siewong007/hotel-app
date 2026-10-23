@@ -25,6 +25,7 @@
     "children": "Children",
     "childrenSuffix": " · {{count}} children",
     "chooseRoom": "Choose your room",
+    "yourSelection": "Your selection",
     "complimentaryNights": "Complimentary nights ({{count}})",
     "confirmFreeStay": "Confirm free stay",
     "confirmation": {

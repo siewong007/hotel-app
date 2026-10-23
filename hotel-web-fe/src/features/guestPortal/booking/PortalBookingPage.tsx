@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HotelIcon from '@mui/icons-material/Hotel';
@@ -29,6 +29,7 @@ import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
+import { findPrefilledOffer, parseBookingPrefill } from './prefill';
 import { guestErrorMessage } from '../utils/feedback';
 import { apiUrl } from '../../../desktop/runtimeApi';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
@@ -114,7 +115,12 @@ const PortalBookingPage: React.FC = () => {
   const navigate = useNavigate();
   const { token, status: sessionStatus, error: sessionError, canRetry, needsLogin, isStaffAccount, retry, restartSignIn } = usePortalSessionBootstrap();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  const [search, setSearch] = useState<GuestBookingSearch>({ check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 });
+  // BOOK DIRECT on the public site hands its selection over in the URL. A
+  // valid handoff seeds the form, runs the search on arrival and highlights
+  // the chosen room in Choose; anything invalid leaves the normal Search step.
+  const [prefill] = useState(() => parseBookingPrefill(window.location.search));
+  const [search, setSearch] = useState<GuestBookingSearch>(() => prefill?.search ?? { check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 });
+  const [prefillPending, setPrefillPending] = useState(Boolean(prefill));
   const [nicknameTaken, setNicknameTaken] = useState(false);
   const [offers, setOffers] = useState<GuestBookingOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<GuestBookingOffer | null>(null);
@@ -238,6 +244,21 @@ const PortalBookingPage: React.FC = () => {
       setOffers([]);
     } finally { setIsSearching(false); }
   }, [canQuery, search, setError, t, token]);
+
+  // Run the prefilled search once the session can query. Until it settles the
+  // page carries data-boot-hold, which keeps the static boot splash up, so the
+  // guest sees one loading screen and lands directly on Choose.
+  const prefillStarted = useRef(false);
+  useEffect(() => {
+    if (!prefillPending || !canQuery || prefillStarted.current) return;
+    prefillStarted.current = true;
+    void runSearch().finally(() => setPrefillPending(false));
+  }, [canQuery, prefillPending, runSearch]);
+  const prefilledOffer = useMemo(() => findPrefilledOffer(offers, prefill?.roomTypeCode ?? null), [offers, prefill]);
+  const orderedOffers = useMemo(
+    () => (prefilledOffer ? [prefilledOffer, ...offers.filter((offer) => offer !== prefilledOffer)] : offers),
+    [offers, prefilledOffer],
+  );
 
   const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
     if (!canQuery || isQuoting) return;
@@ -421,7 +442,7 @@ const PortalBookingPage: React.FC = () => {
   if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); setRequestId(newRequestId()); }} />;
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
+    <Container maxWidth="lg" data-boot-hold={prefillPending ? 'true' : undefined} sx={{ py: { xs: 3, md: 5 } }}>
       {isAnonymous
         ? <Button startIcon={<ArrowBackIcon />} href="/salim-inn/index.html" sx={{ mb: 2 }}>{t('book.backToHotel')}</Button>
         : <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>{t('book.backToAccount')}</Button>}
@@ -438,7 +459,7 @@ const PortalBookingPage: React.FC = () => {
       <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
       <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1}>{error}</Alert>}</Box></Collapse>
       <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
+        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{orderedOffers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} highlighted={offer === prefilledOffer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} smokingPreference={smokingPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onSmokingPreference={setSmokingPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
@@ -478,16 +499,20 @@ function SearchStage({ search, isSearching, onChange, onSearch }: { search: Gues
   );
 }
 
-function OfferCard({ offer, disabled, onSelect }: { offer: GuestBookingOffer; disabled?: boolean; onSelect: () => void }) {
+function OfferCard({ offer, highlighted = false, disabled, onSelect }: { offer: GuestBookingOffer; highlighted?: boolean; disabled?: boolean; onSelect: () => void }) {
   const { t } = useTranslation('guestPortal');
+  const cardRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (highlighted) cardRef.current?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+  }, [highlighted]);
   const image = offerImage(offer);
   const [imageFailed, setImageFailed] = useState(false);
   const shouldShowImage = Boolean(image && !imageFailed);
   const roomsLabel = t('book.roomsLeft', { count: offer.available_rooms });
   return (
-    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={t('book.roomImageAlt', { name: offer.room_type_name })} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
+    <Card ref={cardRef} component="article" variant="outlined" data-prefilled-room={highlighted ? 'true' : undefined} aria-label={highlighted ? `${t('book.yourSelection')}: ${offer.room_type_name}` : undefined} sx={{ height: '100%', overflow: 'hidden', ...(highlighted && { borderColor: 'primary.main', borderWidth: 2, boxShadow: '0 0 0 3px var(--hotel-primary-subtle)' }), transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={t('book.roomImageAlt', { name: offer.room_type_name })} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
       justifyContent: "space-between"
-    }}><Box><Typography variant="h5" component="h3">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
+    }}><Box>{highlighted && <Chip size="small" color="primary" icon={<CheckCircleIcon />} label={t('book.yourSelection')} sx={{ mb: 1 }} />}<Typography variant="h5" component="h3">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"
     }}>{offer.room_type_code}</Typography></Box><Chip color={offer.available_rooms <= 1 ? 'warning' : 'success'} label={roomsLabel} /></Stack>{offer.description && <Typography sx={{ mt: 2 }}>{offer.description}</Typography>}<Stack
       direction="row"
