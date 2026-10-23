@@ -2244,31 +2244,47 @@ pub async fn approve_payment(
         ));
     }
 
-    let response = complete_and_confirm(
-        pool,
-        payment_id,
-        review.booking_id,
-        Some(actor_user_id),
-        "payment_approved",
-    )
-    .await?;
-
-    // A group claim is approved once: its sibling room payments follow.
-    if let Some(reference) = group_payment_ref(pool, payment_id).await? {
-        for (sibling_id, sibling_booking) in
-            pending_group_siblings(pool, &reference, payment_id).await?
-        {
-            complete_and_confirm(
-                pool,
-                sibling_id,
-                sibling_booking,
+    // A group claim is approved once, atomically: every room of the claim is
+    // completed and confirmed in one transaction, so a group is never left
+    // partly confirmed.
+    let response = if let Some(reference) = group_payment_ref(pool, payment_id).await? {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        let group_id = lock_group_of_booking_tx(&mut tx, review.booking_id).await?;
+        let mut claim = vec![(payment_id, review.booking_id)];
+        claim.extend(pending_group_siblings_tx(&mut tx, &reference, payment_id).await?);
+        claim.sort_by_key(|(_, booking_id)| *booking_id);
+        let mut primary = None;
+        for (id, booking_id) in claim {
+            let done = complete_and_confirm_tx(
+                &mut tx,
+                id,
+                booking_id,
                 Some(actor_user_id),
                 "payment_approved",
             )
             .await?;
+            if id == payment_id {
+                primary = Some(done);
+            }
         }
-        refresh_group_for_booking(pool, review.booking_id).await;
-    }
+        if let Some(group_id) = group_id {
+            crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+                &mut tx, group_id,
+            )
+            .await?;
+        }
+        tx.commit().await.map_err(ApiError::from)?;
+        primary.ok_or_else(|| ApiError::Internal("Group approval lost its payment".to_string()))?
+    } else {
+        complete_and_confirm(
+            pool,
+            payment_id,
+            review.booking_id,
+            Some(actor_user_id),
+            "payment_approved",
+        )
+        .await?
+    };
 
     // Guest-facing confirmation that staff accepted the payment and the
     // booking is confirmed. Best-effort and post-commit: a mail failure must
@@ -2508,13 +2524,27 @@ async fn complete_and_confirm(
     audit_action: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    let response =
+        complete_and_confirm_tx(&mut tx, payment_id, booking_id, actor_user_id, audit_action)
+            .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(response)
+}
+
+async fn complete_and_confirm_tx(
+    tx: &mut DbTransaction<'_>,
+    payment_id: i64,
+    booking_id: i64,
+    actor_user_id: Option<i64>,
+    audit_action: &str,
+) -> Result<PaymentActionResponse, ApiError> {
+    PaymentRepository::lock_booking_for_payment_tx(tx, booking_id).await?;
     // Read under the booking lock so the history row records the status the
     // booking actually left (normally `pending_confirmation` for a bank claim),
     // not an assumed one.
     let previous_booking_status =
-        PaymentRepository::booking_status_for_payment_tx(&mut tx, booking_id).await?;
-    let status = PaymentRepository::lock_payment_status_tx(&mut tx, payment_id, booking_id)
+        PaymentRepository::booking_status_for_payment_tx(tx, booking_id).await?;
+    let status = PaymentRepository::lock_payment_status_tx(tx, payment_id, booking_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
     if !matches!(status.as_str(), "pending" | "processing") {
@@ -2526,8 +2556,7 @@ async fn complete_and_confirm(
     // Defense in depth: even if a race slipped a second claim past the
     // pre-insert guard, never complete a payment when the booking already has a
     // DIFFERENT completed booking payment.
-    if PaymentRepository::has_other_completed_booking_payment_tx(&mut tx, booking_id, payment_id)
-        .await?
+    if PaymentRepository::has_other_completed_booking_payment_tx(tx, booking_id, payment_id).await?
     {
         return Err(ApiError::Conflict(
             "This booking already has a completed payment.".to_string(),
@@ -2535,17 +2564,17 @@ async fn complete_and_confirm(
     }
 
     let completed =
-        PaymentRepository::mark_payment_completed_tx(&mut tx, payment_id, actor_user_id).await?;
+        PaymentRepository::mark_payment_completed_tx(tx, payment_id, actor_user_id).await?;
     if completed.is_none() {
         return Err(ApiError::BadRequest(
             "Payment is no longer pending.".to_string(),
         ));
     }
 
-    let confirmed = crate::modules::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
+    let confirmed = crate::modules::bookings::confirm_booking_tx(tx, booking_id).await?;
     if confirmed {
         crate::modules::bookings::record_booking_history_tx(
-            &mut tx,
+            tx,
             booking_id,
             Some(&previous_booking_status),
             "confirmed",
@@ -2556,10 +2585,10 @@ async fn complete_and_confirm(
         .await?;
     }
 
-    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    recompute_payment_status_tx(tx, booking_id).await?;
 
     AuditLog::log_event_tx(
-        &mut tx,
+        tx,
         AuditEvent {
             user_id: actor_user_id,
             action: audit_action,
@@ -2573,8 +2602,6 @@ async fn complete_and_confirm(
         },
     )
     .await?;
-
-    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(PaymentActionResponse {
         payment_id,
@@ -2774,23 +2801,108 @@ pub async fn reject_payment(
     payment_id: i64,
     reason: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
-    let reference = group_payment_ref(pool, payment_id).await?;
-    let response = reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await?;
-    if let Some(reference) = reference {
-        for (sibling_id, _) in pending_group_siblings(pool, &reference, payment_id).await? {
-            reject_payment_by(pool, Some(actor_user_id), sibling_id, reason).await?;
+    match group_payment_ref(pool, payment_id).await? {
+        Some(reference) => {
+            reject_group_payment(pool, actor_user_id, payment_id, &reference, reason).await
         }
-        refresh_group_for_booking(pool, response_booking(pool, payment_id).await?).await;
+        None => reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await,
     }
-    Ok(response)
 }
 
-async fn response_booking(pool: &DbPool, payment_id: i64) -> Result<i64, ApiError> {
-    sqlx::query_scalar("SELECT booking_id FROM payments WHERE id = $1")
-        .bind(payment_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)
+/// Reject every room of a group claim in one transaction: either all rooms
+/// return to `pending_payment` or none do.
+async fn reject_group_payment(
+    pool: &DbPool,
+    actor_user_id: i64,
+    payment_id: i64,
+    reference: &str,
+    reason: &str,
+) -> Result<PaymentActionResponse, ApiError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A rejection reason is required.".to_string(),
+        ));
+    }
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if review.status != "pending" {
+        return Err(ApiError::BadRequest(
+            "Only pending payments can be rejected.".to_string(),
+        ));
+    }
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let group_id = lock_group_of_booking_tx(&mut tx, review.booking_id).await?;
+    let mut claim = vec![(payment_id, review.booking_id)];
+    claim.extend(pending_group_siblings_tx(&mut tx, reference, payment_id).await?);
+    claim.sort_by_key(|(_, booking_id)| *booking_id);
+    let mut reset_primary = false;
+    for (id, booking_id) in claim {
+        let reset = reject_payment_tx(&mut tx, booking_id, Some(actor_user_id), id, reason).await?;
+        if id == payment_id {
+            reset_primary = reset;
+        }
+    }
+    if let Some(group_id) = group_id {
+        crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
+    tx.commit().await.map_err(ApiError::from)?;
+    try_queue_payment_rejected_notification(
+        pool,
+        review.guest_id,
+        review.guest_name.as_deref(),
+        review.booking_id,
+        review.booking_number.as_deref(),
+        payment_id,
+        reason,
+    )
+    .await;
+    Ok(PaymentActionResponse {
+        payment_id,
+        status: "void".to_string(),
+        booking_status: reset_primary.then(|| "pending_payment".to_string()),
+    })
+}
+
+/// Lock the booking's group row (if any) so a group's payment review
+/// serialises with its cancellation and hold expiry.
+async fn lock_group_of_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<Option<i64>, ApiError> {
+    let group_id: Option<i64> =
+        sqlx::query_scalar("SELECT booking_group_id FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)?
+            .flatten();
+    if let Some(group_id) = group_id {
+        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(tx, group_id)
+            .await?;
+    }
+    Ok(group_id)
+}
+
+async fn pending_group_siblings_tx(
+    tx: &mut DbTransaction<'_>,
+    reference: &str,
+    payment_id: i64,
+) -> Result<Vec<(i64, i64)>, ApiError> {
+    sqlx::query_as(
+        "SELECT id, booking_id FROM payments \
+         WHERE metadata->>'group_payment_ref' = $1 AND id <> $2 AND status = 'pending' \
+         ORDER BY booking_id",
+    )
+    .bind(reference)
+    .bind(payment_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(ApiError::from)
 }
 
 /// Reject overdue receipt requests without attributing the automated decision
@@ -2883,66 +2995,12 @@ async fn reject_payment_by(
     }
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    PaymentRepository::lock_booking_for_payment_tx(&mut tx, review.booking_id).await?;
-    let status = PaymentRepository::lock_payment_status_tx(&mut tx, payment_id, review.booking_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
-    if status != "pending" {
-        return Err(ApiError::BadRequest(
-            "Payment is no longer pending.".to_string(),
-        ));
-    }
-    // A staff reviewer must not reject a claim once the booking has moved on
-    // by hand (confirmed, checked in, ...): the guest would be told their
-    // payment failed while the booking stays confirmed and unpaid. Returning
-    // here drops the transaction, so nothing changes and no mail is queued.
-    // The automated expiry sweeps (`actor_user_id == None`) keep their
-    // existing behaviour.
-    if actor_user_id.is_some() {
-        let booking_status =
-            PaymentRepository::booking_status_for_payment_tx(&mut tx, review.booking_id).await?;
-        if let Some(message) = staff_reject_block_reason(&booking_status) {
-            return Err(ApiError::Conflict(message));
-        }
-    }
-    let rejected =
-        PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, actor_user_id, reason)
-            .await?;
-    if rejected.is_none() {
-        return Err(ApiError::BadRequest(
-            "Payment is no longer pending.".to_string(),
-        ));
-    }
-
-    let reset_to_payment =
-        crate::modules::bookings::move_booking_to_pending_payment_tx(&mut tx, review.booking_id)
-            .await?;
-    if reset_to_payment {
-        crate::modules::bookings::record_booking_history_tx(
-            &mut tx,
-            review.booking_id,
-            Some("pending_confirmation"),
-            "pending_payment",
-            actor_user_id,
-            Some("Payment claim rejected; awaiting another payment"),
-            serde_json::json!({ "payment_id": payment_id }),
-        )
-        .await?;
-    }
-
-    AuditLog::log_event_tx(
+    let reset_to_payment = reject_payment_tx(
         &mut tx,
-        AuditEvent {
-            user_id: actor_user_id,
-            action: "payment_rejected",
-            resource_type: "payment",
-            resource_id: Some(payment_id),
-            details: Some(serde_json::json!({
-                "booking_id": review.booking_id,
-                "reason": reason,
-            })),
-            ..Default::default()
-        },
+        review.booking_id,
+        actor_user_id,
+        payment_id,
+        reason,
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -3334,52 +3392,6 @@ async fn group_payment_ref(pool: &DbPool, payment_id: i64) -> Result<Option<Stri
     .map_err(ApiError::from)
 }
 
-/// The other still-pending payments of the same group claim.
-async fn pending_group_siblings(
-    pool: &DbPool,
-    reference: &str,
-    payment_id: i64,
-) -> Result<Vec<(i64, i64)>, ApiError> {
-    sqlx::query_as(
-        "SELECT id, booking_id FROM payments \
-         WHERE metadata->>'group_payment_ref' = $1 AND id <> $2 AND status = 'pending' \
-         ORDER BY booking_id",
-    )
-    .bind(reference)
-    .bind(payment_id)
-    .fetch_all(pool)
-    .await
-    .map_err(ApiError::from)
-}
-
-async fn refresh_group_for_booking(pool: &DbPool, booking_id: i64) {
-    let group_id: Option<i64> =
-        sqlx::query_scalar("SELECT booking_group_id FROM bookings WHERE id = $1")
-            .bind(booking_id)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten()
-            .flatten();
-    let Some(group_id) = group_id else { return };
-    let result = async {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
-            &mut tx, group_id,
-        )
-        .await?;
-        crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
-            &mut tx, group_id,
-        )
-        .await?;
-        tx.commit().await.map_err(ApiError::from)
-    }
-    .await;
-    if let Err(error) = result {
-        log::warn!("Failed to refresh booking group {group_id} totals: {error}");
-    }
-}
-
 /// Guest action: one bank-transfer claim for every unpaid room of a group.
 ///
 /// All rooms move to `pending_confirmation` together in one transaction; each
@@ -3508,4 +3520,74 @@ pub async fn create_group_bank_transfer_claim(
         amount,
         status: "pending".to_string(),
     })
+}
+
+async fn reject_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    actor_user_id: Option<i64>,
+    payment_id: i64,
+    reason: &str,
+) -> Result<bool, ApiError> {
+    PaymentRepository::lock_booking_for_payment_tx(tx, booking_id).await?;
+    let status = PaymentRepository::lock_payment_status_tx(tx, payment_id, booking_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if status != "pending" {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
+    // A staff reviewer must not reject a claim once the booking has moved on
+    // by hand (confirmed, checked in, ...): the guest would be told their
+    // payment failed while the booking stays confirmed and unpaid. Returning
+    // here drops the transaction, so nothing changes and no mail is queued.
+    // The automated expiry sweeps (`actor_user_id == None`) keep their
+    // existing behaviour.
+    if actor_user_id.is_some() {
+        let booking_status =
+            PaymentRepository::booking_status_for_payment_tx(tx, booking_id).await?;
+        if let Some(message) = staff_reject_block_reason(&booking_status) {
+            return Err(ApiError::Conflict(message));
+        }
+    }
+    let rejected =
+        PaymentRepository::mark_payment_rejected_tx(tx, payment_id, actor_user_id, reason).await?;
+    if rejected.is_none() {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
+
+    let reset_to_payment =
+        crate::modules::bookings::move_booking_to_pending_payment_tx(tx, booking_id).await?;
+    if reset_to_payment {
+        crate::modules::bookings::record_booking_history_tx(
+            tx,
+            booking_id,
+            Some("pending_confirmation"),
+            "pending_payment",
+            actor_user_id,
+            Some("Payment claim rejected; awaiting another payment"),
+            serde_json::json!({ "payment_id": payment_id }),
+        )
+        .await?;
+    }
+
+    AuditLog::log_event_tx(
+        tx,
+        AuditEvent {
+            user_id: actor_user_id,
+            action: "payment_rejected",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "reason": reason,
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+    Ok(reset_to_payment)
 }
