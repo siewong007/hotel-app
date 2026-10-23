@@ -240,6 +240,11 @@ pub struct GuestBookingOffer {
     pub images: Vec<String>,
     pub features: Vec<String>,
     pub available_rooms: i64,
+    /// Extra beds one room of this type may add (0 = none). Lets the
+    /// multi-room cart cap its per-room stepper; the server re-validates.
+    pub max_extra_beds: i32,
+    /// Charge per extra bed per night.
+    pub extra_bed_charge: Decimal,
     pub currency: String,
     pub nightly_rates: Vec<NightlyRate>,
     pub subtotal: Decimal,

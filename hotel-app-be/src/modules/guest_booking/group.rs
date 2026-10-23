@@ -230,13 +230,16 @@ pub struct GroupBookingConfirmation {
 
 // ------------------------------------------------------------------ pricing
 
-struct ExtraBedPolicy {
-    allows: bool,
-    max: i32,
-    charge: Decimal,
+pub(super) struct ExtraBedPolicy {
+    pub(super) allows: bool,
+    pub(super) max: i32,
+    pub(super) charge: Decimal,
 }
 
-async fn extra_bed_policy(pool: &DbPool, room_type_id: i64) -> Result<ExtraBedPolicy, ApiError> {
+pub(super) async fn extra_bed_policy(
+    pool: &DbPool,
+    room_type_id: i64,
+) -> Result<ExtraBedPolicy, ApiError> {
     let row = sqlx::query(
         "SELECT COALESCE(allows_extra_bed, false) AS allows, COALESCE(max_extra_beds, 0) AS max_beds, \
                 COALESCE(extra_bed_charge, 0) AS charge FROM room_types WHERE id = $1",

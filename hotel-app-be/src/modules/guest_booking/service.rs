@@ -542,6 +542,7 @@ pub async fn search(
         let bed_type = room_type.bed_type.clone();
         let bed_count = room_type.bed_count;
         let available_rooms = room_type.available_rooms;
+        let extra_beds = super::group::extra_bed_policy(pool, room_type.id).await?;
         // Search prices the stay as-is; credits are chosen later, on the
         // selected room type, so no per-room-type credit lookup happens here.
         let quote = quote_for_inventory(
@@ -565,6 +566,12 @@ pub async fn search(
             images,
             features,
             available_rooms,
+            max_extra_beds: if extra_beds.allows {
+                extra_beds.max.max(0)
+            } else {
+                0
+            },
+            extra_bed_charge: extra_beds.charge,
             currency: quote.currency,
             nightly_rates: quote.nightly_rates,
             subtotal: quote.subtotal,
