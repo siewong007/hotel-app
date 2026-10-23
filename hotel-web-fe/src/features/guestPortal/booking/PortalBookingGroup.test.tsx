@@ -216,7 +216,7 @@ describe('PortalBookingPage multi-room cart', () => {
     const [request] = mocks.groupCreate.mock.calls[0] as [{ rooms: unknown[]; expected_total: string }];
     expect(request.rooms).toHaveLength(2);
     expect(request.expected_total).toBe('500');
-    expect(window.sessionStorage.getItem(CART_STORAGE_KEY)).toBeNull();
+    await waitFor(() => expect(window.sessionStorage.getItem(CART_STORAGE_KEY)).toBeNull());
   });
 
   it('keeps the cart and shows the server error when a room is taken mid-checkout', async () => {

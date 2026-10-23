@@ -514,6 +514,9 @@ const PortalBookingPage: React.FC = () => {
           marketing_opt_in: consentPayload.marketing_opt_in,
           guest: { first_name: guestDetails.first_name.trim(), email: guestDetails.email.trim(), phone: guestDetails.phone?.trim() || undefined, tourism_type: guestDetails.tourism_type },
         });
+      // Drop the stored cart now, not on the next effect flush: a refresh
+      // straight after booking must never resurrect rooms already booked.
+      saveCart(null);
       setGroupConfirmation(result);
       setCart(null);
       setGroupCheckout(false);
