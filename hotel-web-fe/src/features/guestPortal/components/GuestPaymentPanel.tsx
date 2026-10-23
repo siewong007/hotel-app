@@ -62,6 +62,9 @@ export interface GuestPaymentPanelProps {
   showBankTransfer?: boolean;
   /** Keeps payment choices independent when multiple panels appear on one page. */
   paymentMethodName?: string;
+  /** A multi-room booking group: the bank-transfer claim covers every room
+   *  at once. PayPal is not offered for a group yet. */
+  groupId?: number;
   /** Called with the server-confirmed outcome after a payment action succeeds. */
   onPaid?: (result: PaymentActionResponse) => void;
 }
@@ -76,6 +79,21 @@ function formatAmount(amount: string | number | null | undefined, currency?: str
   } catch {
     return formatCurrency(value, code);
   }
+}
+
+/** One claim for the whole group, reported in the single-booking shape the
+ *  panel already renders (the first room's payment carries any receipt). */
+async function submitGroupClaim(
+  mode: 'session' | 'token',
+  groupId: number,
+  token: string,
+  consents: Parameters<typeof GuestPortalService.submitBankTransfer>[1],
+): Promise<PaymentActionResponse> {
+  const claim =
+    mode === 'session'
+      ? await GuestPortalDashboardService.submitGroupBankTransfer(groupId, consents, token)
+      : await GuestPortalService.submitGroupBankTransfer(token, consents);
+  return { payment_id: claim.payment_ids[0], status: claim.status, booking_status: 'pending_confirmation' };
 }
 
 function PayPalButtonContent(
@@ -103,8 +121,10 @@ export function GuestPaymentPanel({
   token,
   showBankTransfer = true,
   paymentMethodName = 'guest-payment-method',
+  groupId,
   onPaid,
 }: GuestPaymentPanelProps) {
+  const isGroup = groupId != null;
   const { t } = useTranslation('guestPortal');
   const [config, setConfig] = useState<GuestPaymentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -151,15 +171,16 @@ export function GuestPaymentPanel({
 
   const submitBankTransfer = useCallback(async () => {
     if (paymentAttemptInFlight.current || bankSubmitting || result) return;
-    if (mode === 'session' && (!bookingId || !token)) return;
+    if (mode === 'session' && (!(bookingId || isGroup) || !token)) return;
     if (mode === 'token' && !token) return;
     paymentAttemptInFlight.current = true;
     setBankSubmitting(true);
     setBankError(null);
     try {
       const consents = consent.buildPayload(legalLocale).consents;
-      const response =
-        mode === 'session'
+      const response: PaymentActionResponse = isGroup
+        ? await submitGroupClaim(mode, groupId, token!, consents)
+        : mode === 'session'
           ? await GuestPortalDashboardService.submitBankTransfer(bookingId!, consents, token)
           : await GuestPortalService.submitBankTransfer(token!, consents);
       if (receiptFile) {
@@ -177,7 +198,7 @@ export function GuestPaymentPanel({
       paymentAttemptInFlight.current = false;
       setBankSubmitting(false);
     }
-  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile, consent, legalLocale, t]);
+  }, [bankSubmitting, result, mode, bookingId, isGroup, groupId, token, onPaid, receiptFile, consent, legalLocale, t]);
 
   const createOrder = useCallback(async (): Promise<string> => {
     if (paymentAttemptInFlight.current) {
@@ -240,7 +261,7 @@ export function GuestPaymentPanel({
     paymentAttemptInFlight.current = false;
   }, []);
 
-  const canPay = mode === 'session' ? Boolean(bookingId && token) : Boolean(token);
+  const canPay = mode === 'session' ? Boolean((bookingId || isGroup) && token) : Boolean(token);
   const formattedAmount = formatAmount(amount, currency);
 
   if (configLoading) {
@@ -280,7 +301,7 @@ export function GuestPaymentPanel({
   const hasBankDetails = Boolean(
     bankDetails.bank_name || bankDetails.account_name || bankDetails.account_number,
   );
-  const paypalReady = Boolean(config.paypal_enabled && config.paypal_client_id && canPay);
+  const paypalReady = Boolean(!isGroup && config.paypal_enabled && config.paypal_client_id && canPay);
 
   return (
     <Box>
