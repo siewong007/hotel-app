@@ -36,17 +36,21 @@ export const createGuestPortalTheme = (mode: ThemeMode) =>
     components: {
       MuiButton: {
         styleOverrides: {
-          // Guest surfaces are touch-first marketing pages: every button
-          // keeps the 44px tap floor, not just on coarse pointers.
-          root: { minHeight: 44 },
+          // Guest surfaces are touch-first: every button keeps the 44px tap
+          // floor, not just on coarse pointers.
           // Primary actions carry the landing page's gold pill with ink text
           // in both modes (ink on #D9B572 is ~10:1). Light mode keeps its
           // bronze primary for text-coloured uses, which stay AA on paper.
-          containedPrimary: {
-            backgroundColor: GUEST_BRAND.accent,
-            color: GUEST_BRAND.accentText,
-            '&:hover': { backgroundColor: GUEST_BRAND.accentHover },
-            '&:active': { backgroundColor: '#C7A45B' },
+          // Compound selector: the base theme's `contained` slot would
+          // otherwise win over a `containedPrimary` slot.
+          root: {
+            minHeight: 44,
+            '&.MuiButton-contained.MuiButton-colorPrimary:not(.Mui-disabled)': {
+              backgroundColor: GUEST_BRAND.accent,
+              color: GUEST_BRAND.accentText,
+              '&:hover': { backgroundColor: GUEST_BRAND.accentHover },
+              '&:active': { backgroundColor: '#C7A45B' },
+            },
           },
         },
       },
