@@ -1,4 +1,3 @@
-import reactCompiler from "eslint-plugin-react-compiler";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
@@ -22,13 +21,20 @@ export default [
       }
     },
     plugins: {
-      "react-compiler": reactCompiler,
       "react-hooks": reactHooks
     },
     rules: {
-      "react-compiler/react-compiler": "error",
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      // React Compiler diagnostics now ship in eslint-plugin-react-hooks 7
+      // (the standalone eslint-plugin-react-compiler pinned a vulnerable zod 3).
+      ...reactHooks.configs["recommended-latest"].rules,
+      // Stricter v7 diagnostics the old plugin never enforced; existing code
+      // has violations. Off for now, tracked as follow-up cleanup.
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/purity": "off",
       // Ban deriving a YYYY-MM-DD string from Date.toISOString(): toISOString()
       // returns UTC, so .split('T')[0] / .slice(0, 10) yields the previous day
       // during early-morning hours in east-of-UTC timezones. Use the local-date
