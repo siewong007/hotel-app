@@ -20,7 +20,7 @@ import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GroupBookingApi, GuestBookingApi, PublicBookingApi, PublicGroupBookingApi } from './api';
-import { addRoom, type Cart, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, toGroupRooms, updateLine } from './cart';
+import { addRoom, type Cart, cartCapacity, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, toGroupRooms, updateLine } from './cart';
 import { CartBar, GroupCheckoutStage, GroupConfirmationStage, OfferRoomStepper } from './GroupCheckout';
 import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
@@ -124,6 +124,11 @@ const PortalBookingPage: React.FC = () => {
   const [useGroupCredits, setUseGroupCredits] = useState(false);
   const [groupRequestId, setGroupRequestId] = useState(newRequestId);
   const [groupConfirmation, setGroupConfirmation] = useState<GroupBookingConfirmation | null>(null);
+  // A one-room cart checks out through the single-booking flow (it keeps
+  // PayPal and per-night credit picking); that room's own party is priced,
+  // not the search's.
+  const [singleParty, setSinglePartyState] = useState<{ adults: number; children: number } | null>(null);
+  const stay = useMemo<GuestBookingSearch>(() => (singleParty ? { ...search, ...singleParty } : search), [search, singleParty]);
   const [prefillPending, setPrefillPending] = useState(Boolean(prefill));
   const [nicknameTaken, setNicknameTaken] = useState(false);
   const [offers, setOffers] = useState<GuestBookingOffer[]>([]);
@@ -182,7 +187,7 @@ const PortalBookingPage: React.FC = () => {
     let cancelled = false;
     setIsQuoting(true);
     void PublicBookingApi.quote({
-      ...search,
+      ...stay,
       room_type_id: selectedOffer.room_type_id,
       tourism_type: guestDetails.tourism_type,
     })
@@ -200,7 +205,7 @@ const PortalBookingPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [guestDetails.tourism_type, isAnonymous, search, selectedOffer, setError, t]);
+  }, [guestDetails.tourism_type, isAnonymous, stay, selectedOffer, setError, t]);
 
   // Vouchers are a secondary surface next to the quote: a load failure warns
   // inline at the picker rather than masking the search flow behind `error`.
@@ -264,13 +269,15 @@ const PortalBookingPage: React.FC = () => {
     [offers, prefilledOffer],
   );
 
-  const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
+  const selectOffer = useCallback(async (offer: GuestBookingOffer, party?: { adults: number; children: number }) => {
+    const base = party ? { ...search, ...party } : stay;
+    setSinglePartyState(party ?? null);
     if (!canQuery || isQuoting) return;
     setSelectedOffer(offer); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setRequestId(newRequestId()); setIsQuoting(true); setError(null);
     try {
       if (token) {
         const voucherOptions = await GuestBookingApi.voucherOptions(
-          { ...search, room_type_id: offer.room_type_id },
+          { ...base, room_type_id: offer.room_type_id },
           token,
         );
         setQuote(voucherOptions.quote);
@@ -278,7 +285,7 @@ const PortalBookingPage: React.FC = () => {
       } else {
         // No account, so no voucher eligibility to resolve — just the price.
         setQuote(await PublicBookingApi.quote({
-          ...search,
+          ...base,
           room_type_id: offer.room_type_id,
           ...(guestDetails.tourism_type === 'local' || guestDetails.tourism_type === 'foreign'
             ? { tourism_type: guestDetails.tourism_type }
@@ -288,18 +295,18 @@ const PortalBookingPage: React.FC = () => {
     }
     catch (quoteError) { setSelectedOffer(null); setError(guestErrorMessage(quoteError, t('book.errors.quoteFailed'))); }
     finally { setIsQuoting(false); }
-  }, [canQuery, guestDetails.tourism_type, isQuoting, search, setError, t, token]);
+  }, [canQuery, guestDetails.tourism_type, isQuoting, search, stay, setError, t, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
     if (isQuoting) return;
     if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
-    const eligibilityKey = nextVoucherId === '' || !selectedOffer ? null : voucherStayEligibilityKey(nextVoucherId, selectedOffer.room_type_id, search);
+    const eligibilityKey = nextVoucherId === '' || !selectedOffer ? null : voucherStayEligibilityKey(nextVoucherId, selectedOffer.room_type_id, stay);
     if (eligibilityKey && ineligibleVoucherKeys.has(eligibilityKey)) return;
     setVoucherId(nextVoucherId);
     if (!token || !selectedOffer) return;
     setIsQuoting(true); setError(null);
     try {
-      setQuote(await GuestBookingApi.quote({ ...search, room_type_id: selectedOffer.room_type_id, voucher_id: nextVoucherId === '' ? undefined : nextVoucherId, complimentary_dates: complimentaryDates }, token));
+      setQuote(await GuestBookingApi.quote({ ...stay, room_type_id: selectedOffer.room_type_id, voucher_id: nextVoucherId === '' ? undefined : nextVoucherId, complimentary_dates: complimentaryDates }, token));
       setRequestId(newRequestId());
     } catch (quoteError) {
       if (eligibilityKey && isVoucherEligibilityError(quoteError)) {
@@ -313,7 +320,7 @@ const PortalBookingPage: React.FC = () => {
       setVoucherId('');
       setError(guestErrorMessage(quoteError, t('book.errors.voucherFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, isQuoting, search, selectedOffer, setError, t, token]);
+  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, isQuoting, stay, selectedOffer, setError, t, token]);
 
   // Complimentary nights are re-priced server-side on every toggle: the credit
   // is worth exactly the rate of the night it is spent on, so the guest sees
@@ -324,13 +331,13 @@ const PortalBookingPage: React.FC = () => {
     setComplimentaryDates(nextDates);
     setIsQuoting(true); setError(null);
     try {
-      setQuote(await GuestBookingApi.quote({ ...search, room_type_id: selectedOffer.room_type_id, voucher_id: voucherId === '' ? undefined : voucherId, complimentary_dates: nextDates }, token));
+      setQuote(await GuestBookingApi.quote({ ...stay, room_type_id: selectedOffer.room_type_id, voucher_id: voucherId === '' ? undefined : voucherId, complimentary_dates: nextDates }, token));
       setRequestId(newRequestId());
     } catch (quoteError) {
       setComplimentaryDates(previousDates);
       setError(guestErrorMessage(quoteError, t('book.errors.creditsFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, isQuoting, search, selectedOffer, setError, t, token, voucherId]);
+  }, [complimentaryDates, isQuoting, stay, selectedOffer, setError, t, token, voucherId]);
 
   const submitAnonymousBooking = useCallback(async () => {
     if (!quote) return;
@@ -348,7 +355,7 @@ const PortalBookingPage: React.FC = () => {
     setIsSubmitting(true); setError(null);
     try {
       const result = await PublicBookingApi.create({
-        ...search,
+        ...stay,
         room_type_id: quote.room_type_id,
         client_request_id: requestId,
         expected_total: quote.total_amount,
@@ -379,7 +386,7 @@ const PortalBookingPage: React.FC = () => {
       // moved on from; if the room itself is gone, fall back to a fresh search.
       try {
         setQuote(await PublicBookingApi.quote({
-          ...search,
+          ...stay,
           room_type_id: quote.room_type_id,
           ...(guestDetails.tourism_type === 'local' || guestDetails.tourism_type === 'foreign'
             ? { tourism_type: guestDetails.tourism_type }
@@ -388,7 +395,7 @@ const PortalBookingPage: React.FC = () => {
       }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, setError, smokingPreference, specialRequests, t]);
+  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, stay, setError, smokingPreference, specialRequests, t]);
 
   const submitBooking = useCallback(async () => {
     if (!quote) return;
@@ -411,7 +418,7 @@ const PortalBookingPage: React.FC = () => {
     try {
       // Submit the nights the server itself priced, so what is booked is
       // exactly what the guest just reviewed.
-      const result = await GuestBookingApi.create({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates, client_request_id: requestId, expected_total: quote.total_amount, special_requests: specialRequests.trim() || undefined, cleaning_preference: cleaningPreference, ...(smokingPreference ? { smoking_preference: smokingPreference } : {}), consents: consentPayload.consents }, token);
+      const result = await GuestBookingApi.create({ ...stay, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates, client_request_id: requestId, expected_total: quote.total_amount, special_requests: specialRequests.trim() || undefined, cleaning_preference: cleaningPreference, ...(smokingPreference ? { smoking_preference: smokingPreference } : {}), consents: consentPayload.consents }, token);
       setConfirmation(result);
     } catch (createError) {
       const missingFields = await readProfileIncompleteFields(createError);
@@ -421,13 +428,15 @@ const PortalBookingPage: React.FC = () => {
         return;
       }
       setError(guestErrorMessage(createError, t('book.errors.createFailed')));
-      try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
+      try { setQuote(await GuestBookingApi.quote({ ...stay, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, setError, smokingPreference, specialRequests, submitAnonymousBooking, t, token]);
+  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, stay, setError, smokingPreference, specialRequests, submitAnonymousBooking, t, token]);
 
   useEffect(() => { saveCart(cart); }, [cart]);
   const cartRooms = cart?.rooms.length ?? 0;
+  const capacity = cart ? cartCapacity(cart) : 0;
+  const partySize = Math.max(0, (Number(search.adults) || 0) + (Number(search.children) || 0));
   useEffect(() => { if (cartRooms === 0) setGroupCheckout(false); }, [cartRooms]);
 
   const addToCart = useCallback((offer: GuestBookingOffer) => {
@@ -464,9 +473,17 @@ const PortalBookingPage: React.FC = () => {
 
   const openGroupCheckout = useCallback(() => {
     if (!cart || cart.rooms.length === 0) return;
+    // One plain room: the single-booking review (PayPal, per-night credits).
+    const only = cart.rooms.length === 1 ? cart.rooms[0] : null;
+    const onlyOffer = only && only.extra_beds === 0 ? offers.find((offer) => offer.room_type_id === only.room_type_id) : undefined;
+    if (only && onlyOffer && sameStay(cart, search)) {
+      setGroupCheckout(false);
+      void selectOffer(onlyOffer, { adults: only.adults, children: only.children });
+      return;
+    }
     setSelectedOffer(null); setQuote(null); setError(null); setGroupQuote(null); setGroupCheckout(true);
     window.scrollTo?.({ top: 0, behavior: 'auto' });
-  }, [cart, setError]);
+  }, [cart, offers, search, selectOffer, setError]);
 
   const submitGroup = useCallback(async () => {
     if (!cart || !groupQuote || isSubmitting || isQuoting) return;
@@ -531,7 +548,7 @@ const PortalBookingPage: React.FC = () => {
   if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); setRequestId(newRequestId()); }} />;
 
   return (
-    <Container maxWidth="lg" data-boot-hold={prefillPending ? 'true' : undefined} sx={{ py: { xs: 3, md: 5 }, pb: cartRooms > 0 && !selectedOffer ? { xs: 14, md: 14 } : undefined }}>
+    <Container maxWidth="lg" data-boot-hold={prefillPending ? 'true' : undefined} sx={{ py: { xs: 3, md: 5 }, pb: cartRooms > 0 ? { xs: capacity < partySize ? 20 : 14, md: 14 } : undefined }}>
       {isAnonymous
         ? <Button startIcon={<ArrowBackIcon />} href="/salim-inn/index.html" sx={{ mb: 2 }}>{t('book.backToHotel')}</Button>
         : <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>{t('book.backToAccount')}</Button>}
@@ -555,6 +572,8 @@ const PortalBookingPage: React.FC = () => {
             isQuoting={isQuoting}
             isSubmitting={isSubmitting}
             isAnonymous={isAnonymous}
+            capacity={capacity}
+            partySize={partySize}
             vouchers={vouchers}
             voucherId={groupVoucherId}
             useCredits={useGroupCredits}
@@ -570,20 +589,23 @@ const PortalBookingPage: React.FC = () => {
         </Box>
       ) : null}
       <Collapse in={!groupCheckout && !selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{orderedOffers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} highlighted={offer === prefilledOffer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} cartCount={cart && sameStay(cart, search) ? countOfType(cart, offer.room_type_id) : 0} cartRemaining={remainingForOffer(cart && sameStay(cart, search) ? cart : emptyCart(search), offer)} onAddToCart={() => addToCart(offer)} onRemoveFromCart={() => removeFromCart(offer.room_type_id)} /></Grid>)}</Grid></Box>
+        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{orderedOffers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} highlighted={offer === prefilledOffer} disabled={isQuoting} cartCount={cart && sameStay(cart, search) ? countOfType(cart, offer.room_type_id) : 0} cartRemaining={remainingForOffer(cart && sameStay(cart, search) ? cart : emptyCart(search), offer)} onAddToCart={() => addToCart(offer)} onRemoveFromCart={() => removeFromCart(offer.room_type_id)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} smokingPreference={smokingPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onSmokingPreference={setSmokingPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={stay} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} smokingPreference={smokingPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onSmokingPreference={setSmokingPreference} onBack={() => { setSinglePartyState(null); setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} />}</Box>
       </Collapse>
-      {cart && cartRooms > 0 && !selectedOffer ? (
+      {cart && cartRooms > 0 ? (
         <CartBar
           roomCount={cartRooms}
-          total={groupCheckout && groupQuote ? groupQuote.total_amount : estimatedTotal(cart)}
-          currency={groupQuote?.currency ?? cart.rooms[0].currency}
-          estimated={!(groupCheckout && groupQuote)}
-          phase={groupCheckout ? 'checkout' : 'browse'}
-          busy={isSubmitting || (groupCheckout && (isQuoting || !groupQuote))}
-          onPrimary={groupCheckout ? () => void submitGroup() : openGroupCheckout}
+          total={selectedOffer && quote ? quote.total_amount : groupCheckout && groupQuote ? groupQuote.total_amount : estimatedTotal(cart)}
+          currency={(selectedOffer && quote?.currency) || groupQuote?.currency || cart.rooms[0].currency}
+          estimated={!((selectedOffer && quote) || (groupCheckout && groupQuote))}
+          phase={selectedOffer || groupCheckout ? 'checkout' : 'browse'}
+          primaryLabel={selectedOffer && quote && Number(quote.complimentary_discount) > 0 && Number(quote.total_amount) <= 0 ? t('book.confirmFreeStay') : undefined}
+          busy={isSubmitting || isQuoting || (groupCheckout && !groupQuote) || (Boolean(selectedOffer) && !quote)}
+          capacity={capacity}
+          partySize={partySize}
+          onPrimary={selectedOffer ? () => void submitBooking() : groupCheckout ? () => void submitGroup() : openGroupCheckout}
         />
       ) : null}
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>{t('book.availabilityChangedTitle')}</DialogTitle><DialogContent><Typography>{t('book.availabilityChangedBody')}</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>{t('book.viewAvailable')}</Button></DialogActions></Dialog>
@@ -621,7 +643,7 @@ function SearchStage({ search, isSearching, onChange, onSearch }: { search: Gues
   );
 }
 
-function OfferCard({ offer, highlighted = false, disabled, onSelect, cartCount = 0, cartRemaining = 0, onAddToCart, onRemoveFromCart }: { offer: GuestBookingOffer; highlighted?: boolean; disabled?: boolean; onSelect: () => void; cartCount?: number; cartRemaining?: number; onAddToCart?: () => void; onRemoveFromCart?: () => void }) {
+function OfferCard({ offer, highlighted = false, disabled, cartCount = 0, cartRemaining = 0, onAddToCart, onRemoveFromCart }: { offer: GuestBookingOffer; highlighted?: boolean; disabled?: boolean; cartCount?: number; cartRemaining?: number; onAddToCart?: () => void; onRemoveFromCart?: () => void }) {
   const { t } = useTranslation('guestPortal');
   const cardRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -648,7 +670,7 @@ function OfferCard({ offer, highlighted = false, disabled, onSelect, cartCount =
         alignItems: "end"
       }}><Box><Typography variant="caption" sx={{
       color: "text.secondary"
-    }}>{t('book.stayTotal')}</Typography><Typography variant="h5" component="div">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect} sx={{ minHeight: 44 }}>{t('book.select')}</Button></Stack>{onAddToCart && onRemoveFromCart ? <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}><OfferRoomStepper roomTypeName={offer.room_type_name} count={cartCount} remaining={cartRemaining} onAdd={onAddToCart} onRemove={onRemoveFromCart} disabled={disabled} /></Box> : null}</CardContent></Card>
+    }}>{t('book.stayTotal')}</Typography><Typography variant="h5" component="div">{money(offer.total_amount, offer.currency)}</Typography></Box></Stack>{onAddToCart && onRemoveFromCart ? <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}><OfferRoomStepper roomTypeName={offer.room_type_name} count={cartCount} remaining={cartRemaining} onAdd={onAddToCart} onRemove={onRemoveFromCart} disabled={disabled} /></Box> : null}</CardContent></Card>
   );
 }
 
@@ -665,9 +687,9 @@ function LoadingQuote() {
   );
 }
 
-function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; vouchersError: string | null; onRetryVouchers: () => void; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; smokingPreference: SmokingPreference | ''; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onSmokingPreference: (value: SmokingPreference | '') => void; onBack: () => void; onConfirm: () => void }) {
+function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; vouchersError: string | null; onRetryVouchers: () => void; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; smokingPreference: SmokingPreference | ''; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onSmokingPreference: (value: SmokingPreference | '') => void; onBack: () => void }) {
   const { t } = useTranslation('guestPortal');
-  const { isAnonymous, consent, guestDetails, onGuestDetails, nicknameTaken, quote, search, vouchers, vouchersError, onRetryVouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, smokingPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onSmokingPreference, onBack, onConfirm } = props;
+  const { isAnonymous, consent, guestDetails, onGuestDetails, nicknameTaken, quote, search, vouchers, vouchersError, onRetryVouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, smokingPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onSmokingPreference, onBack } = props;
   const nightsLabel = t('common:count.nights', { count: countStayNights(search) });
   const childrenLabel = quote.children > 0 ? t('book.childrenSuffix', { count: quote.children }) : '';
   return (
@@ -675,7 +697,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
         color: "text.secondary"
       }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} disabled={isSubmitting} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} disabled={isSubmitting} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
-      }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /><SmokingPreferenceField value={smokingPreference} onChange={onSmokingPreference} disabled={isSubmitting} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
+      }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /><SmokingPreferenceField value={smokingPreference} onChange={onSmokingPreference} disabled={isSubmitting} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} onBack={onBack} /></Grid></Grid></Paper>
   );
 }
 
@@ -803,7 +825,7 @@ function ComplimentaryNights({ quote, onChange, disabled = false }: { quote: Gue
   );
 }
 
-function PriceSummary({ quote, isSubmitting, onBack, onConfirm }: { quote: GuestBookingQuote; isSubmitting: boolean; onBack: () => void; onConfirm: () => void }) {
+function PriceSummary({ quote, onBack }: { quote: GuestBookingQuote; onBack: () => void }) {
   const { t } = useTranslation('guestPortal');
   const complimentaryAmount = Number(quote.complimentary_discount) || 0;
   // `discount_amount` is the combined discount; show the voucher's share of it
@@ -818,7 +840,7 @@ function PriceSummary({ quote, isSubmitting, onBack, onConfirm }: { quote: Guest
       sx={{
         justifyContent: "space-between",
         mt: 1
-      }}><Typography variant="body2">{rate.date}</Typography><Typography variant="body2">{money(rate.amount, quote.currency)}</Typography></Stack>)}<Divider sx={{ my: 2 }} /><SummaryLine label={t('book.subtotal')} value={money(quote.subtotal, quote.currency)} />{complimentaryAmount > 0 ? <SummaryLine label={t('book.complimentaryNights', { count: quote.complimentary_nights })} value={`-${money(complimentaryAmount, quote.currency)}`} color="success.main" /> : null}{voucherAmount > 0 ? <SummaryLine label={t('book.discount')} value={`-${money(voucherAmount, quote.currency)}`} color="success.main" /> : null}<SummaryLine label={t('book.tax')} value={money(quote.tax_amount, quote.currency)} /><Divider sx={{ my: 2 }} /><SummaryLine label={t('book.total')} value={money(quote.total_amount, quote.currency)} strong /><Alert severity={settledByCredits ? 'success' : 'info'} sx={{ mt: 2 }}>{settledByCredits ? t('book.coveredInFull') : t('book.payAfterSubmit')}</Alert><Box sx={{ mt: 2 }}>{quote.hold_release_hours != null && quote.hold_release_hours > 0 ? <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{t('book.holdWindow', { hours: quote.hold_release_hours })}</Typography> : null}<Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>{t('book.cancellationSummary')}</Typography></Box><Stack direction={{ xs: 'column', sm: 'row', md: 'column' }} spacing={1} sx={{ mt: 3 }}><Button variant="outlined" onClick={onBack}>{t('book.changeRoom')}</Button><Button variant="contained" disabled={isSubmitting} onClick={onConfirm}>{isSubmitting ? <CircularProgress size={22} color="inherit" /> : settledByCredits ? t('book.confirmFreeStay') : t('book.continueToPayment')}</Button></Stack></CardContent></Card>
+      }}><Typography variant="body2">{rate.date}</Typography><Typography variant="body2">{money(rate.amount, quote.currency)}</Typography></Stack>)}<Divider sx={{ my: 2 }} /><SummaryLine label={t('book.subtotal')} value={money(quote.subtotal, quote.currency)} />{complimentaryAmount > 0 ? <SummaryLine label={t('book.complimentaryNights', { count: quote.complimentary_nights })} value={`-${money(complimentaryAmount, quote.currency)}`} color="success.main" /> : null}{voucherAmount > 0 ? <SummaryLine label={t('book.discount')} value={`-${money(voucherAmount, quote.currency)}`} color="success.main" /> : null}<SummaryLine label={t('book.tax')} value={money(quote.tax_amount, quote.currency)} /><Divider sx={{ my: 2 }} /><SummaryLine label={t('book.total')} value={money(quote.total_amount, quote.currency)} strong /><Alert severity={settledByCredits ? 'success' : 'info'} sx={{ mt: 2 }}>{settledByCredits ? t('book.coveredInFull') : t('book.payAfterSubmit')}</Alert><Box sx={{ mt: 2 }}>{quote.hold_release_hours != null && quote.hold_release_hours > 0 ? <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{t('book.holdWindow', { hours: quote.hold_release_hours })}</Typography> : null}<Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>{t('book.cancellationSummary')}</Typography></Box><Stack direction={{ xs: 'column', sm: 'row', md: 'column' }} spacing={1} sx={{ mt: 3 }}><Button variant="outlined" onClick={onBack} sx={{ minHeight: 44 }}>{t('book.changeRoom')}</Button></Stack></CardContent></Card>
   );
 }
 

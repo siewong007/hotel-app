@@ -161,7 +161,9 @@
       "useCredits_one": "Guna {{count}} malam percuma saya (malam termurah dahulu)",
       "useCredits_other": "Guna {{count}} malam percuma saya (malam termurah dahulu)",
       "groupNumber": "Nombor tempahan kumpulan",
-      "emailNote": "Kami telah menghantar e-mel pengesahan yang menyenaraikan setiap bilik."
+      "emailNote": "Kami telah menghantar e-mel pengesahan yang menyenaraikan setiap bilik.",
+      "capacityShort_one": "Bilik anda memuatkan {{count}} tetamu tetapi anda mencari untuk {{guests}}. Tambah bilik lagi supaya semua orang ada katil.",
+      "capacityShort_other": "Bilik anda memuatkan {{count}} tetamu tetapi anda mencari untuk {{guests}}. Tambah bilik lagi supaya semua orang ada katil."
     }
   },
   "booking": {
