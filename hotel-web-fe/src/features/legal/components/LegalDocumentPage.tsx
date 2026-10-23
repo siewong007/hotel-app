@@ -7,8 +7,6 @@ import {
   Link,
   Paper,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
@@ -19,8 +17,6 @@ import { useNavigate } from '../../../router';
 import {
   HOTEL_LEGAL_IDENTITY,
   LEGAL_DOCUMENT_PATHS,
-  LEGAL_LOCALES,
-  LEGAL_LOCALE_LABELS,
   getLegalDocuments,
   type LegalDocumentId,
   type LegalLocale,
@@ -159,7 +155,7 @@ function splitHeadingNumeral(heading: string): { numeral: string | null; text: s
  * consent.
  */
 export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ documentId }) => {
-  const { locale, setLocale } = useLegalLocale();
+  const { locale } = useLegalLocale();
   const navigate = useNavigate();
   // The terms disclose the configured business registration number, which the
   // boot-time `settings/public` fetch may deliver after this page has already
@@ -238,22 +234,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
               {document.title[locale]}
             </Typography>
           </Box>
-          {/* Own row on xs via the column direction above; sits at the top-right
-              of the masthead from sm up. */}
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={locale}
-            onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={lt('languageToggle')}
-            sx={{ flexShrink: 0 }}
-          >
-            {LEGAL_LOCALES.map((option) => (
-              <ToggleButton key={option} value={option} sx={{ px: 1.5 }}>
-                {LEGAL_LOCALE_LABELS[option]}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+          {/* Language is switched with the header globe only. */}
         </Stack>
 
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>

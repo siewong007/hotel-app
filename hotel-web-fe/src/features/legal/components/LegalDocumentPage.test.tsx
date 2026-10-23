@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
+import { resetLocaleStoreForTests, setActiveLocale } from '../../../i18n/localeStore';
 // Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
 // awaits them at boot; a test that asserts translated copy must do the same, or
 // it reads the English fallback and fails on a difference that is not a bug.
@@ -322,10 +322,10 @@ describe('LegalDocumentPage reading experience', () => {
     expect(screen.getAllByText('Good to know')).toHaveLength(1);
   });
 
-  it('localizes the callout captions and prose with the language toggle', () => {
+  it('localizes the callout captions and prose with the global (header globe) locale', () => {
     render(<LegalDocumentPage documentId="terms_of_service" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Bahasa Malaysia' }));
+    act(() => setActiveLocale('ms'));
 
     expect(screen.getByText('Perkara penting')).toBeTruthy();
     expect(screen.getByText('Baik untuk diketahui')).toBeTruthy();
@@ -334,10 +334,10 @@ describe('LegalDocumentPage reading experience', () => {
     expect(screen.getByRole('heading', { name: /Tajuk bahagian kewajipan/ })).toBeTruthy();
   });
 
-  it('localizes into Simplified Chinese via the language toggle', () => {
+  it('localizes into Simplified Chinese via the global locale', () => {
     render(<LegalDocumentPage documentId="terms_of_service" />);
 
-    fireEvent.click(screen.getByRole('button', { name: '简体中文' }));
+    act(() => setActiveLocale('zh'));
 
     expect(screen.getByText('重要提示')).toBeTruthy();
     expect(screen.getByText('须知')).toBeTruthy();
@@ -346,7 +346,7 @@ describe('LegalDocumentPage reading experience', () => {
     expect(screen.getByRole('heading', { name: /义务章节标题/ })).toBeTruthy();
   });
 
-  it('stamps the active language on the page element and swaps it on toggle', () => {
+  it('stamps the active language on the page element and swaps it with the global locale', () => {
     const { container } = render(<LegalDocumentPage documentId="terms_of_service" />);
     const page = container.firstElementChild;
     if (!page) throw new Error('expected the page container to render');
@@ -354,14 +354,14 @@ describe('LegalDocumentPage reading experience', () => {
     // `lang` must live on the page because the toggle swaps the prose
     // client-side — a screen reader keys pronunciation off it.
     expect(page.getAttribute('lang')).toBe('en');
-    expect(screen.getByRole('group', { name: 'Document language' })).toBeTruthy();
+    // no in-page language tabs: the header globe is the only switch
+    expect(screen.queryByRole('button', { name: 'Bahasa Malaysia' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Bahasa Malaysia' }));
+    act(() => setActiveLocale('ms'));
     expect(page.getAttribute('lang')).toBe('ms');
-    expect(screen.getByRole('group', { name: 'Bahasa dokumen' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Terma Stub' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    act(() => setActiveLocale('en'));
     expect(page.getAttribute('lang')).toBe('en');
     expect(screen.getByRole('heading', { name: 'Stub Terms' })).toBeTruthy();
   });

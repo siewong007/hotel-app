@@ -1,4 +1,5 @@
 import React from 'react';
+import LanguageIcon from '@mui/icons-material/Language';
 import {
   Alert,
   Box,
@@ -6,16 +7,11 @@ import {
   FormControlLabel,
   FormHelperText,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import {
   CONSENT_RECORD_NOTE,
-  LEGAL_LOCALES,
-  LEGAL_LOCALE_LABELS,
   type ConsentPrompt,
-  type LegalLocale,
   type LocalizedText,
 } from '../content';
 // The placeholder-to-link rendering is shared with ConsentNotice, so both
@@ -30,7 +26,8 @@ export interface ConsentBlockProps {
   state: ConsentState;
   /** Extra points shown above the checkboxes (payment and eKYC use this). */
   keyPoints?: LocalizedText[];
-  /** Hide the language switch where the page already offers one. */
+  /** Hide the "change language with the globe" hint (e.g. where the page
+   *  has no header globe or already says so). */
   hideLocaleToggle?: boolean;
   /** Optional heading above the block. */
   title?: LocalizedText;
@@ -50,7 +47,7 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
   hideLocaleToggle,
   title,
 }) => {
-  const { locale, setLocale } = useLegalLocale();
+  const { locale } = useLegalLocale();
   // Chrome keys live in the legal bundle but resolve in the corpus locale the
   // guest picked — consent chrome has to match the language the notice was
   // read in, not the interface locale.
@@ -70,19 +67,16 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
           <span />
         )}
         {!hideLocaleToggle && (
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={locale}
-            onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={lt('consent.languageToggle')}
+          // Language is switched only with the header globe (one control for
+          // the whole page); the consent text and the recorded locale follow it.
+          <Typography
+            variant="caption"
+            data-testid="consent-language-hint"
+            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}
           >
-            {LEGAL_LOCALES.map((option) => (
-              <ToggleButton key={option} value={option} sx={{ px: 1.5, py: 0.25, fontSize: '0.7rem' }}>
-                {LEGAL_LOCALE_LABELS[option]}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+            <LanguageIcon sx={{ fontSize: 16 }} aria-hidden="true" />
+            {lt('consent.languageHint')}
+          </Typography>
         )}
       </Stack>
 

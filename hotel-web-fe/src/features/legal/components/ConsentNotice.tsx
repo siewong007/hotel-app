@@ -1,10 +1,7 @@
 import React from 'react';
-import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import {
   CONSENT_RECORD_NOTE,
-  LEGAL_LOCALES,
-  LEGAL_LOCALE_LABELS,
-  type LegalLocale,
 } from '../content';
 import type { ConsentNoticeContent } from '../content/consentNotice';
 import { useLegalLocale } from '../LegalLocaleContext';
@@ -25,36 +22,17 @@ export interface ConsentNoticeProps {
  * sentence in view. Put it anywhere else and there is nothing that evidences
  * what they were shown.
  *
- * The locale toggle stays, for the same reason the checkbox block has one — the
- * record pins the locale the sentence was read in, so the guest has to be able
- * to choose it.
+ * The record pins the locale the sentence was read in: the guest chooses it
+ * with the header globe (the shared interface locale), not an in-block toggle.
  */
 export const ConsentNotice: React.FC<ConsentNoticeProps> = ({ notice, hideLocaleToggle }) => {
-  const { locale, setLocale } = useLegalLocale();
+  const { locale } = useLegalLocale();
   // Chrome follows the corpus locale (en/ms) — the language the notice was
   // read in — not the interface locale.
   const lt = (key: string) => translateFor(locale, key, undefined, 'legal');
 
   return (
     <Box sx={{ mt: 1.5 }}>
-      {!hideLocaleToggle && (
-        <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 0.5 }}>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={locale}
-            onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={lt('consent.languageToggle')}
-          >
-            {LEGAL_LOCALES.map((option) => (
-              <ToggleButton key={option} value={option} sx={{ px: 1.5, py: 0.25, fontSize: '0.7rem' }}>
-                {LEGAL_LOCALE_LABELS[option]}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Stack>
-      )}
-
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.6 }}>
         {renderLabel(notice.text[locale], locale)}
       </Typography>

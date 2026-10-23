@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
+import { resetLocaleStoreForTests, setActiveLocale } from '../../../i18n/localeStore';
 import { REGISTRATION_CONSENTS } from '../content';
 import { useLegalLocale } from '../LegalLocaleContext';
 import { useConsent } from '../useConsent';
@@ -42,7 +42,11 @@ describe('ConsentBlock locale', () => {
   it('records the language the guest is reading, not a stale parent locale', () => {
     render(<Recorder />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Bahasa Malaysia' }));
+    // no in-block tabs; a hint points at the header globe, which sets the shared locale
+    expect(screen.queryByRole('button', { name: 'Bahasa Malaysia' })).toBeNull();
+    expect(screen.getByTestId('consent-language-hint').textContent).toMatch(/globe/);
+    act(() => setActiveLocale('ms'));
+    expect(screen.getByTestId('consent-language-hint').textContent).toMatch(/glob/);
     fireEvent.click(screen.getByRole('checkbox', { name: /Terma dan Syarat Tempahan/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /Notis Privasi/ }));
     fireEvent.click(screen.getByRole('button', { name: 'record' }));
