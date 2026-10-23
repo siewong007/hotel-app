@@ -1,3 +1,4 @@
+import type { GroupPaymentActionResponse } from '../features/guestPortal/booking/types';
 import { api } from './client';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
@@ -117,6 +118,19 @@ export class GuestPortalService {
   ): Promise<PaymentActionResponse> {
     return await api
       .post('guest-portal/booking/payments/bank-transfer', {
+        headers: bookingTokenHeaders(token),
+        json: { consents },
+      })
+      .json();
+  }
+
+  /** Any room's booking token pays for its whole group in one claim. */
+  static async submitGroupBankTransfer(
+    token: string,
+    consents: ConsentAcceptance[]
+  ): Promise<GroupPaymentActionResponse> {
+    return await api
+      .post('guest-portal/booking/group-payments/bank-transfer', {
         headers: bookingTokenHeaders(token),
         json: { consents },
       })

@@ -27,6 +27,10 @@ export interface GuestBookingOffer {
   images: string[];
   features: string[];
   available_rooms: number;
+  /** Extra beds one room of this type may add (0/absent = none). */
+  max_extra_beds?: number;
+  /** Charge per extra bed per night. */
+  extra_bed_charge?: string | number;
   currency: string;
   nightly_rates: GuestNightlyRate[];
   subtotal: string | number;
@@ -151,4 +155,105 @@ export interface AvailabilityEvent {
   check_in_date: string | null;
   check_out_date: string | null;
   remaining_rooms: number | null;
+}
+
+// ---------------------------------------------------------------- multi-room
+
+/** One room in a multi-room cart, as sent to the group quote/create APIs. */
+export interface GroupRoomRequest {
+  room_type_id: number;
+  adults: number;
+  children: number;
+  extra_beds: number;
+}
+
+export interface GroupQuoteRequest {
+  check_in_date: string;
+  check_out_date: string;
+  rooms: GroupRoomRequest[];
+  tourism_type?: 'local' | 'foreign';
+  /** Signed-in only. */
+  voucher_id?: number;
+  /** Signed-in only: spend credits on the cheapest room-nights first. */
+  use_credits?: boolean;
+}
+
+export interface GroupRoomQuote {
+  index: number;
+  quote: GuestBookingQuote;
+  extra_bed_count: number;
+  extra_bed_charge: string | number;
+  room_total: string | number;
+}
+
+export interface GroupQuote {
+  check_in_date: string;
+  check_out_date: string;
+  currency: string;
+  room_count: number;
+  max_rooms: number;
+  rooms: GroupRoomQuote[];
+  availability: { room_type_id: number; requested: number; available: number }[];
+  subtotal: string | number;
+  discount_amount: string | number;
+  tax_amount: string | number;
+  extra_bed_charge: string | number;
+  total_amount: string | number;
+  hold_release_hours?: number | null;
+  voucher_id?: number | null;
+  voucher_name?: string | null;
+  voucher_discount: string | number;
+  voucher_is_cancellable?: boolean | null;
+  complimentary_nights: number;
+  complimentary_discount: string | number;
+  credits_available: { room_type_id: number; nights_available: number }[];
+}
+
+interface GroupCreateCommon {
+  client_request_id: string;
+  check_in_date: string;
+  check_out_date: string;
+  rooms: GroupRoomRequest[];
+  expected_total: string | number;
+  special_requests?: string;
+  cleaning_preference?: boolean;
+  smoking_preference?: SmokingPreference;
+  consents: ConsentAcceptance[];
+}
+
+export interface CreateGuestGroupBookingRequest extends GroupCreateCommon {
+  voucher_id?: number;
+  use_credits?: boolean;
+}
+
+export interface CreateAnonymousGroupBookingRequest extends GroupCreateCommon {
+  guest: AnonymousGuestDetails;
+  marketing_opt_in: boolean;
+}
+
+export interface GroupBookingConfirmation {
+  group_id: number;
+  group_number: string;
+  status: string;
+  payment_status: string;
+  check_in_date: string;
+  check_out_date: string;
+  currency: string;
+  room_count: number;
+  subtotal: string | number;
+  discount_amount: string | number;
+  tax_amount: string | number;
+  total_amount: string | number;
+  hold_expires_at?: string | null;
+  rooms: GuestBookingConfirmation[];
+  access_token?: string;
+  access_token_expires_at?: string;
+}
+
+export interface GroupPaymentActionResponse {
+  booking_group_id: number;
+  group_payment_ref: string;
+  payment_ids: number[];
+  amount: string | number;
+  status: string;
 }
