@@ -2,7 +2,6 @@
 // poster has painted). One pinned canvas, HTML chapters above it; smoothed
 // scroll → one master timeline → camera rig + scene state + DOM.
 import * as THREE from 'three';
-import { filmViewport } from './experience/viewport';
 import Lenis from 'lenis';
 import { Renderer } from './experience/Renderer';
 import { CameraRig } from './experience/CameraRig';
@@ -116,8 +115,7 @@ async function boot(): Promise<void> {
   const canvas = document.getElementById('scene') as HTMLCanvasElement;
   const renderer = new Renderer(canvas);
   renderer.resize(tier);
-  let view = filmViewport();
-  const camera = new THREE.PerspectiveCamera(50, view.w / view.h, 0.1, 50000);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 50000);
   const timeline = new Timeline();
   const world = new World();
 
@@ -129,7 +127,7 @@ async function boot(): Promise<void> {
   });
 
   const rig = new CameraRig(camera);
-  rig.setViewport(view.w, view.h);
+  rig.setViewport(innerWidth, innerHeight);
   // the room configurator (chapter 6) arrives with the interior, below
   let cfg: Configurator | null = null;
   const post = new Post(renderer.gl, world.scene, camera);
@@ -199,21 +197,14 @@ async function boot(): Promise<void> {
   }, { passive: true });
 
   // Resize
-  // A phone's toolbars collapsing mid-scroll change innerHeight and fire
-  // resize; the film's viewport keeps its tallest height (experience/
-  // viewport.ts), so those are no-ops instead of a canvas and render-target
-  // reallocation and a re-layout of the chapters under the visitor's finger.
   const onResize = () => {
-    const next = filmViewport();
-    if (next.w === view.w && next.h === view.h) return;
-    view = next;
     renderer.resize(tier);
-    rig.setViewport(view.w, view.h);
+    rig.setViewport(innerWidth, innerHeight);
     sizePost();
     chapters.layout();
     lenis.resize();
   };
-  window.addEventListener('resize', onResize, { passive: true });
+  window.addEventListener('resize', onResize);
 
   // Adaptive quality
   const governor = new FpsGovernor(tier);
@@ -237,20 +228,6 @@ async function boot(): Promise<void> {
     tier = t;
     post.applyTier(tier, renderer.dpr);
     world.applyTier(tier);
-    renderer.gl.shadowMap.needsUpdate = true;
-  };
-
-  // On the lowest tier and still slow (an older phone, Low Power Mode, a
-  // hot iPhone): the pixel ratio comes down a quarter step, to 1 at least.
-  // A new ratio reallocates the render targets (the stall described above),
-  // so it happens at most a few times, each a governor window apart.
-  governor.onFloor = () => {
-    const next = Math.max(1, Math.round((renderer.dpr - 0.25) * 4) / 4);
-    if (next >= renderer.dpr) return;
-    renderer.maxDpr = next;
-    renderer.resize(tier);
-    post.applyTier(tier, renderer.dpr);
-    sizePost();
     renderer.gl.shadowMap.needsUpdate = true;
   };
 
@@ -390,12 +367,6 @@ async function boot(): Promise<void> {
   let frameCalls = { calls: 0, triangles: 0 };
   let filmPast = false;
   let ticks = 0;
-  let camP = 0;
-  let camPrimed = false;
-  /** per second: ~90% of the way in 0.16 s — smooth, not floaty */
-  const CAM_DAMP = 14;
-  const mobileCta = document.getElementById('mobile-cta');
-  let ctaShown: boolean | null = null;
   const tick = () => {
     ticks++;
     const now = performance.now();
@@ -419,10 +390,7 @@ async function boot(): Promise<void> {
     const look = world.look.day > 0.5 ? 'day' : world.look.night > 0.5 ? 'night' : world.look.cloud > 0.5 ? 'grey' : 'dusk';
     if (document.documentElement.dataset.look !== look) document.documentElement.dataset.look = look;
     // phones: the booking bar from the first screen until chapter 8's own panel
-    if ((pScroll < 0.95) !== ctaShown) {
-      ctaShown = pScroll < 0.95;
-      mobileCta?.classList.toggle('is-visible', ctaShown);
-    }
+    document.getElementById('mobile-cta')?.classList.toggle('is-visible', pScroll < 0.95);
     // chapter 8: the booking panel slides in over a dimmed scene
     if ((reading.id === 8) !== booking) {
       booking = reading.id === 8;
@@ -445,17 +413,6 @@ async function boot(): Promise<void> {
       }
       p = CHAPTERS.find((c) => c.id === held)!.settle;
     }
-    // The camera follows the scroll through a frame-rate-independent damp.
-    // On a touch screen Lenis leaves the scroll native, so the raw position
-    // arrives in uneven steps (momentum, a dropped frame), and the camera
-    // cutting straight to each was the judder on phones; the copy above
-    // still follows the scroll itself. A long jump (a chapter button) is
-    // already an eased Lenis scroll.
-    if (REDUCED || !camPrimed) camP = p;
-    else camP = THREE.MathUtils.damp(camP, p, CAM_DAMP, dt);
-    if (Math.abs(camP - p) < 1e-5) camP = p;
-    camPrimed = true;
-    p = camP;
     timeline.set(p);
 
     // chapter 6 hold: the configurator is live and the camera sits at the
@@ -468,7 +425,7 @@ async function boot(): Promise<void> {
       cfg.update(dt);
       if (p > 0.874 && !world.room.current.window && !world.room.transitioning) cfg.select(cfg.lastWindowed);
     }
-    rig.view = cfg && world.room && cfgW > 0 ? cfg.worldView(world.room.group, view.w, view.h) : null;
+    rig.view = cfg && world.room && cfgW > 0 ? cfg.worldView(world.room.group, innerWidth, innerHeight) : null;
     rig.viewWeight = cfgW;
 
     // Indoors the sun is a sliver and nothing outside moves: the shadow map
@@ -487,7 +444,7 @@ async function boot(): Promise<void> {
     // redrawn once (the low tier keeps its map otherwise)
     if (world.rebakeSky(renderer.gl)) renderer.gl.shadowMap.needsUpdate = true;
     post.setWeather(world.look.cloud, world.look.rain, world.look.night);
-    nb.update(camera, p, view.w, view.h, { centre: POINTS.lobbyDoor, radii: world.walkRings.radii, look: rig.lookTarget });
+    nb.update(camera, p, innerWidth, innerHeight, { centre: POINTS.lobbyDoor, radii: world.walkRings.radii, look: rig.lookTarget });
     renderer.gl.toneMappingExposure = timeline.exposure() * world.exposureScale();
     const h = camera.position.y;
     post.setAORadius(h > 150 ? 8 : h > 20 ? 3.2 : p > 0.56 && p < 0.9 ? 0.7 : 1.6);

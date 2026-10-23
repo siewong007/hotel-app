@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import type { Tier } from '../config/quality';
 import { MOBILE_DPR_CAP } from '../config/quality';
 import { SHADOW_ONLY_LAYER } from '../world/ShadowCasters';
-import { filmViewport } from './viewport';
 
 /** measurement only (perf/): ?dpr= fixes the pixel ratio */
 const FORCE_DPR = Number(new URLSearchParams(location.search).get('dpr')) || 0;
@@ -57,7 +56,8 @@ export class Renderer {
   }
 
   resize(tier: Tier): void {
-    const { w, h } = filmViewport();
+    const w = Math.max(1, Math.floor(innerWidth));
+    const h = Math.max(1, Math.floor(innerHeight));
     const cap = Math.min(tier.dprCap, isMobileLike() ? MOBILE_DPR_CAP : tier.dprCap);
     this.dpr = FORCE_DPR || Math.min(window.devicePixelRatio || 1, cap, this.maxDpr);
     this.width = w;

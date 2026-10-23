@@ -19,18 +19,3 @@ describe('landing GPU benchmarks', () => {
     });
   });
 });
-
-describe('FpsGovernor floor', () => {
-  it('asks for fewer pixels once the lowest tier is still too slow', async () => {
-    const { FpsGovernor } = await import('./Quality');
-    const { TIERS } = await import('../config/quality');
-    const g = new FpsGovernor(TIERS.low);
-    const onDrop = vi.fn();
-    const onFloor = vi.fn();
-    g.onDrop = onDrop;
-    g.onFloor = onFloor;
-    for (let i = 0; i < 200; i++) g.frame(1 / 30);
-    expect(onDrop).not.toHaveBeenCalled();
-    expect(onFloor).toHaveBeenCalled();
-  });
-});

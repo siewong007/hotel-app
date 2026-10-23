@@ -35,9 +35,6 @@ export class FpsGovernor {
   private sinceChange = 0;
   private held = false;
   onDrop: ((t: Tier) => void) | null = null;
-  /** Still under budget on the lowest tier: the film can only shed pixels
-   *  now (film.ts lowers the pixel ratio a step). */
-  onFloor: (() => void) | null = null;
 
   tier: Tier;
 
@@ -75,11 +72,6 @@ export class FpsGovernor {
         this.samples = [];
         this.sum = 0;
         this.onDrop?.(this.tier);
-      } else if (this.onFloor) {
-        this.sinceChange = 0;
-        this.samples = [];
-        this.sum = 0;
-        this.onFloor();
       }
     }
   }
