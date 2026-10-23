@@ -141,6 +141,14 @@ async function buildKyHttpError(status: number, body: unknown): Promise<HTTPErro
   return error;
 }
 
+/** Rooms are added via the per-card stepper; the floating bar checks out. */
+async function addRoomAndCheckout() {
+  const [add] = await screen.findAllByRole('button', { name: /^Add a .* room$/ });
+  fireEvent.click(add);
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+}
+afterEach(() => window.sessionStorage.clear());
+
 describe('PortalBookingPage voucher eligibility', () => {
   beforeEach(() => {
     mocks.createBooking.mockReset();
@@ -179,7 +187,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
@@ -215,7 +223,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
@@ -241,7 +249,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
@@ -268,7 +276,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     expect(
@@ -292,7 +300,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     acceptRequiredConsents();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
@@ -334,7 +342,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     expect(screen.queryByText('How would you like to pay?')).toBeNull();
 
@@ -373,7 +381,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     // Defaults to "No preference", with the not-guaranteed helper text.
@@ -395,7 +403,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     acceptRequiredConsents();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
@@ -408,7 +416,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     const { container } = render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    expect(await screen.findByRole('button', { name: 'Select' })).toBeTruthy();
+    expect(await screen.findAllByRole('button', { name: /^Add a .* room$/ })).toBeTruthy();
     await expectNoAxeViolations(container);
   });
 });
@@ -451,7 +459,7 @@ describe('PortalBookingPage profile completion guard', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     await waitFor(() => expect(mocks.me).toHaveBeenCalled());
@@ -478,7 +486,7 @@ describe('PortalBookingPage profile completion guard', () => {
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     await waitFor(() => expect(mocks.me).toHaveBeenCalled());
     acceptRequiredConsents();
@@ -557,7 +565,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     expect(screen.queryByText('Use your complimentary nights')).toBeNull();
@@ -577,7 +585,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Use your complimentary nights');
 
     fireEvent.click(screen.getByRole('checkbox', { name: /2026-07-18/ }));
@@ -596,7 +604,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Use your complimentary nights');
 
     fireEvent.click(screen.getByRole('checkbox', { name: /2026-07-17/ }));
@@ -625,7 +633,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Use your complimentary nights');
 
     fireEvent.click(screen.getByRole('checkbox', { name: /2026-07-17/ }));
@@ -652,7 +660,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
 
     expect(screen.getByRole('button', { name: 'Confirm free stay' })).toBeTruthy();
@@ -697,7 +705,7 @@ describe('PortalBookingPage complimentary nights', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     acceptRequiredConsents();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
@@ -739,7 +747,7 @@ describe('PortalBookingPage pending states', () => {
 
     await waitFor(() => expect(searchButton.disabled).toBe(true));
     release([offer]);
-    await screen.findByRole('button', { name: 'Select' });
+    await screen.findAllByRole('button', { name: /^Add a .* room$/ });
   });
 
   it('disables the confirm button while the booking request is in flight', async () => {
@@ -748,7 +756,7 @@ describe('PortalBookingPage pending states', () => {
 
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await addRoomAndCheckout();
     await screen.findByText('Review your stay');
     acceptRequiredConsents();
 

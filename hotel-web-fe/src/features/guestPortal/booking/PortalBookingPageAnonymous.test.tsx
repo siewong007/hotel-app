@@ -115,7 +115,7 @@ const quote = {
 async function reachReviewStep() {
   render(<PortalBookingPage />);
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+  await addRoomAndCheckout();
   await screen.findByText('Review your stay');
 }
 
@@ -139,6 +139,14 @@ function acceptRequiredConsents() {
 beforeAll(async () => {
   await ensureLocaleLoaded('ms');
 });
+
+/** Rooms are added via the per-card stepper; the floating bar checks out. */
+async function addRoomAndCheckout() {
+  const [add] = await screen.findAllByRole('button', { name: /^Add a .* room$/ });
+  fireEvent.click(add);
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+}
+afterEach(() => window.sessionStorage.clear());
 
 describe('PortalBookingPage anonymous checkout', () => {
   beforeEach(() => {
@@ -214,7 +222,9 @@ describe('PortalBookingPage anonymous checkout', () => {
     expect(screen.getByRole('button', { name: 'Cari' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cari' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Pilih' }));
+    const [tambah] = await screen.findAllByRole('button', { name: /^Tambah satu bilik / });
+    fireEvent.click(tambah);
+    fireEvent.click(screen.getByRole('button', { name: 'Teruskan' }));
     expect(await screen.findByRole('heading', { name: 'Semak penginapan anda' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Butiran anda' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Teruskan ke pembayaran' })).toBeTruthy();
@@ -226,7 +236,7 @@ describe('PortalBookingPage anonymous checkout', () => {
     expect(screen.queryByTestId('redirected')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 
-    await screen.findByRole('button', { name: 'Select' });
+    await screen.findAllByRole('button', { name: /^Add a .* room$/ });
     expect(mocks.publicSearch).toHaveBeenCalledTimes(1);
     // The account-authenticated endpoints are never reached without a session.
     expect(mocks.memberSearch).not.toHaveBeenCalled();
@@ -460,7 +470,7 @@ describe('PortalBookingPage anonymous checkout', () => {
     const { container } = render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    expect(await screen.findByRole('button', { name: 'Select' })).toBeTruthy();
+    expect(await screen.findAllByRole('button', { name: /^Add a .* room$/ })).toBeTruthy();
     await expectNoAxeViolations(container);
   });
 });
