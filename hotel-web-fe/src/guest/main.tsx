@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '../index.css';
 import { logWebVitals } from '../reportWebVitals';
 import GuestApp from './GuestApp';
-import { dismissBootSplash } from '../utils/bootSplash';
+import { dismissBootSplash, dismissBootSplashWhenSettled } from '../utils/bootSplash';
 import { ensureLocaleLoaded, getActiveLocale, t } from '../i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
@@ -32,9 +32,12 @@ async function bootstrap() {
     ensureLocaleLoaded(getActiveLocale()),
   ]);
 
-  const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
+  const rootElement = document.getElementById('root') as HTMLElement;
+  const root = ReactDOM.createRoot(rootElement);
   root.render(<GuestApp />);
-  dismissBootSplash();
+  // One loading screen: the static splash stays until the page is ready
+  // rather than handing off to a theme-coloured React loader.
+  dismissBootSplashWhenSettled(rootElement);
 
   const currentUrl = new URL(window.location.href);
   if (currentUrl.searchParams.has(MODULE_RETRY_PARAM)) {

@@ -473,11 +473,9 @@ html.film-live .poster { visibility: hidden; }
 .bk-msg { min-height: 1.3em; margin: 10px 0 0; font-size: 0.86rem; color: var(--ivory); }
 .bk-msg.is-error { color: #ffb4a0; }
 .bk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+/* Every action here is a real tap target: 44px floor (Apple HIG / WCAG 2.5.5). */
+.bk-actions .pill { min-height: 44px; }
 .bk-actions .pill--gold { min-height: 48px; padding: 0 26px; }
-.bk-summary { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(217, 181, 114, 0.45); background: rgba(217, 181, 114, 0.08); }
-.bk-summary__lead { margin: 0 0 8px; font-size: 0.84rem; color: var(--ivory); }
-.bk-summary__text { margin: 0 0 10px; white-space: pre-wrap; font: 500 0.88rem/1.45 var(--sans); color: var(--white); }
-.bk-summary__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .bk-trust { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 0.78rem; color: var(--muted); }
 /* chapter 8: the scene dims behind the panel */
 .scrim::after { content: ''; position: absolute; inset: 0; background: rgba(6, 17, 14, 0.5); opacity: 0; transition: opacity 0.8s var(--ease); }

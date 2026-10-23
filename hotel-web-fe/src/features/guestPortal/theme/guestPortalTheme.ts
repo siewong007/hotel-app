@@ -1,3 +1,4 @@
+import { createTheme } from '@mui/material/styles';
 import {
   createHotelTheme,
   cssVarDeclarations,
@@ -6,13 +7,15 @@ import {
 import { guestDarkTokens, guestLightTokens } from './guestTokens';
 
 /**
- * Constant brand chrome for the guest header — deep forest in BOTH modes so
+ * Constant brand chrome for the guest header — the landing page's dark ink and
+ * champagne gold in BOTH modes so
  * the identity never flips. The Salim Inn logo asset is drawn for exactly this
  * background. Only shell chrome consumes these; page content uses `--hotel-*`
  * tokens.
  */
 export const GUEST_BRAND = {
-  bg: '#123A2E',
+  /** The public landing page's ink — the portal header continues it. */
+  bg: '#06110E',
   hover: 'rgba(255, 253, 247, 0.08)',
   active: 'rgba(255, 253, 247, 0.16)',
   text: '#FFFDF7',
@@ -29,7 +32,43 @@ export const guestTokensFor = (mode: ThemeMode) =>
 /** `displaySerif` keeps the Georgia display headings as the hospitality
  *  signature guests see; staff screens stay on Inter. */
 export const createGuestPortalTheme = (mode: ThemeMode) =>
-  createHotelTheme(guestTokensFor(mode), { displaySerif: true });
+  createTheme(createHotelTheme(guestTokensFor(mode), { displaySerif: true }), {
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          // Guest surfaces are touch-first marketing pages: every button
+          // keeps the 44px tap floor, not just on coarse pointers.
+          root: { minHeight: 44 },
+          // Primary actions carry the landing page's gold pill with ink text
+          // in both modes (ink on #D9B572 is ~10:1). Light mode keeps its
+          // bronze primary for text-coloured uses, which stay AA on paper.
+          containedPrimary: {
+            backgroundColor: GUEST_BRAND.accent,
+            color: GUEST_BRAND.accentText,
+            '&:hover': { backgroundColor: GUEST_BRAND.accentHover },
+            '&:active': { backgroundColor: '#C7A45B' },
+          },
+        },
+      },
+      MuiStepIcon: {
+        styleOverrides: {
+          root: {
+            '&.Mui-active, &.Mui-completed': { color: GUEST_BRAND.accent },
+            '&.Mui-active .MuiStepIcon-text': { fill: GUEST_BRAND.accentText },
+          },
+        },
+      },
+      MuiStepConnector: {
+        styleOverrides: {
+          root: {
+            '&.Mui-active .MuiStepConnector-line, &.Mui-completed .MuiStepConnector-line': {
+              borderColor: GUEST_BRAND.accent,
+            },
+          },
+        },
+      },
+    },
+  });
 
 /** `--hotel-*` custom properties for a wrapper element — lets a guest-branded
  *  island render correctly inside a document whose :root carries other vars. */

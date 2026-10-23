@@ -1,12 +1,12 @@
 // Booking funnel logic (brief §7), kept free of the DOM so it can be tested:
-// Sibu dates, validation and occupancy in plain words, the copyable summary,
+// Sibu dates, validation and occupancy in plain words, the summary text,
 // the booking-portal and WhatsApp links, and the analytics hooks.
 //
-// The guest portal (/guest-portal?view=booking) does not read pre-fill
-// parameters yet — its search step always starts from tomorrow for one adult
-// (PortalBookingPage). So the page opens it and shows the choice as a
-// copyable summary. The parameters are still passed, named after the portal's
-// own search fields, so a portal-side pre-fill can pick them up unchanged.
+// Book direct hands the choice to the guest portal in the URL
+// (/guest-portal?view=booking&check_in_date=…&room_type=…). The portal
+// validates the parameters (features/guestPortal/booking/prefill.ts), runs the
+// search and lands on Choose with the room highlighted; anything it rejects
+// falls back to its normal Search step.
 import { roomLayouts, ROOM_ORDER, type RoomLayout } from '../interiors/roomLayouts';
 import { SHOW_PRICES, SITE, WEB_RATES, type RoomCode } from '../config/site';
 import { copy, count, fill, roomName } from '../content';

@@ -164,6 +164,46 @@ describe('PortalBookingPage anonymous checkout', () => {
     resetLocaleStoreForTests();
   });
 
+  it('opens on Choose with the landing page’s room highlighted when the URL carries a valid prefill', async () => {
+    const day = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    };
+    const other = { ...offer, room_type_id: 3, room_type_code: 'STDQ', room_type_name: 'Standard Queen' };
+    mocks.publicSearch.mockResolvedValue([other, offer]);
+    window.history.replaceState(null, '', `/guest-portal?view=booking&check_in_date=${day(14)}&check_out_date=${day(16)}&adults=2&children=0&room_type=DLX`);
+    try {
+      const { container } = render(<PortalBookingPage />);
+      // The search runs on arrival — no click — with the handed-over stay.
+      await waitFor(() => expect(mocks.publicSearch).toHaveBeenCalledTimes(1));
+      expect(mocks.publicSearch).toHaveBeenCalledWith({ check_in_date: day(14), check_out_date: day(16), adults: 2, children: 0 });
+      expect(await screen.findByText('Your selection')).toBeTruthy();
+      const cards = container.querySelectorAll('article');
+      expect(cards[0].getAttribute('data-prefilled-room')).toBe('true');
+      expect(cards[0].textContent).toContain('Deluxe Room');
+      expect(cards[1].hasAttribute('data-prefilled-room')).toBe(false);
+      expect((screen.getByRole('spinbutton', { name: 'Adults' }) as HTMLInputElement).value).toBe('2');
+      // Splash hold is released once the search settles.
+      await waitFor(() => expect(container.querySelector('[data-boot-hold]')).toBeNull());
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  it('falls back to the normal Search step when the prefill is invalid', async () => {
+    window.history.replaceState(null, '', '/guest-portal?view=booking&check_in_date=2020-01-01&check_out_date=2020-01-02&adults=2&room_type=DLX');
+    try {
+      render(<PortalBookingPage />);
+      expect(await screen.findByRole('button', { name: 'Search' })).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mocks.publicSearch).not.toHaveBeenCalled();
+      expect((screen.getByRole('spinbutton', { name: 'Adults' }) as HTMLInputElement).value).toBe('1');
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('renders search and review labels in Bahasa Melayu when that is the active language', async () => {
     setActiveLocale('ms');
     render(<PortalBookingPage />);
