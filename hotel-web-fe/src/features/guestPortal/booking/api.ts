@@ -12,6 +12,11 @@ import type {
   GuestBookingQuoteRequest,
   GuestBookingSearch,
   GuestBookingVoucherOptions,
+  CreateAnonymousGroupBookingRequest,
+  CreateGuestGroupBookingRequest,
+  GroupBookingConfirmation,
+  GroupQuote,
+  GroupQuoteRequest,
 } from './types';
 
 function authHeaders(token?: string): Record<string, string> {
@@ -113,6 +118,42 @@ export const PublicBookingApi = {
         json: input,
       })
       .json<GuestBookingConfirmation>();
+  },
+};
+
+/** Multi-room carts for a signed-in guest (vouchers and credits allowed). */
+export const GroupBookingApi = {
+  quote(input: GroupQuoteRequest, token?: string): Promise<GroupQuote> {
+    return api
+      .post('guest-portal/me/booking-group-quote', { headers: authHeaders(token), json: input })
+      .json<GroupQuote>();
+  },
+
+  create(input: CreateGuestGroupBookingRequest, token?: string): Promise<GroupBookingConfirmation> {
+    return api
+      .post('guest-portal/me/booking-groups', { headers: authHeaders(token), json: input })
+      .json<GroupBookingConfirmation>();
+  },
+};
+
+/** Multi-room carts without an account: list prices, no vouchers or credits. */
+export const PublicGroupBookingApi = {
+  quote(input: GroupQuoteRequest): Promise<GroupQuote> {
+    return api
+      .post('booking/group-quote', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
+      .json<GroupQuote>();
+  },
+
+  create(input: CreateAnonymousGroupBookingRequest): Promise<GroupBookingConfirmation> {
+    return api
+      .post('booking/group-reservations', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
+      .json<GroupBookingConfirmation>();
   },
 };
 

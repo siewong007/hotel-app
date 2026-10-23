@@ -525,11 +525,106 @@ mod postgres_tests {
             .await
             .is_err()
         );
-        // ...and one approval confirms every room.
         let staff: Option<i64> = sqlx::query_scalar("SELECT id FROM users ORDER BY id LIMIT 1")
             .fetch_optional(&pool)
             .await
             .unwrap();
+        let count_where = |sql: &'static str| {
+            let pool = pool.clone();
+            let group_id = first.group_id;
+            async move {
+                sqlx::query_scalar::<_, i64>(sql)
+                    .bind(group_id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap()
+            }
+        };
+        let claim = if let Some(staff) = staff {
+            // Approval is all-or-nothing: if one room cannot be completed
+            // (here: it already carries another completed payment), no room
+            // of the group is confirmed and every claim stays pending.
+            let blocker: i64 = sqlx::query_scalar(
+                "INSERT INTO payments (uuid, booking_id, amount, currency, payment_method, \
+                 payment_type, status) SELECT gen_uuidv7(), id, 1, 'MYR', 'cash', 'booking', \
+                 'completed' FROM bookings WHERE booking_group_id = $1 ORDER BY id DESC LIMIT 1 \
+                 RETURNING id",
+            )
+            .bind(first.group_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert!(
+                hotel_app_be::modules::payments::service::approve_payment(
+                    &pool,
+                    staff,
+                    claim.payment_ids[0],
+                )
+                .await
+                .is_err(),
+                "a failing room must fail the whole group approval"
+            );
+            assert_eq!(
+                count_where(
+                    "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 \
+                     AND status = 'confirmed'"
+                )
+                .await,
+                0,
+                "no partly confirmed group"
+            );
+            assert_eq!(
+                count_where(
+                    "SELECT COUNT(*) FROM payments p JOIN bookings b ON b.id = p.booking_id \
+                     WHERE b.booking_group_id = $1 AND p.status = 'pending'"
+                )
+                .await,
+                3
+            );
+            sqlx::query("DELETE FROM payments WHERE id = $1")
+                .bind(blocker)
+                .execute(&pool)
+                .await
+                .unwrap();
+
+            // Rejection is one transaction too: every room returns to
+            // pending_payment together.
+            hotel_app_be::modules::payments::service::reject_payment(
+                &pool,
+                staff,
+                claim.payment_ids[1],
+                "Transfer not received",
+            )
+            .await
+            .expect("reject group claim");
+            assert_eq!(
+                count_where(
+                    "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 \
+                     AND status = 'pending_payment'"
+                )
+                .await,
+                3,
+                "one rejection resets every room"
+            );
+            assert_eq!(
+                count_where(
+                    "SELECT COUNT(*) FROM payments p JOIN bookings b ON b.id = p.booking_id \
+                     WHERE b.booking_group_id = $1 AND p.status = 'pending'"
+                )
+                .await,
+                0
+            );
+            hotel_app_be::modules::payments::service::create_group_bank_transfer_claim(
+                &pool,
+                guest_of_group,
+                first.group_id,
+            )
+            .await
+            .expect("second group claim after rejection")
+        } else {
+            claim
+        };
+        // ...and one approval confirms every room.
         if let Some(staff) = staff {
             hotel_app_be::modules::payments::service::approve_payment(
                 &pool,

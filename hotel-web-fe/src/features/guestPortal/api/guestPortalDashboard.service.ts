@@ -1,3 +1,4 @@
+import type { GroupPaymentActionResponse } from '../booking/types';
 /**
  * Guest portal dashboard API calls (login + `/me/*`).
  *
@@ -183,6 +184,20 @@ export class GuestPortalDashboardService {
       .post('guest-portal/me/payments/bank-transfer', {
         headers: authHeaders(token),
         json: { booking_id: bookingId, consents },
+      })
+      .json();
+  }
+
+  /** One bank-transfer claim covering every unpaid room of a booking group. */
+  static async submitGroupBankTransfer(
+    groupId: number,
+    consents: ConsentAcceptance[],
+    token?: string
+  ): Promise<GroupPaymentActionResponse> {
+    return await api
+      .post(`guest-portal/me/booking-groups/${groupId}/payments/bank-transfer`, {
+        headers: authHeaders(token),
+        json: { consents },
       })
       .json();
   }

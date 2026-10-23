@@ -19,13 +19,15 @@ import { LogoLoader } from '../../../components';
 import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
-import { GuestBookingApi, PublicBookingApi } from './api';
+import { GroupBookingApi, GuestBookingApi, PublicBookingApi, PublicGroupBookingApi } from './api';
+import { addRoom, type Cart, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, toGroupRooms, updateLine } from './cart';
+import { CartBar, GroupCheckoutStage, GroupConfirmationStage, OfferRoomStepper } from './GroupCheckout';
 import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { BOOKING_CONSENTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent, type ConsentState } from '../../legal/useConsent';
-import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch, SmokingPreference } from './types';
+import type { AnonymousGuestDetails, AvailabilityEvent, GroupBookingConfirmation, GroupQuote, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch, SmokingPreference } from './types';
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
@@ -110,7 +112,18 @@ const PortalBookingPage: React.FC = () => {
   // valid handoff seeds the form, runs the search on arrival and highlights
   // the chosen room in Choose; anything invalid leaves the normal Search step.
   const [prefill] = useState(() => parseBookingPrefill(window.location.search));
-  const [search, setSearch] = useState<GuestBookingSearch>(() => prefill?.search ?? { check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 });
+  // The multi-room cart survives navigation and refresh (sessionStorage). A
+  // restored cart also restores its stay dates so the cart and the search
+  // never disagree.
+  const [cart, setCart] = useState<Cart | null>(() => loadCart());
+  const [search, setSearch] = useState<GuestBookingSearch>(() => prefill?.search ?? (cart ? { check_in_date: cart.check_in_date, check_out_date: cart.check_out_date, adults: 1, children: 0 } : { check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 }));
+  const [groupCheckout, setGroupCheckout] = useState(false);
+  const [groupQuote, setGroupQuote] = useState<GroupQuote | null>(null);
+  const [groupQuoteNonce, setGroupQuoteNonce] = useState(0);
+  const [groupVoucherId, setGroupVoucherId] = useState<number | ''>('');
+  const [useGroupCredits, setUseGroupCredits] = useState(false);
+  const [groupRequestId, setGroupRequestId] = useState(newRequestId);
+  const [groupConfirmation, setGroupConfirmation] = useState<GroupBookingConfirmation | null>(null);
   const [prefillPending, setPrefillPending] = useState(Boolean(prefill));
   const [nicknameTaken, setNicknameTaken] = useState(false);
   const [offers, setOffers] = useState<GuestBookingOffer[]>([]);
@@ -413,6 +426,90 @@ const PortalBookingPage: React.FC = () => {
     } finally { setIsSubmitting(false); }
   }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, setError, smokingPreference, specialRequests, submitAnonymousBooking, t, token]);
 
+  useEffect(() => { saveCart(cart); }, [cart]);
+  const cartRooms = cart?.rooms.length ?? 0;
+  useEffect(() => { if (cartRooms === 0) setGroupCheckout(false); }, [cartRooms]);
+
+  const addToCart = useCallback((offer: GuestBookingOffer) => {
+    setCart((current) => addRoom(current && sameStay(current, search) ? current : emptyCart(search), offer, search));
+  }, [search]);
+  const removeFromCart = useCallback((roomTypeId: number) => {
+    setCart((current) => (current ? removeOneOfType(current, roomTypeId) : current));
+  }, []);
+
+  // The server prices the whole cart; re-quote whenever it or the discounts
+  // change. A failed quote keeps the guest in checkout with the error shown.
+  const groupTourism = guestDetails.tourism_type === 'local' || guestDetails.tourism_type === 'foreign' ? guestDetails.tourism_type : undefined;
+  useEffect(() => {
+    if (!groupCheckout || !cart || cart.rooms.length === 0 || !canQuery) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setIsQuoting(true);
+      const request = { check_in_date: cart.check_in_date, check_out_date: cart.check_out_date, rooms: toGroupRooms(cart) };
+      const pending = token
+        ? GroupBookingApi.quote({ ...request, voucher_id: groupVoucherId === '' ? undefined : groupVoucherId, use_credits: useGroupCredits }, token)
+        : PublicGroupBookingApi.quote({ ...request, ...(groupTourism ? { tourism_type: groupTourism } : {}) });
+      void pending
+        .then((next) => { if (!cancelled) { setGroupQuote(next); setGroupRequestId(newRequestId()); } })
+        .catch((quoteError) => {
+          if (cancelled) return;
+          setGroupQuote(null);
+          if (groupVoucherId !== '' && isVoucherEligibilityError(quoteError)) setGroupVoucherId('');
+          setError(guestErrorMessage(quoteError, t('book.errors.quoteFailed')));
+        })
+        .finally(() => { if (!cancelled) setIsQuoting(false); });
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [canQuery, cart, groupCheckout, groupQuoteNonce, groupTourism, groupVoucherId, setError, t, token, useGroupCredits]);
+
+  const openGroupCheckout = useCallback(() => {
+    if (!cart || cart.rooms.length === 0) return;
+    setSelectedOffer(null); setQuote(null); setError(null); setGroupQuote(null); setGroupCheckout(true);
+    window.scrollTo?.({ top: 0, behavior: 'auto' });
+  }, [cart, setError]);
+
+  const submitGroup = useCallback(async () => {
+    if (!cart || !groupQuote || isSubmitting || isQuoting) return;
+    if (isAnonymous) {
+      setNicknameTaken(false);
+      const detailsError = guestDetailsError(guestDetails, t);
+      if (detailsError) { setError(detailsError); return; }
+    } else if (!profileComplete) { navigate(COMPLETE_PROFILE_REDIRECT); return; }
+    if (!consent.allRequiredGranted) { consent.setShowErrors(true); setError(t('book.consentRequired')); return; }
+    const consentPayload = consent.buildPayload(legalLocale);
+    const common = {
+      client_request_id: groupRequestId,
+      check_in_date: cart.check_in_date,
+      check_out_date: cart.check_out_date,
+      rooms: toGroupRooms(cart),
+      expected_total: groupQuote.total_amount,
+      special_requests: specialRequests.trim() || undefined,
+      cleaning_preference: cleaningPreference,
+      ...(smokingPreference ? { smoking_preference: smokingPreference } : {}),
+      consents: consentPayload.consents,
+    };
+    setIsSubmitting(true); setError(null);
+    try {
+      const result = token
+        ? await GroupBookingApi.create({ ...common, voucher_id: groupQuote.voucher_id ?? undefined, use_credits: useGroupCredits }, token)
+        : await PublicGroupBookingApi.create({
+          ...common,
+          marketing_opt_in: consentPayload.marketing_opt_in,
+          guest: { first_name: guestDetails.first_name.trim(), email: guestDetails.email.trim(), phone: guestDetails.phone?.trim() || undefined, tourism_type: guestDetails.tourism_type },
+        });
+      setGroupConfirmation(result);
+      setCart(null);
+      setGroupCheckout(false);
+    } catch (createError) {
+      if (await readProfileIncompleteFields(createError)) { setProfileComplete(false); navigate(COMPLETE_PROFILE_REDIRECT); return; }
+      if (readGuestNameTaken(createError)) { setNicknameTaken(true); setError(t('book.errors.nicknameTaken')); return; }
+      // All-or-nothing: nothing was booked. Show which room failed (the server
+      // names it) and re-price what is left so the guest can adjust.
+      setError(guestErrorMessage(createError, t('book.errors.createFailed')));
+      setGroupQuoteNonce((value) => value + 1);
+    } finally { setIsSubmitting(false); }
+  }, [cart, cleaningPreference, consent, groupQuote, groupRequestId, guestDetails, isAnonymous, isQuoting, isSubmitting, legalLocale, navigate, profileComplete, setError, smokingPreference, specialRequests, t, token, useGroupCredits]);
+
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
     if (event.room_type_id !== null && event.remaining_rooms !== null) setOffers((current) => current.map((offer) => offer.room_type_id === event.room_type_id ? { ...offer, available_rooms: event.remaining_rooms ?? offer.available_rooms } : offer));
@@ -430,10 +527,11 @@ const PortalBookingPage: React.FC = () => {
   // Only gate when an account session is genuinely mid-flight or broken. A
   // visitor with no account at all falls through to the anonymous flow.
   if (!token && !isAnonymous) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
+  if (groupConfirmation) return <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 } }}><GroupConfirmationStage confirmation={groupConfirmation} token={token ?? groupConfirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setGroupConfirmation(null); setOffers([]); setGroupQuote(null); setGroupVoucherId(''); setUseGroupCredits(false); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); }} /></Container>;
   if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); setRequestId(newRequestId()); }} />;
 
   return (
-    <Container maxWidth="lg" data-boot-hold={prefillPending ? 'true' : undefined} sx={{ py: { xs: 3, md: 5 } }}>
+    <Container maxWidth="lg" data-boot-hold={prefillPending ? 'true' : undefined} sx={{ py: { xs: 3, md: 5 }, pb: cartRooms > 0 && !selectedOffer ? { xs: 14, md: 14 } : undefined }}>
       {isAnonymous
         ? <Button startIcon={<ArrowBackIcon />} href="/salim-inn/index.html" sx={{ mb: 2 }}>{t('book.backToHotel')}</Button>
         : <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>{t('book.backToAccount')}</Button>}
@@ -447,14 +545,47 @@ const PortalBookingPage: React.FC = () => {
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: { xs: 3, md: 4 }, '& .MuiStepLabel-label': { fontSize: { xs: '0.7rem', sm: '0.8125rem' } } }}>
         {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
-      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
+      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { if (cart && !sameStay(cart, search)) setCart(null); setGroupCheckout(false); setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
       <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1}>{error}</Alert>}</Box></Collapse>
-      <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{orderedOffers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} highlighted={offer === prefilledOffer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
+      {groupCheckout && cart ? (
+        <Box sx={{ mt: 3 }}>
+          <GroupCheckoutStage
+            cart={cart}
+            quote={groupQuote}
+            isQuoting={isQuoting}
+            isSubmitting={isSubmitting}
+            isAnonymous={isAnonymous}
+            vouchers={vouchers}
+            voucherId={groupVoucherId}
+            useCredits={useGroupCredits}
+            onVoucher={setGroupVoucherId}
+            onUseCredits={setUseGroupCredits}
+            onChangeRoom={(lineId, patch) => setCart((current) => (current ? updateLine(current, lineId, patch) : current))}
+            onRemoveRoom={(lineId) => setCart((current) => (current ? removeLine(current, lineId) : current))}
+            onAddMore={() => { setGroupCheckout(false); setError(null); if (offers.length === 0) void runSearch(); }}
+            details={isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={setGuestDetails} nicknameTaken={nicknameTaken} /> : null}
+            consent={<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} />}
+            extras={<><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{ htmlInput: { maxLength: 1000 } }} /><FormControlLabel sx={{ mt: 1, minHeight: 44 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => setCleaningPreference(event.target.checked)} />} label={t('book.dailyCleaning')} /><SmokingPreferenceField value={smokingPreference} onChange={setSmokingPreference} disabled={isSubmitting} /></>}
+          />
+        </Box>
+      ) : null}
+      <Collapse in={!groupCheckout && !selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
+        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{orderedOffers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} highlighted={offer === prefilledOffer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} cartCount={cart && sameStay(cart, search) ? countOfType(cart, offer.room_type_id) : 0} cartRemaining={remainingForOffer(cart && sameStay(cart, search) ? cart : emptyCart(search), offer)} onAddToCart={() => addToCart(offer)} onRemoveFromCart={() => removeFromCart(offer.room_type_id)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} smokingPreference={smokingPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onSmokingPreference={setSmokingPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
+      {cart && cartRooms > 0 && !selectedOffer ? (
+        <CartBar
+          roomCount={cartRooms}
+          total={groupCheckout && groupQuote ? groupQuote.total_amount : estimatedTotal(cart)}
+          currency={groupQuote?.currency ?? cart.rooms[0].currency}
+          estimated={!(groupCheckout && groupQuote)}
+          phase={groupCheckout ? 'checkout' : 'browse'}
+          busy={isSubmitting || (groupCheckout && (isQuoting || !groupQuote))}
+          onPrimary={groupCheckout ? () => void submitGroup() : openGroupCheckout}
+        />
+      ) : null}
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>{t('book.availabilityChangedTitle')}</DialogTitle><DialogContent><Typography>{t('book.availabilityChangedBody')}</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>{t('book.viewAvailable')}</Button></DialogActions></Dialog>
     </Container>
   );
@@ -490,7 +621,7 @@ function SearchStage({ search, isSearching, onChange, onSearch }: { search: Gues
   );
 }
 
-function OfferCard({ offer, highlighted = false, disabled, onSelect }: { offer: GuestBookingOffer; highlighted?: boolean; disabled?: boolean; onSelect: () => void }) {
+function OfferCard({ offer, highlighted = false, disabled, onSelect, cartCount = 0, cartRemaining = 0, onAddToCart, onRemoveFromCart }: { offer: GuestBookingOffer; highlighted?: boolean; disabled?: boolean; onSelect: () => void; cartCount?: number; cartRemaining?: number; onAddToCart?: () => void; onRemoveFromCart?: () => void }) {
   const { t } = useTranslation('guestPortal');
   const cardRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -517,7 +648,7 @@ function OfferCard({ offer, highlighted = false, disabled, onSelect }: { offer: 
         alignItems: "end"
       }}><Box><Typography variant="caption" sx={{
       color: "text.secondary"
-    }}>{t('book.stayTotal')}</Typography><Typography variant="h5" component="div">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect}>{t('book.select')}</Button></Stack></CardContent></Card>
+    }}>{t('book.stayTotal')}</Typography><Typography variant="h5" component="div">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect} sx={{ minHeight: 44 }}>{t('book.select')}</Button></Stack>{onAddToCart && onRemoveFromCart ? <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}><OfferRoomStepper roomTypeName={offer.room_type_name} count={cartCount} remaining={cartRemaining} onAdd={onAddToCart} onRemove={onRemoveFromCart} disabled={disabled} /></Box> : null}</CardContent></Card>
   );
 }
 
