@@ -277,6 +277,45 @@ pub async fn session_bank_transfer(
     ))
 }
 
+/// POST /guest-portal/me/booking-groups/{id}/payments/bank-transfer
+pub async fn session_group_bank_transfer(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(group_id): Path<i64>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
+) -> Result<Json<crate::modules::payments::service::GroupPaymentActionResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    let context = ConsentContext::from_request(&headers, peer_addr);
+    Ok(Json(
+        guest_portal_service::session_group_bank_transfer(
+            &pool,
+            guest_id,
+            group_id,
+            &input.consents,
+            &context,
+        )
+        .await?,
+    ))
+}
+
+/// POST /guest-portal/booking/group-payments/bank-transfer (token in header)
+pub async fn token_group_bank_transfer(
+    State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
+) -> Result<Json<crate::modules::payments::service::GroupPaymentActionResponse>, ApiError> {
+    let context = ConsentContext::from_request(&headers, peer_addr);
+    Ok(Json(
+        guest_portal_service::token_group_bank_transfer(&pool, &token, &input.consents, &context)
+            .await?,
+    ))
+}
+
 /// Pull the `file` field out of a receipt upload.
 ///
 /// Shared with the emailed recovery path so both routes agree on what counts

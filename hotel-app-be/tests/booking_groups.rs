@@ -400,6 +400,7 @@ mod postgres_tests {
                 check_out_date: check_out.clone(),
                 rooms: cart.clone(),
                 tourism_type: Some("local".to_string()),
+                discounts: Default::default(),
             },
         )
         .await
@@ -489,6 +490,72 @@ mod postgres_tests {
         .unwrap();
         assert_eq!(leaked, 0);
 
+        // One bank-transfer claim covers the whole group...
+        let guest_of_group: i64 =
+            sqlx::query_scalar("SELECT guest_id FROM booking_groups WHERE id = $1")
+                .bind(first.group_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let claim = hotel_app_be::modules::payments::service::create_group_bank_transfer_claim(
+            &pool,
+            guest_of_group,
+            first.group_id,
+        )
+        .await
+        .expect("group bank transfer claim");
+        assert_eq!(claim.payment_ids.len(), 3);
+        assert_eq!(claim.amount, quote.total_amount);
+        let awaiting: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 \
+             AND status = 'pending_confirmation'",
+        )
+        .bind(first.group_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(awaiting, 3, "every room awaits the one staff review");
+        // ...a second claim is refused while the first is under review...
+        assert!(
+            hotel_app_be::modules::payments::service::create_group_bank_transfer_claim(
+                &pool,
+                guest_of_group,
+                first.group_id,
+            )
+            .await
+            .is_err()
+        );
+        // ...and one approval confirms every room.
+        let staff: Option<i64> = sqlx::query_scalar("SELECT id FROM users ORDER BY id LIMIT 1")
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+        if let Some(staff) = staff {
+            hotel_app_be::modules::payments::service::approve_payment(
+                &pool,
+                staff,
+                claim.payment_ids[0],
+            )
+            .await
+            .expect("approve group claim");
+            let confirmed: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 AND status = 'confirmed'",
+            )
+            .bind(first.group_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(confirmed, 3, "one approval confirms the whole group");
+            let completed: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM payments WHERE id = ANY($1) AND status = 'completed'",
+            )
+            .bind(&claim.payment_ids)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(completed, 3);
+        }
+
         // Cleanup of committed fixtures.
         let booking_ids: Vec<i64> = first.rooms.iter().map(|r| r.booking_id).collect();
         let guest_id: i64 = sqlx::query_scalar("SELECT guest_id FROM booking_groups WHERE id = $1")
@@ -497,6 +564,8 @@ mod postgres_tests {
             .await
             .unwrap();
         for statement in [
+            "DELETE FROM email_deliveries WHERE booking_id = ANY($1)",
+            "DELETE FROM payments WHERE booking_id = ANY($1)",
             "DELETE FROM consent_records WHERE booking_id = ANY($1)",
             "DELETE FROM booking_history WHERE booking_id = ANY($1)",
             "DELETE FROM bookings WHERE id = ANY($1)",
