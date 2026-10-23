@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { setActiveLocale } from '../../../i18n/localeStore';
 import { publicRouteDefinitions } from '../../../navigation/routeRegistry';
 import { describe, expect, it } from 'vitest';
@@ -44,5 +44,15 @@ describe('CookieUsagePage', () => {
     }
 
     setActiveLocale('en');
+  });
+
+  it('links back to the hotel and on to the privacy policy', () => {
+    render(<CookieUsagePage />);
+    const home = screen.getByRole('link', { name: 'Salim Inn' });
+    fireEvent.click(home);
+    expect(home.getAttribute('href')).toBe('/salim-inn/');
+    const privacy = screen.getByRole('link', { name: 'Privacy Policy' });
+    fireEvent.click(privacy);
+    expect(privacy.getAttribute('href')).toBe('/legal/privacy');
   });
 });
