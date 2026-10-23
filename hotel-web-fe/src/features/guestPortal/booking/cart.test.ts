@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addRoom, emptyCart, estimatedTotal, loadCart, MAX_CART_ROOMS, remainingForOffer,
-  removeOneOfType, saveCart, toGroupRooms, updateLine, type Cart,
+  removeOneOfType, saveCart, toGroupRooms, updateLine, withSearchParty, type Cart,
 } from './cart';
 import type { GuestBookingOffer, GuestBookingSearch } from './types';
 
@@ -71,5 +71,17 @@ describe('multi-room cart', () => {
     expect(loadCart(storage)).toBeNull();
     saveCart(emptyCart(search), storage);
     expect(loadCart(storage)).toBeNull();
+  });
+});
+
+describe('searched party persistence', () => {
+  it('keeps the searched party through save and load', () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+    const cart = withSearchParty(emptyCart({ check_in_date: '2030-01-01', check_out_date: '2030-01-02' }), { adults: 8, children: 0 });
+    saveCart({ ...cart, rooms: [{ line_id: 'a', room_type_id: 1, room_type_name: 'Std', adults: 2, children: 0, extra_beds: 0, max_occupancy: 2, max_extra_beds: 0, unit_total: 100, extra_bed_charge: 0, currency: 'MYR' }] }, storage);
+    const loaded = loadCart(storage);
+    expect(loaded?.search_adults).toBe(8);
+    expect(loaded?.search_children).toBe(0);
   });
 });

@@ -20,7 +20,7 @@ import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GroupBookingApi, GuestBookingApi, PublicBookingApi, PublicGroupBookingApi } from './api';
-import { addRoom, type Cart, cartCapacity, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, toGroupRooms, updateLine } from './cart';
+import { addRoom, type Cart, cartCapacity, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, withSearchParty, toGroupRooms, updateLine } from './cart';
 import { CartBar, GroupCheckoutStage, GroupConfirmationStage, OfferRoomStepper } from './GroupCheckout';
 import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
@@ -116,7 +116,7 @@ const PortalBookingPage: React.FC = () => {
   // restored cart also restores its stay dates so the cart and the search
   // never disagree.
   const [cart, setCart] = useState<Cart | null>(() => loadCart());
-  const [search, setSearch] = useState<GuestBookingSearch>(() => prefill?.search ?? (cart ? { check_in_date: cart.check_in_date, check_out_date: cart.check_out_date, adults: 1, children: 0 } : { check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 }));
+  const [search, setSearch] = useState<GuestBookingSearch>(() => prefill?.search ?? (cart ? { check_in_date: cart.check_in_date, check_out_date: cart.check_out_date, adults: cart.search_adults ?? 1, children: cart.search_children ?? 0 } : { check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 }));
   const [groupCheckout, setGroupCheckout] = useState(false);
   const [groupQuote, setGroupQuote] = useState<GroupQuote | null>(null);
   const [groupQuoteNonce, setGroupQuoteNonce] = useState(0);
@@ -565,7 +565,7 @@ const PortalBookingPage: React.FC = () => {
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: { xs: 3, md: 4 }, '& .MuiStepLabel-label': { fontSize: { xs: '0.7rem', sm: '0.8125rem' } } }}>
         {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
-      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { if (cart && !sameStay(cart, search)) setCart(null); setGroupCheckout(false); setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
+      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { if (cart && !sameStay(cart, search)) setCart(null); else if (cart) setCart(withSearchParty(cart, search)); setGroupCheckout(false); setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
       <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1}>{error}</Alert>}</Box></Collapse>
       {groupCheckout && cart ? (
         <Box sx={{ mt: 3 }}>
