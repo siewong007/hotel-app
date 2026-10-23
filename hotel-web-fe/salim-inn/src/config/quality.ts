@@ -28,10 +28,24 @@ export const TIERS: Record<TierName, Tier> = {
   low: { name: 'low', dprCap: 1, shadowMap: 0, ao: 'off', bloom: 0, dof: false, smaa: true, farTrees: false, farDensity: 0.45, lodScale: 0.45, glassTransmission: false },
 };
 
-export const MOBILE_DPR_CAP = 1.5;
+/** Phones draw at up to 2× (a 3× iPhone's canvas is stretched 1.5×, which
+ *  SMAA and the sharpen pass hide); 1.5× and below read as soft on a Retina
+ *  screen. */
+export const MOBILE_DPR_CAP = 2;
+
+/** Below this the picture visibly breaks up on a 2×/3× screen: the governor
+ *  and the start-up calibration keep high-DPR devices at or above it unless
+ *  the film is truly struggling (DIRE_FPS). */
+export const DPR_FLOOR_HIDPI = 1.5;
 
 export const GOVERNOR = {
-  windowSeconds: 2,
-  dropBelowFps: 45,
-  graceSeconds: 3, // ignore the first seconds after load / tier change
+  /** sustained: a 4 s average, not a hitch at a chapter's heaviest frame */
+  windowSeconds: 4,
+  dropBelowFps: 40,
+  /** what counts as dire: only then may a high-DPR screen go under DPR_FLOOR_HIDPI */
+  direFps: 24,
+  /** steady above this for raiseSeconds: one step back up (never above the start) */
+  raiseAboveFps: 55,
+  raiseSeconds: 8,
+  graceSeconds: 5, // ignore the first seconds after load / a change
 } as const;

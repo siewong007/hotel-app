@@ -412,6 +412,20 @@ export class World {
         if (u) for (const x of Object.values(u)) add(x?.value);
       }
     });
+    // every mipmapped texture filtered at the GPU's best anisotropy (16× on
+    // an iPhone and most desktops): signage, the mural and the facade read
+    // sharp at the film's grazing angles, at almost no cost
+    const aniso = renderer.capabilities.getMaxAnisotropy();
+    for (const t of textures) {
+      const mipped = t.generateMipmaps || t.mipmaps.length > 1 || (t as THREE.CompressedTexture).isCompressedTexture;
+      if (mipped && !(t as THREE.DataTexture).isDataTexture && t.anisotropy < aniso) {
+        t.anisotropy = aniso;
+        // already marked for upload: re-mark so the new filtering is set
+        // (an image still loading is marked by its own onload)
+        const img = t.image as { complete?: boolean } | null;
+        if (t.version > 0 && img && img.complete !== false) t.needsUpdate = true;
+      }
+    }
     let t0 = performance.now();
     for (const t of textures) {
       renderer.initTexture(t); // (a texture already on the GPU is skipped)

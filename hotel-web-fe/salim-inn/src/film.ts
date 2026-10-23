@@ -10,7 +10,7 @@ import { PATH } from './experience/cameraPath';
 import { Timeline, CHAPTERS, chapterAt } from './experience/Timeline';
 import { Post } from './experience/Post';
 import { Preloader, nextFrame } from './experience/Preloader';
-import { detectTier, FpsGovernor, lowerTier } from './experience/Quality';
+import { detectTier, FpsGovernor, higherTier, lowerTier } from './experience/Quality';
 import { DOOR_OPEN, World, yieldToMain } from './world/World';
 import { LOOK } from './world/Sky';
 import { salimLocal } from './world/layout';
@@ -32,7 +32,10 @@ const SKIES: readonly Sky[] = ['clear', 'partly', 'overcast', 'fog', 'lightRain'
 import type { BuildStep } from './content/en';
 import { placeAnchor } from './world/placeAnchors';
 import { POINTS } from './world/layout';
-import type { Tier } from './config/quality';
+import { DPR_FLOOR_HIDPI, TIERS, type Tier } from './config/quality';
+import { isMobileLike } from './experience/Renderer';
+
+const ORDER_RANK: Record<Tier['name'], number> = { high: 0, medium: 1, low: 2 };
 import type { RoomCode } from './config/site';
 
 const params = new URLSearchParams(location.search);
@@ -226,32 +229,51 @@ async function boot(): Promise<void> {
     world.applyTier(tier);
     renderer.gl.shadowMap.needsUpdate = true; // a new resolution drops the old map, indoors too
   };
-  // The governor's step down sheds the effects (AO, bloom, depth of field,
-  // level of detail) and keeps the pixel ratio. A new one resizes the canvas,
-  // and the browser first finishes every frame still queued on the GPU: at a
-  // step down that queue is at its deepest, and the main thread stalled
-  // 120–190 ms, then ~100 ms more reallocating the render targets from a 2×
-  // ratio (perf/probe.ts `stepdown`). Low's ratio of 1 applies when the film
-  // starts on it (calibration, applyTier).
-  governor.onDrop = (t) => {
-    tier = t;
-    post.applyTier(tier, renderer.dpr);
-    world.applyTier(tier);
-    renderer.gl.shadowMap.needsUpdate = true;
-  };
-
-  // On the lowest tier and still slow (an older phone, Low Power Mode, a
-  // hot iPhone): the pixel ratio comes down a quarter step, to 1 at least.
-  // A new ratio reallocates the render targets (the stall described above),
-  // so it happens at most a few times, each a governor window apart.
-  governor.onFloor = () => {
-    const next = Math.max(1, Math.round((renderer.dpr - 0.25) * 4) / 4);
-    if (next >= renderer.dpr) return;
-    renderer.maxDpr = next;
+  // The governor (experience/Quality.ts) only reacts to a sustained drop:
+  // 4 s under 40 fps. What it sheds, in order: the pixel ratio a quarter
+  // step at a time down to its floor (1.5 on a 2×/3× screen) — sharpness is
+  // what a Retina screen shows first, and lighting what the film is about —
+  // then the tier, high → medium (shadows kept, AO halved, no depth of
+  // field); only when it is dire (under 24 fps) the low tier and a ratio
+  // under the floor. A steady 55 fps gives a step back, in the reverse order,
+  // never above where the film started. A new ratio resizes the canvas and
+  // its render targets (a 100–200 ms stall, perf/probe.ts `stepdown`), which
+  // is why each step waits for a full window and grace period.
+  const startTier = (): Tier => governorStart.tier;
+  const governorStart = { tier, dpr: renderer.dpr };
+  const dprFloor = () => ((window.devicePixelRatio || 1) >= 2 ? DPR_FLOOR_HIDPI : 1);
+  const setDpr = (d: number) => {
+    renderer.maxDpr = d;
     renderer.resize(tier);
     post.applyTier(tier, renderer.dpr);
     sizePost();
     renderer.gl.shadowMap.needsUpdate = true;
+  };
+  const setTierLive = (t: Tier) => {
+    tier = t;
+    governor.tier = t;
+    post.applyTier(tier, renderer.dpr);
+    world.applyTier(tier);
+    renderer.gl.shadowMap.needsUpdate = true;
+  };
+  const quarterDown = (d: number) => Math.round((d - 0.25) * 4) / 4;
+  governor.onSlow = (dire) => {
+    const floor = dprFloor();
+    if (renderer.dpr > floor + 1e-3) { setDpr(Math.max(floor, quarterDown(renderer.dpr))); return true; }
+    if (tier.name === 'high') { setTierLive(TIERS.medium); return true; }
+    if (!dire) return false;
+    const down = lowerTier(tier);
+    if (down) { setTierLive(down); return true; }
+    if (renderer.dpr > 1 + 1e-3) { setDpr(Math.max(1, quarterDown(renderer.dpr))); return true; }
+    return false;
+  };
+  governor.onFast = () => {
+    const floor = dprFloor();
+    if (renderer.dpr < floor - 1e-3) { setDpr(Math.min(floor, renderer.dpr + 0.25)); return true; }
+    const up = higherTier(tier);
+    if (up && ORDER_RANK[up.name] >= ORDER_RANK[startTier().name]) { setTierLive(up); return true; }
+    if (renderer.dpr < governorStart.dpr - 1e-3) { setDpr(Math.min(governorStart.dpr, renderer.dpr + 0.25)); return true; }
+    return false;
   };
 
   // The atmosphere (atmosphere/index.ts): Sibu's weather over the scripted
@@ -325,7 +347,10 @@ async function boot(): Promise<void> {
   const calibration: string[] = [];
   // v3: AO at half resolution above 1.25× made every frame cheaper, so a
   // ratio timed before it is lower than this chain needs
-  const CAL_KEY = 'salim-inn:quality:v3';
+  // v4: phones start on high at 2× and the floor is 1.5 on a 2×/3× screen —
+  // a result stored by the stricter v3 (often low at 1×, kept for good on an
+  // iPhone) is timed again
+  const CAL_KEY = 'salim-inn:quality:v4';
   const calId = `${gpu}|${reason}|${window.devicePixelRatio}|${innerWidth >= 760 ? 'wide' : 'narrow'}`;
   const applyCalibrated = (name: Tier['name'], dpr: number) => {
     while (tier.name !== name && lowerTier(tier)) applyTier(lowerTier(tier)!);
@@ -338,7 +363,10 @@ async function boot(): Promise<void> {
     calibration.push(`kept ${stored.tier}@${stored.dpr}`);
   } else if (!FORCED_QUALITY) {
     pre.set(0.95, copy.preloader.tuning);
-    const budget = 11;
+    // phones: a touch more room — the timing's readback is a full GPU sync,
+    // dearer on a tile-based GPU than any frame the film actually draws, and
+    // the governor still steps down if the film can't hold it
+    const budget = isMobileLike() ? 14 : 11;
     const indoors = (t: Tier) => (t.name === 'high' ? 1.4 : 1);
     const timeAt = async (p: number) => {
       stateAt(p);
@@ -357,8 +385,13 @@ async function boot(): Promise<void> {
       if (est <= budget) break;
       const fit = renderer.dpr * Math.sqrt(budget / est);
       const down = lowerTier(tier);
-      if (fit >= (tier.name === 'high' ? 1.5 : 1) || !down) {
-        renderer.maxDpr = Math.max(1, Math.floor(fit * 8) / 8);
+      // a 2×/3× screen keeps at least 1.5×; the tier steps down instead only
+      // when even that would be far over (twice the budget)
+      const floor = dprFloor();
+      const atFloor = est * (floor / renderer.dpr) ** 2;
+      if (fit >= floor || !down || atFloor <= budget * 2) {
+        renderer.maxDpr = Math.max(floor, Math.floor(fit * 8) / 8);
+        if (!down && fit < floor) renderer.maxDpr = Math.max(1, Math.floor(fit * 8) / 8);
         onResize();
         calibration.push(`dpr ${renderer.dpr.toFixed(2)}`);
         break;
@@ -369,6 +402,8 @@ async function boot(): Promise<void> {
     try { localStorage.setItem(CAL_KEY, JSON.stringify({ id: calId, tier: tier.name, dpr: renderer.dpr })); } catch { /* private mode: time it again next visit */ }
   }
   governor.tier = tier;
+  governorStart.tier = tier;
+  governorStart.dpr = renderer.dpr;
   post.goLive();
   stateAt(0);
   renderer.gl.shadowMap.needsUpdate = true; // the warm-up drew it piecemeal
@@ -606,7 +641,7 @@ async function boot(): Promise<void> {
           /** perf/probe.ts `stepdown`: the governor's step down, on demand. */
           stepDown: () => {
             const t = lowerTier(tier);
-            if (t) { governor.tier = t; governor.onDrop?.(t); }
+            if (t) setTierLive(t);
             return tier.name;
           },
           /** Pin the camera in Salim-block local metres (x along the facade, y up, z out). */
