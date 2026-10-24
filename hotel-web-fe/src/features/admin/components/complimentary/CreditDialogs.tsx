@@ -21,6 +21,7 @@ import { errorMessage } from '../../../../utils';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import type { GuestCredit, GuestOption, RoomTypeOption } from './types';
 import { useTranslation } from '../../../../i18n';
+import { useResetOnChange } from '../../../../hooks/useResetOnChange';
 
 interface AddCreditDialogProps {
   open: boolean;
@@ -46,11 +47,11 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
   });
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
+  useResetOnChange([open], () => {
     if (open) {
       setFormData({ guest_id: 0, room_type_id: 0, nights: 1, reason: '' });
     }
-  }, [open]);
+  });
 
   const handleAdd = async () => {
     const reason = formData.reason.trim();
@@ -174,14 +175,14 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
   });
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
+  useResetOnChange([open, credit], () => {
     if (open && credit) {
       setFormData({
         nights_available: credit.nights_available,
         notes: credit.notes || '',
       });
     }
-  }, [open, credit]);
+  });
 
   const handleUpdate = async () => {
     if (!credit) return;
