@@ -53,13 +53,14 @@ function getVoucherOrigin(source: string, t: (key: string) => string): string {
 export function VoucherCard({ voucher }: VoucherCardProps) {
   const { t } = useTranslation('guestPortal');
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [now] = useState(() => Date.now());
   const displayCode = voucher.code ?? voucher.code_masked ?? t('vouchers.codeUnavailable');
   const expiresAt = formatPromotionDate(voucher.expires_at);
   const claimedAt = formatPromotionDate(voucher.claimed_at ?? voucher.created_at);
   const isExpired = Boolean(
     voucher.status === 'available' &&
       voucher.expires_at &&
-      new Date(voucher.expires_at).getTime() < Date.now()
+      new Date(voucher.expires_at).getTime() < now
   );
   const statusKey = isExpired ? 'vouchers.status.expired' : STATUS_KEYS[voucher.status];
   const displayStatus = statusKey
