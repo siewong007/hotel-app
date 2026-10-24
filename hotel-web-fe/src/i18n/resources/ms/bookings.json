@@ -145,7 +145,15 @@
     "remarks": "Catatan",
     "paymentNote": "Nota pembayaran",
     "occupancy": "{{adults}} dewasa",
-    "occupancyWithChildren": "{{adults}} dewasa, {{children}} kanak-kanak"
+    "occupancyWithChildren": "{{adults}} dewasa, {{children}} kanak-kanak",
+    "group": {
+      "title": "Tempahan berbilang bilik {{number}}",
+      "summary_one": "{{count}} bilik · {{total}}",
+      "summary_other": "{{count}} bilik · {{total}}",
+      "guests": "{{adults}} dewasa, {{children}} kanak-kanak",
+      "extraBeds_one": "{{count}} katil tambahan",
+      "extraBeds_other": "{{count}} katil tambahan"
+    }
   },
   "labels": {
     "guest": "Tetamu:",
