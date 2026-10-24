@@ -145,7 +145,15 @@
     "remarks": "备注",
     "paymentNote": "付款备注",
     "occupancy": "{{adults}} 位成人",
-    "occupancyWithChildren": "{{adults}} 位成人，{{children}} 位儿童"
+    "occupancyWithChildren": "{{adults}} 位成人，{{children}} 位儿童",
+    "group": {
+      "title": "多房间预订 {{number}}",
+      "summary_one": "{{count}} 间客房 · {{total}}",
+      "summary_other": "{{count}} 间客房 · {{total}}",
+      "guests": "{{adults}} 位成人，{{children}} 位儿童",
+      "extraBeds_one": "{{count}} 张加床",
+      "extraBeds_other": "{{count}} 张加床"
+    }
   },
   "labels": {
     "guest": "客人：",

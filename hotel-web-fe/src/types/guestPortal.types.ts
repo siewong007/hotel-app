@@ -168,6 +168,10 @@ export interface GuestPortalBookingSummary {
   receipt_uploaded?: boolean;
   /** The booking's guest already has a portal login (password or Google). */
   has_account?: boolean;
+  /** Set when this room is part of a multi-room booking. */
+  booking_group_id?: number | null;
+  group_number?: string | null;
+  room_type_name?: string | null;
 }
 
 export interface GuestPortalPagedResponse<T> {

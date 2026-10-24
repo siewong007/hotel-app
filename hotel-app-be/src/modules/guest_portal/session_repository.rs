@@ -170,6 +170,9 @@ impl GuestPortalSessionRepository {
         let rejected_at_col = "processed_at";
         let sql = format!(
             "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
+                    b.booking_group_id, \
+                    (SELECT g.group_number FROM booking_groups g WHERE g.id = b.booking_group_id) AS group_number, \
+                    (SELECT rt.name FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id WHERE r.id = b.room_id) AS room_type_name, \
                     (SELECT cp.id FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
                         ORDER BY cp.id DESC LIMIT 1) AS completed_payment_id, \
                     (SELECT cp.payment_method FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
@@ -264,6 +267,18 @@ impl GuestPortalSessionRepository {
                     .ok()
                     .flatten(),
                 receipt_uploaded: row.try_get::<bool, _>("receipt_uploaded").unwrap_or(false),
+                booking_group_id: row
+                    .try_get::<Option<i64>, _>("booking_group_id")
+                    .ok()
+                    .flatten(),
+                group_number: row
+                    .try_get::<Option<String>, _>("group_number")
+                    .ok()
+                    .flatten(),
+                room_type_name: row
+                    .try_get::<Option<String>, _>("room_type_name")
+                    .ok()
+                    .flatten(),
             })
             .collect();
 

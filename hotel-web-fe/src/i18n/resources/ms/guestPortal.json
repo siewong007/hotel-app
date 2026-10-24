@@ -540,7 +540,14 @@
       "title": "Penginapan saya",
       "uploadReceipt": "Muat naik resit",
       "viewDetails": "Lihat butiran",
-      "viewReceipt": "Lihat resit"
+      "viewReceipt": "Lihat resit",
+      "group": {
+        "title": "Tempahan berbilang bilik {{number}}",
+        "summary_one": "{{count}} bilik · {{total}}",
+        "summary_other": "{{count}} bilik · {{total}}",
+        "cancelAll": "Batalkan semua bilik",
+        "cancelled": "Semua bilik dalam tempahan {{number}} telah dibatalkan."
+      }
     },
     "credits": {
       "acrossRoomTypes_other": "Merentasi {{count}} jenis bilik",

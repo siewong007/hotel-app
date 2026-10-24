@@ -62,6 +62,10 @@ pub fn routes() -> Router<DbPool> {
             post(handlers::cancel_my_booking),
         )
         .route(
+            "/guest-portal/me/booking-groups/{id}/cancel",
+            post(handlers::cancel_my_booking_group),
+        )
+        .route(
             "/guest-portal/me/transactions",
             get(handlers::get_my_transactions),
         )

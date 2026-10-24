@@ -144,7 +144,15 @@
     "remarks": "註記",
     "paymentNote": "付款備註",
     "occupancy": "{{adults}} 位成人",
-    "occupancyWithChildren": "{{adults}} 位成人、{{children}} 位孩童"
+    "occupancyWithChildren": "{{adults}} 位成人、{{children}} 位孩童",
+    "group": {
+      "title": "多房間預訂 {{number}}",
+      "summary_one": "{{count}} 間客房 · {{total}}",
+      "summary_other": "{{count}} 間客房 · {{total}}",
+      "guests": "{{adults}} 位成人，{{children}} 位兒童",
+      "extraBeds_one": "{{count}} 張加床",
+      "extraBeds_other": "{{count}} 張加床"
+    }
   },
   "labels": {
     "guest": "賓客：",

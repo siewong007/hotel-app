@@ -545,7 +545,14 @@
       "title": "我的住宿",
       "uploadReceipt": "上传收据",
       "viewDetails": "查看详情",
-      "viewReceipt": "查看收据"
+      "viewReceipt": "查看收据",
+      "group": {
+        "title": "多房间预订 {{number}}",
+        "summary_one": "{{count}} 间客房 · {{total}}",
+        "summary_other": "{{count}} 间客房 · {{total}}",
+        "cancelAll": "取消所有客房",
+        "cancelled": "预订 {{number}} 的所有客房已取消。"
+      }
     },
     "credits": {
       "acrossRoomTypes_one": "覆盖 {{count}} 种房型",

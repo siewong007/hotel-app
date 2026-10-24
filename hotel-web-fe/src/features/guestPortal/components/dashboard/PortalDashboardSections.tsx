@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { GuestFaq } from "../GuestFaq";
 import type { FormEvent } from "react";
 import { HTTPError } from "ky";
@@ -144,6 +144,38 @@ export function EmptyState({ message }: { message: string }) {
       }}>{message}</Typography>
     </Box>
   );
+}
+
+interface PortalBookingGroupInfo {
+  id: number;
+  number: string;
+  firstBookingId: number;
+  rooms: GuestPortalBookingSummary[];
+  total: number;
+  /** Every live room can be cancelled online and none is paid. */
+  canCancelAll: boolean;
+}
+
+/** Group the rooms of each multi-room booking on this page of results. */
+export function groupPortalBookings(items: GuestPortalBookingSummary[]): Map<number, PortalBookingGroupInfo> {
+  const groups = new Map<number, PortalBookingGroupInfo>();
+  for (const booking of items) {
+    const id = booking.booking_group_id;
+    if (id == null) continue;
+    const group = groups.get(id) ?? { id, number: booking.group_number ?? "", firstBookingId: booking.id, rooms: [], total: 0, canCancelAll: true };
+    group.rooms.push(booking);
+    const live = !["voided", "cancelled"].includes(booking.status.toLowerCase());
+    if (live) {
+      group.total += Number(booking.total_amount) || 0;
+      if (!booking.can_cancel || booking.completed_payment_id) group.canCancelAll = false;
+    }
+    groups.set(id, group);
+  }
+  for (const group of groups.values()) {
+    const live = group.rooms.filter((room) => !["voided", "cancelled"].includes(room.status.toLowerCase()));
+    if (live.length < 2) group.canCancelAll = false;
+  }
+  return groups;
 }
 
 function requiresPaymentReceipt(booking: GuestPortalBookingSummary): boolean {
@@ -834,6 +866,7 @@ export function BookingsSection({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<GuestPortalBookingSummary | null>(null);
+  const [groupToCancel, setGroupToCancel] = useState<PortalBookingGroupInfo | null>(null);
   const [bookingToView, setBookingToView] = useState<GuestPortalBookingSummary | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -869,7 +902,27 @@ export function BookingsSection({ token }: { token: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+  const cancelGroup = async (reason: string) => {
+    if (!groupToCancel || isCancelling) return;
+    setIsCancelling(true);
+    setCancellationError(null);
+    try {
+      await GuestPortalDashboardService.cancelBookingGroup(groupToCancel.id, reason, token);
+      setCancellationSuccess(t("dashboard.bookings.group.cancelled", { number: groupToCancel.number }));
+      setGroupToCancel(null);
+      void load();
+    } catch (caught) {
+      setCancellationError(guestErrorMessage(caught, t("dashboard.bookings.cancelFailed")));
+      if (caught instanceof HTTPError && caught.response.status === 409) void load();
+    } finally {
+      setIsCancelling(false);
+    }
+  };
   const cancelBooking = async (reason: string) => {
+    if (groupToCancel) {
+      await cancelGroup(reason);
+      return;
+    }
     if (!bookingToCancel || isCancelling) return;
     setIsCancelling(true);
     setCancellationError(null);
@@ -903,6 +956,29 @@ export function BookingsSection({ token }: { token: string }) {
   };
   const receiptRequests = items.filter(requiresPaymentReceipt);
   const firstReceiptRequest = receiptRequests[0];
+  const groups = groupPortalBookings(items);
+  const groupHeader = (booking: GuestPortalBookingSummary) => {
+    const group = booking.booking_group_id != null ? groups.get(booking.booking_group_id) : undefined;
+    return group && group.firstBookingId === booking.id ? group : undefined;
+  };
+  const groupSummary = (group: PortalBookingGroupInfo) => (
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} data-testid="portal-booking-group" sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}>
+      <Box>
+        <Typography sx={{ fontWeight: 800 }}>{t("dashboard.bookings.group.title", { number: group.number })}</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          {t("dashboard.bookings.group.summary", { count: group.rooms.length, total: formatPortalCurrency(group.total) })}
+        </Typography>
+      </Box>
+      {group.canCancelAll ? (
+        <Button color="error" variant="outlined" size="small" onClick={() => { setCancellationError(null); setGroupToCancel(group); }} sx={{ minHeight: 44 }}>
+          {t("dashboard.bookings.group.cancelAll")}
+        </Button>
+      ) : null}
+    </Stack>
+  );
+  const dialogBooking: GuestPortalBookingSummary | null = groupToCancel
+    ? { ...groupToCancel.rooms[0], booking_number: groupToCancel.number, completed_payment_id: null, can_cancel: true }
+    : bookingToCancel;
 
   return (
     <>
@@ -1011,18 +1087,25 @@ export function BookingsSection({ token }: { token: string }) {
               <TableBody>
                 {items.map((booking) => {
                   const receiptUploadRequired = requiresPaymentReceipt(booking);
+                  const header = groupHeader(booking);
                   return (
+                    <Fragment key={booking.booking_number}>
+                    {header ? (
+                      <TableRow>
+                        <TableCell colSpan={6} sx={{ bgcolor: "var(--hotel-surface-muted, rgba(0,0,0,0.03))" }}>{groupSummary(header)}</TableCell>
+                      </TableRow>
+                    ) : null}
                     <TableRow
-                      key={booking.booking_number}
                       hover
                       sx={receiptUploadRequired ? { bgcolor: "var(--hotel-danger-bg)", "&:hover": { bgcolor: "var(--hotel-active)" } } : undefined}
                     >
                       <TableCell
                         component="th"
                         scope="row"
-                        sx={{ fontWeight: 700 }}
+                        sx={{ fontWeight: 700, pl: booking.booking_group_id != null ? 4 : undefined }}
                       >
                         {booking.booking_number}
+                        {booking.room_type_name ? <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 400 }}>{booking.room_type_name}</Typography> : null}
                       </TableCell>
                       <TableCell>
                         {formatPortalDate(booking.check_in_date)}
@@ -1059,6 +1142,7 @@ export function BookingsSection({ token }: { token: string }) {
                         </Stack>
                       </TableCell>
                     </TableRow>
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -1067,8 +1151,11 @@ export function BookingsSection({ token }: { token: string }) {
           <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
             {items.map((booking) => {
               const receiptUploadRequired = requiresPaymentReceipt(booking);
+              const header = groupHeader(booking);
               return (
-                <Card key={booking.booking_number} variant="outlined" sx={receiptUploadRequired ? { borderColor: "var(--hotel-danger-border)", bgcolor: "var(--hotel-danger-bg)", boxShadow: "var(--hotel-shadow-sm)" } : undefined}>
+                <Fragment key={booking.booking_number}>
+                {header ? <Box sx={{ pt: 1 }}>{groupSummary(header)}</Box> : null}
+                <Card variant="outlined" sx={receiptUploadRequired ? { borderColor: "var(--hotel-danger-border)", bgcolor: "var(--hotel-danger-bg)", boxShadow: "var(--hotel-shadow-sm)" } : undefined}>
                   <CardContent>
                     <Stack
                       direction="row"
@@ -1077,11 +1164,14 @@ export function BookingsSection({ token }: { token: string }) {
                         justifyContent: "space-between"
                       }}
                     >
-                      <Typography sx={{
-                        fontWeight: 700
-                      }}>
-                        {booking.booking_number}
-                      </Typography>
+                      <Box>
+                        <Typography sx={{
+                          fontWeight: 700
+                        }}>
+                          {booking.booking_number}
+                        </Typography>
+                        {booking.room_type_name ? <Typography variant="body2" sx={{ color: "text.secondary" }}>{booking.room_type_name}</Typography> : null}
+                      </Box>
                       <Stack spacing={0.5} sx={{
                         alignItems: "flex-end"
                       }}>
@@ -1118,6 +1208,7 @@ export function BookingsSection({ token }: { token: string }) {
                     </Button>
                   </CardContent>
                 </Card>
+                </Fragment>
               );
             })}
           </Stack>
@@ -1143,13 +1234,14 @@ export function BookingsSection({ token }: { token: string }) {
             }
           />
           <RefundBookingDialog
-            booking={bookingToCancel}
-            open={Boolean(bookingToCancel)}
+            booking={dialogBooking}
+            open={Boolean(dialogBooking)}
             isSubmitting={isCancelling}
             error={cancellationError}
             onClose={() => {
               if (!isCancelling) {
                 setBookingToCancel(null);
+                setGroupToCancel(null);
                 setCancellationError(null);
               }
             }}

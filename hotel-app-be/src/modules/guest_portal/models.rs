@@ -334,6 +334,11 @@ pub struct GuestPortalBookingSummary {
     pub receipt_request_payment_id: Option<i64>,
     pub receipt_request_message: Option<String>,
     pub receipt_uploaded: bool,
+    /// Multi-room booking this room belongs to, so the portal can group the
+    /// rooms of one reservation together.
+    pub booking_group_id: Option<i64>,
+    pub group_number: Option<String>,
+    pub room_type_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

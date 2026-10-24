@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   bookings: vi.fn(),
   cancelBooking: vi.fn(),
+  cancelBookingGroup: vi.fn(),
   transactions: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock('../../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     bookings: (...args: unknown[]) => mocks.bookings(...args),
     cancelBooking: (...args: unknown[]) => mocks.cancelBooking(...args),
+    cancelBookingGroup: (...args: unknown[]) => mocks.cancelBookingGroup(...args),
     transactions: (...args: unknown[]) => mocks.transactions(...args),
   },
 }));
@@ -177,6 +179,41 @@ describe('BookingsSection cancellation', () => {
     expect(screen.getByText('This booking cannot be cancelled online.')).toBeTruthy();
     expect(screen.queryByText('Refund unavailable')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull();
+  });
+});
+
+describe('BookingsSection multi-room groups', () => {
+  const room = (id: number, extra: Record<string, unknown> = {}) => ({
+    ...booking, id, booking_number: `SI-20${id}`, completed_payment_id: null, status: 'pending_payment',
+    booking_group_id: 5, group_number: 'GBK-5', room_type_name: id === 1 ? 'Deluxe' : 'Suite', total_amount: '100.00', ...extra,
+  });
+  beforeEach(() => {
+    mocks.bookings.mockReset();
+    mocks.cancelBookingGroup.mockReset();
+  });
+  afterEach(cleanup);
+
+  it('shows one group heading with the room count and total, and cancels all rooms at once', async () => {
+    mocks.bookings.mockResolvedValue({ items: [room(1), room(2)], total: 2 });
+    mocks.cancelBookingGroup.mockResolvedValue({});
+    render(<BookingsSection token="guest-token" />);
+    // Rendered once in the table and once in the mobile cards.
+    expect((await screen.findAllByText('Multi-room booking GBK-5')).length).toBe(2);
+    expect(screen.getAllByText(/2 rooms ·/).length).toBe(2);
+    expect(screen.getAllByText('Deluxe').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cancel all rooms' })[0]);
+    fireEvent.click(screen.getByLabelText('Other'));
+    fireEvent.change(screen.getByLabelText('Custom cancellation reason'), { target: { value: 'Plans changed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    await waitFor(() => expect(mocks.cancelBookingGroup).toHaveBeenCalledWith(5, 'Plans changed', 'guest-token'));
+    expect(await screen.findByText('All rooms in booking GBK-5 were cancelled.')).toBeTruthy();
+  });
+
+  it('offers no group cancel once any room is paid', async () => {
+    mocks.bookings.mockResolvedValue({ items: [room(1, { completed_payment_id: 9 }), room(2)], total: 2 });
+    render(<BookingsSection token="guest-token" />);
+    await screen.findAllByText('Multi-room booking GBK-5');
+    expect(screen.queryByRole('button', { name: 'Cancel all rooms' })).toBeNull();
   });
 });
 

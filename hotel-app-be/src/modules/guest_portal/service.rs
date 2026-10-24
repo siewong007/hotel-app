@@ -808,6 +808,60 @@ pub async fn cancel_my_booking(
     .await
 }
 
+/// Cancel a whole unpaid multi-room booking. Every active room must be
+/// cancellable online on its own (same rules as the per-room button); a group
+/// with any paid room goes through per-room staff-review requests instead.
+pub async fn cancel_my_booking_group(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+    reason: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = reason
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if reason
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > 1_000)
+    {
+        return Err(ApiError::BadRequest(
+            "Cancellation reason must be 1,000 characters or fewer".to_string(),
+        ));
+    }
+    let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0, None)
+        .await
+        .map(|page| (page.items, page.total))?;
+    let rooms: Vec<_> = items
+        .into_iter()
+        .filter(|booking| booking.booking_group_id == Some(group_id) && booking.status != "voided")
+        .collect();
+    if rooms.is_empty() {
+        return Err(ApiError::NotFound("Booking not found".to_string()));
+    }
+    if rooms.iter().any(|room| room.completed_payment_id.is_some()) {
+        return Err(ApiError::Conflict(
+            "Part of this booking is already paid. Please request cancellation for each room so our team can review it.".to_string(),
+        ));
+    }
+    if let Some(blocked) = rooms.iter().find(|room| !room.can_cancel) {
+        return Err(ApiError::Conflict(
+            blocked
+                .cancellation_unavailable_reason
+                .clone()
+                .unwrap_or_else(|| "This booking cannot be cancelled.".to_string()),
+        ));
+    }
+    let user_id = GuestPortalSessionRepository::find_guest_user_id(pool, guest_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Forbidden("No active guest account is linked to this booking.".to_string())
+        })?;
+    crate::modules::bookings::service::cancel_pending_group_by_guest(
+        pool, user_id, group_id, reason,
+    )
+    .await
+}
+
 /// GET /guest-portal/me/transactions
 pub async fn get_my_transactions(
     pool: &DbPool,

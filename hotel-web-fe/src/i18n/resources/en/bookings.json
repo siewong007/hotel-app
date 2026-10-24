@@ -146,7 +146,15 @@
     "remarks": "Remarks",
     "paymentNote": "Payment note",
     "occupancy": "{{adults}} adult(s)",
-    "occupancyWithChildren": "{{adults}} adult(s), {{children}} child(ren)"
+    "occupancyWithChildren": "{{adults}} adult(s), {{children}} child(ren)",
+    "group": {
+      "title": "Multi-room booking {{number}}",
+      "summary_one": "{{count}} room · {{total}}",
+      "summary_other": "{{count}} rooms · {{total}}",
+      "guests": "{{adults}} adults, {{children}} children",
+      "extraBeds_one": "{{count}} extra bed",
+      "extraBeds_other": "{{count}} extra beds"
+    }
   },
   "labels": {
     "guest": "Guest:",

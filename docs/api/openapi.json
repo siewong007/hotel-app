@@ -395,6 +395,9 @@
     "/api/bookings/{id}/convert-credits": {
       "POST": {}
     },
+    "/api/bookings/{id}/group": {
+      "GET": {}
+    },
     "/api/bookings/{id}/posted": {
       "GET": {}
     },
@@ -578,6 +581,9 @@
     },
     "/api/guest-portal/me/booking-groups/{id}": {
       "GET": {}
+    },
+    "/api/guest-portal/me/booking-groups/{id}/cancel": {
+      "POST": {}
     },
     "/api/guest-portal/me/booking-groups/{id}/payments/bank-transfer": {
       "POST": {}

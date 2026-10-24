@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
 import { SmokingPreferenceChip } from '../SmokingPreferenceChip';
+import { BookingGroupSection } from './BookingGroupSection';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -324,6 +325,8 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               </Box>
             </Box>
           </Box>
+
+          <BookingGroupSection bookingId={booking.id} />
 
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.charges')}</Typography>
