@@ -18,6 +18,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { ADJUSTMENT_TYPES, DOW_FLAGS, PLAN_TYPES } from '../constants';
 import type { RatePlan, RatePlanInput } from '../types';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 export interface RatePlanDialogProps {
   open: boolean;
@@ -102,9 +103,9 @@ export const RatePlanDialog = ({
 }: RatePlanDialogProps) => {
   const { t } = useTranslation('rates');
   const [form, setForm] = useState<FormState>(emptyForm);
-  useEffect(() => {
+  useResetOnChange([open, plan], () => {
     if (open) setForm(plan ? fromPlan(plan) : emptyForm());
-  }, [open, plan]);
+  });
 
   const set = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));

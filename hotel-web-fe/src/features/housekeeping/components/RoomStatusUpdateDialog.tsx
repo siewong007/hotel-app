@@ -20,6 +20,7 @@ import { statusLabel, useTranslation } from '../../../i18n';
 import type { HousekeepingBoardRoom } from '../../../types/housekeeping.types';
 import type { RoomStatusUpdateInput } from '../../../types/room.types';
 import { roomStatusMeta, ROOM_STATUS_TRANSITIONS } from '../housekeepingConfig';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const TARGET_HINT_KEYS: Record<string, string> = {
   available: 'statusDialog.hintAvailable',
@@ -54,13 +55,13 @@ export default function RoomStatusUpdateDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useResetOnChange([open], () => {
     if (open) {
       setStatus('');
       setNotes('');
       setError(null);
     }
-  }, [open]);
+  });
 
   if (!room) return null;
 

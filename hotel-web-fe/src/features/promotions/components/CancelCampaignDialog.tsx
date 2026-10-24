@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import type { Promotion } from "../types";
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface CancelCampaignDialogProps {
   promotion: Promotion | null;
@@ -29,9 +30,9 @@ export function CancelCampaignDialog({
   const { t } = useTranslation('promotions');
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
+  useResetOnChange([promotion], () => {
     if (promotion) setReason("");
-  }, [promotion]);
+  });
 
   return (
     <Dialog

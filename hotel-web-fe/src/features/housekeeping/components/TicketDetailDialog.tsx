@@ -32,6 +32,7 @@ import {
   MAINTENANCE_TRANSITIONS,
 } from '../housekeepingConfig';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const STATUS_ACTION_KEY: Partial<Record<MaintenanceStatus, string>> = {
   in_progress: 'maint.actionInProgress',
@@ -78,13 +79,13 @@ export default function TicketDetailDialog({
   const staffQuery = useAssignableStaff('maintenance', open && canWrite);
   const staff = staffQuery.data ?? [];
 
-  useEffect(() => {
+  useResetOnChange([open, ticket?.id], () => {
     if (open) {
       setAssignee('__keep__');
       setResolutionNotes('');
       setError(null);
     }
-  }, [open, ticket?.id]);
+  });
 
   if (!ticket) return null;
 

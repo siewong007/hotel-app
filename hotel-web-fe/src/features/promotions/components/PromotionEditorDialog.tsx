@@ -32,6 +32,7 @@ import {
 import { useTargetingOptions } from "../hooks/usePromotionAdmin";
 import type { Promotion, PromotionInput } from "../types";
 import { discountValueLabel, slugifyPromotionName } from "../utils";
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface PromotionEditorDialogProps {
   open: boolean;
@@ -166,12 +167,12 @@ export function PromotionEditorDialog({
   const roomTypesQuery = useAllRoomTypes(open);
   const targetingQuery = useTargetingOptions(open);
 
-  useEffect(() => {
+  useResetOnChange([open, promotion], () => {
     if (open) {
       setForm(initialEditorState(promotion));
       setValidationError(null);
     }
-  }, [open, promotion]);
+  });
 
   const handleNameChange = (name: string) => {
     setForm((current) => ({
