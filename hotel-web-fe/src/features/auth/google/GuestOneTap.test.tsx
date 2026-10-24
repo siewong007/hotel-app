@@ -171,7 +171,7 @@ describe('GuestOneTap', () => {
 
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenCalledWith(
-        `/complete-profile?redirect=${encodeURIComponent('/guest-portal?view=booking')}`,
+        `/complete-profile?redirect=${encodeURIComponent('/guest-portal?view=booking&resume=checkout')}`,
         { replace: true }
       )
     );

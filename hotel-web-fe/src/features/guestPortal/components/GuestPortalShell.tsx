@@ -1,3 +1,4 @@
+import { GUEST_CHECKOUT_SIGN_IN } from '../../auth/guestRedirect';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   AppBar,
@@ -62,7 +63,8 @@ interface GuestPortalShellProps {
 
 const DASHBOARD_LINK = '/guest-portal?section=overview';
 const BOOKING_LINK = '/guest-portal?view=booking';
-const SIGN_IN_LINK = '/login?redirect=%2Fguest-portal%3Fview%3Dbooking';
+// Returns to the checkout when one was in progress; otherwise the booking view.
+const SIGN_IN_LINK = GUEST_CHECKOUT_SIGN_IN;
 const HOTEL_INDEX_LINK = '/salim-inn/index.html?account=guest';
 const MORE_VALUE = 'more';
 

@@ -32,6 +32,8 @@ import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
 import { findPrefilledOffer, parseBookingPrefill } from './prefill';
+import { clearCheckoutResume, loadCheckoutResume, saveCheckoutResume, wantsCheckoutResume } from './checkoutResume';
+import { GUEST_CHECKOUT_REDIRECT, GUEST_CHECKOUT_SIGN_IN } from '../../auth/guestRedirect';
 import { guestErrorMessage } from '../utils/feedback';
 import { RoomMedia, ROOM_MEDIA_HEIGHT } from './RoomMedia';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
@@ -70,7 +72,8 @@ function isVoucherEligibilityError(error: unknown): boolean {
   return error instanceof Error && error.message.toLowerCase().includes('voucher is not eligible');
 }
 
-const COMPLETE_PROFILE_REDIRECT = '/complete-profile?redirect=%2Fportal%2Fbook';
+// Back to the checkout once the profile is complete (cart and details persist).
+const COMPLETE_PROFILE_REDIRECT = `/complete-profile?redirect=${encodeURIComponent(GUEST_CHECKOUT_REDIRECT)}`;
 
 // The backend re-checks completion at booking-creation time (`ApiError::ProfileIncomplete`,
 // 422 `code: "profile_incomplete"`) in case it changed after this page loaded. Detect that
@@ -112,6 +115,9 @@ const PortalBookingPage: React.FC = () => {
   // valid handoff seeds the form, runs the search on arrival and highlights
   // the chosen room in Choose; anything invalid leaves the normal Search step.
   const [prefill] = useState(() => parseBookingPrefill(window.location.search));
+  // Back from sign-in (or registration, 2FA, Google, profile completion) with
+  // `?resume=checkout`: the checkout the guest left, read once on mount.
+  const [resume] = useState(() => (wantsCheckoutResume(window.location.search) ? loadCheckoutResume() : null));
   // The multi-room cart survives navigation and refresh (sessionStorage). A
   // restored cart also restores its stay dates so the cart and the search
   // never disagree.
@@ -140,10 +146,10 @@ const PortalBookingPage: React.FC = () => {
   const [eligibleVoucherIds, setEligibleVoucherIds] = useState<Set<number>>(() => new Set());
   const [ineligibleVoucherKeys, setIneligibleVoucherKeys] = useState<Set<string>>(() => new Set());
   const [complimentaryDates, setComplimentaryDates] = useState<string[]>([]);
-  const [specialRequests, setSpecialRequests] = useState('');
-  const [cleaningPreference, setCleaningPreference] = useState(false);
+  const [specialRequests, setSpecialRequests] = useState(() => resume?.specialRequests ?? '');
+  const [cleaningPreference, setCleaningPreference] = useState(() => resume?.cleaningPreference ?? false);
   // '' = no preference (the default); the field is then left out of the request.
-  const [smokingPreference, setSmokingPreference] = useState<SmokingPreference | ''>('');
+  const [smokingPreference, setSmokingPreference] = useState<SmokingPreference | ''>(() => resume?.smokingPreference ?? '');
   const [requestId, setRequestId] = useState(newRequestId);
   const [confirmation, setConfirmation] = useState<GuestBookingConfirmation | null>(null);
   const consent = useConsent(BOOKING_CONSENTS);
@@ -160,7 +166,7 @@ const PortalBookingPage: React.FC = () => {
   // The backend booking guard (`ApiError::ProfileIncomplete`) remains
   // authoritative regardless of this client-side value.
   const [profileComplete, setProfileComplete] = useState(true);
-  const [guestDetails, setGuestDetails] = useState<AnonymousGuestDetails>(EMPTY_GUEST_DETAILS);
+  const [guestDetails, setGuestDetails] = useState<AnonymousGuestDetails>(() => resume?.details ?? EMPTY_GUEST_DETAILS);
   // Search, quote, voucher, credits and create failures all land on the one
   // form-level alert below — but only failures the guest asked for take
   // focus. Background re-prices (the tourism-type re-quote, socket-driven
@@ -485,6 +491,42 @@ const PortalBookingPage: React.FC = () => {
     window.scrollTo?.({ top: 0, behavior: 'auto' });
   }, [cart, offers, search, selectOffer, setError]);
 
+  // Keep the in-progress checkout in sessionStorage so a sign-in round trip
+  // (any route: password, 2FA, passkey, Google, registration) comes back to it.
+  const inCheckout = (groupCheckout || Boolean(selectedOffer)) && !confirmation && !groupConfirmation;
+  useEffect(() => {
+    if (inCheckout) saveCheckoutResume({ details: guestDetails, specialRequests, cleaningPreference, smokingPreference });
+  }, [cleaningPreference, guestDetails, inCheckout, smokingPreference, specialRequests]);
+  useEffect(() => { if (confirmation || groupConfirmation) clearCheckoutResume(); }, [confirmation, groupConfirmation]);
+
+  // Resume: once signed in, search the cart's stay, then reopen checkout. The
+  // quote is fetched afresh with the session, so vouchers and credits apply.
+  const resumeStage = useRef<'idle' | 'searching' | 'done'>(resume && cart ? 'idle' : 'done');
+  const [resumeSearched, setResumeSearched] = useState(false);
+  useEffect(() => {
+    if (resumeStage.current !== 'idle' || !token || prefillPending) return;
+    resumeStage.current = 'searching';
+    void runSearch().finally(() => setResumeSearched(true));
+  }, [prefillPending, runSearch, token]);
+  useEffect(() => {
+    if (!resumeSearched || resumeStage.current !== 'searching') return;
+    resumeStage.current = 'done';
+    clearCheckoutResume();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('resume');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    openGroupCheckout();
+  }, [openGroupCheckout, resumeSearched]);
+
+  // Signed in on the page itself (Google One Tap): re-price the open single
+  // room with the session so its vouchers and credits become available.
+  const pricedWithToken = useRef(Boolean(token));
+  useEffect(() => {
+    if (!token || pricedWithToken.current) return;
+    pricedWithToken.current = true;
+    if (selectedOffer && !groupCheckout) void selectOffer(selectedOffer, singleParty ?? undefined);
+  }, [groupCheckout, selectOffer, selectedOffer, singleParty, token]);
+
   const submitGroup = useCallback(async () => {
     if (!cart || !groupQuote || isSubmitting || isQuoting) return;
     if (isAnonymous) {
@@ -752,7 +794,7 @@ function GuestDetailsForm({ details, onChange, nicknameTaken }: { details: Anony
       </Grid>
       <Alert severity="info" sx={{ mt: 2 }}>
         {t('book.anonymousLead')}{' '}
-        <Box component="a" href="/login?redirect=%2Fguest-portal%3Fview%3Dbooking" sx={{ color: 'inherit', fontWeight: 700 }}>{t('book.signIn')}</Box>
+        <Box component="a" href={GUEST_CHECKOUT_SIGN_IN} sx={{ color: 'inherit', fontWeight: 700 }}>{t('book.signIn')}</Box>
         {' '}{t('book.anonymousTrail')}
       </Alert>
     </Box>
