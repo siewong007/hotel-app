@@ -545,7 +545,14 @@
       "title": "My stays",
       "uploadReceipt": "Upload receipt",
       "viewDetails": "View details",
-      "viewReceipt": "View receipt"
+      "viewReceipt": "View receipt",
+      "group": {
+        "title": "Multi-room booking {{number}}",
+        "summary_one": "{{count}} room · {{total}}",
+        "summary_other": "{{count}} rooms · {{total}}",
+        "cancelAll": "Cancel all rooms",
+        "cancelled": "All rooms in booking {{number}} were cancelled."
+      }
     },
     "credits": {
       "acrossRoomTypes_one": "Across {{count}} room type",

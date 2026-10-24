@@ -540,7 +540,14 @@
       "title": "我的住宿",
       "uploadReceipt": "上傳收據",
       "viewDetails": "查看詳情",
-      "viewReceipt": "查看收據"
+      "viewReceipt": "查看收據",
+      "group": {
+        "title": "多房間預訂 {{number}}",
+        "summary_one": "{{count}} 間客房 · {{total}}",
+        "summary_other": "{{count}} 間客房 · {{total}}",
+        "cancelAll": "取消所有客房",
+        "cancelled": "預訂 {{number}} 的所有客房已取消。"
+      }
     },
     "credits": {
       "acrossRoomTypes_other": "涵蓋 {{count}} 種房型",

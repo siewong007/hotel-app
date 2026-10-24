@@ -157,6 +157,20 @@ export class GuestPortalDashboardService {
       .json();
   }
 
+  /** Cancel every room of an unpaid multi-room booking at once. */
+  static async cancelBookingGroup(
+    groupId: number,
+    reason: string,
+    token?: string
+  ): Promise<{ message?: string; booking_ids?: number[] }> {
+    return await api
+      .post(`guest-portal/me/booking-groups/${groupId}/cancel`, {
+        headers: authHeaders(token),
+        json: { reason: reason.trim() || null },
+      })
+      .json();
+  }
+
   static async membership(token?: string): Promise<GuestPortalMembershipResponse> {
     return await api
       .get('guest-portal/me/membership', { headers: authHeaders(token) })
