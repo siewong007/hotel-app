@@ -1,4 +1,5 @@
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
+import { useState } from 'react';
 import {
   Alert,
   Box,
@@ -20,6 +21,7 @@ interface VoucherWalletProps {
 export function VoucherWallet({ token }: VoucherWalletProps) {
   const { t } = useTranslation('guestPortal');
   const vouchersQuery = useVoucherWallet(token, { page: 1, page_size: 50 });
+  const [now] = useState(() => Date.now());
 
   if (vouchersQuery.isLoading) {
     return (
@@ -93,7 +95,7 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
   const readyCount = vouchers.filter(
     (voucher) =>
       voucher.status === 'available' &&
-      (!voucher.expires_at || new Date(voucher.expires_at).getTime() >= Date.now())
+      (!voucher.expires_at || new Date(voucher.expires_at).getTime() >= now)
   ).length;
 
   return (
