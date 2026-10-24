@@ -27,9 +27,7 @@ export default [
       // React Compiler diagnostics now ship in eslint-plugin-react-hooks 7
       // (the standalone eslint-plugin-react-compiler pinned a vulnerable zod 3).
       ...reactHooks.configs["recommended-latest"].rules,
-      // Stricter v7 diagnostics the old plugin never enforced; existing code
-      // has violations. Off for now, tracked as follow-up cleanup.
-      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/set-state-in-effect": "error",
       "react-hooks/refs": "error",
       "react-hooks/preserve-manual-memoization": "error",
       // Ban deriving a YYYY-MM-DD string from Date.toISOString(): toISOString()
@@ -72,5 +70,77 @@ export default [
         }
       ]
     }
-  }
+  },
+  {
+    // set-state-in-effect cleanup in progress: files below still have
+    // violations and are fixed area by area. Remove entries as they're fixed;
+    // never add new ones.
+    files: [
+      "src/components/common/ApiNotificationHost.tsx",
+      "src/components/layout/CommandPalette.tsx",
+      "src/features/admin/components/AuditLogPage.tsx",
+      "src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx",
+      "src/features/admin/components/UrgentTransferAlert.tsx",
+      "src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx",
+      "src/features/admin/components/complimentary/CreditDialogs.tsx",
+      "src/features/admin/components/data-transfer/DesktopBackupsCard.tsx",
+      "src/features/admin/components/data-transfer/StepUpDialog.tsx",
+      "src/features/admin/components/rbac/RBACManagementPage.tsx",
+      "src/features/auth/components/CompleteProfilePage.tsx",
+      "src/features/auth/components/EmailVerificationPage.tsx",
+      "src/features/auth/components/twoFactor/TwoFactorChallenge.tsx",
+      "src/features/auth/turnstile/useTurnstile.ts",
+      "src/features/channels/components/ChannelDialog.tsx",
+      "src/features/channels/components/CommissionRuleDialog.tsx",
+      "src/features/channels/components/PricingRuleDialog.tsx",
+      "src/features/ekyc/components/EkycCreateDialog.tsx",
+      "src/features/ekyc/components/EkycManagementPage.tsx",
+      "src/features/ekyc/components/EkycStatusCard.tsx",
+      "src/features/guestPortal/booking/PortalBookingPage.tsx",
+      "src/features/guestPortal/components/GuestPaymentPanel.tsx",
+      "src/features/guestPortal/components/GuestPortalNotificationBell.tsx",
+      "src/features/guestPortal/components/GuestPortalShell.tsx",
+      "src/features/guestPortal/components/PortalSupportTab.tsx",
+      "src/features/guestPortal/components/dashboard/IdentitySection.tsx",
+      "src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx",
+      "src/features/guestPortal/components/dashboard/ProfileSection.tsx",
+      "src/features/guestPortal/hooks/usePortalSessionBootstrap.ts",
+      "src/features/guestRelations/components/GuestFormDialog.tsx",
+      "src/features/guestRelations/components/GuestPortalAccountDialog.tsx",
+      "src/features/guestRelations/components/OpenSupportDialog.tsx",
+      "src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx",
+      "src/features/guestRelations/pages/GuestRelationsPage.tsx",
+      "src/features/housekeeping/components/HousekeepingPage.tsx",
+      "src/features/housekeeping/components/NewTaskDialog.tsx",
+      "src/features/housekeeping/components/NewTicketDialog.tsx",
+      "src/features/housekeeping/components/RoomStatusUpdateDialog.tsx",
+      "src/features/housekeeping/components/TaskEditDialog.tsx",
+      "src/features/housekeeping/components/TicketDetailDialog.tsx",
+      "src/features/invoices/components/CheckoutInvoiceModal.tsx",
+      "src/features/invoices/hooks/useCheckoutInvoiceData.ts",
+      "src/features/loyalty/components/LoyaltyPortal.tsx",
+      "src/features/onlineInventory/components/GridToolbar.tsx",
+      "src/features/onlineInventory/hooks/useCellEditorDraft.ts",
+      "src/features/onlineInventory/hooks/useOnlineInventory.ts",
+      "src/features/onlineInventory/pages/OnlineInventoryPage.tsx",
+      "src/features/promotions/components/CancelCampaignDialog.tsx",
+      "src/features/promotions/components/PromotionEditorDialog.tsx",
+      "src/features/promotions/components/VoucherDetailsDrawer.tsx",
+      "src/features/promotions/components/VoucherIssueDialog.tsx",
+      "src/features/rates/components/RatePlanDialog.tsx",
+      "src/features/rooms/bulkPrices/BulkPriceDialog.tsx",
+      "src/features/rooms/components/RoomEventDialog.tsx",
+      "src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx",
+      "src/features/rooms/components/UpdateCheckoutDateDialog.tsx",
+      "src/features/rooms/hooks/useGuestCreditsWorkflow.ts",
+      "src/features/support/components/SupportManagementPage.tsx",
+      "src/features/user/components/SettingsPage.tsx",
+      "src/features/user/components/UserProfilePage.tsx",
+      "src/features/user/components/profile/ProfileTab.tsx",
+      "src/hooks/useCurrency.ts",
+    ],
+    rules: {
+      "react-hooks/set-state-in-effect": "off"
+    }
+  },
 ];

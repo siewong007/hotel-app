@@ -61,15 +61,20 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
 
   const paymentMethods = getHotelSettings().payment_methods;
 
-  useEffect(() => {
-    if (!open || !booking) return;
-    const balanceDue = toMoneyNumber(booking.balance_due);
-    const totalAmount = toMoneyNumber(booking.total_amount);
-    setCurrentBooking(booking);
-    setAmount(context === 'checkout_required' ? balanceDue : (isPositiveMoney(balanceDue) ? balanceDue : totalAmount));
-    setMethod(booking.payment_method || 'Cash');
-    setNote(context === 'checkout_required' ? 'Required before checkout' : '');
-  }, [open, booking, context]);
+  // Re-seed the form whenever the dialog opens or its booking/context changes
+  // (adjusted during render rather than in an effect).
+  const [seededFor, setSeededFor] = useState<{ open: boolean; booking: typeof booking; context: typeof context } | null>(null);
+  if (!seededFor || seededFor.open !== open || seededFor.booking !== booking || seededFor.context !== context) {
+    setSeededFor({ open, booking, context });
+    if (open && booking) {
+      const balanceDue = toMoneyNumber(booking.balance_due);
+      const totalAmount = toMoneyNumber(booking.total_amount);
+      setCurrentBooking(booking);
+      setAmount(context === 'checkout_required' ? balanceDue : (isPositiveMoney(balanceDue) ? balanceDue : totalAmount));
+      setMethod(booking.payment_method || 'Cash');
+      setNote(context === 'checkout_required' ? 'Required before checkout' : '');
+    }
+  }
 
   const handleConfirm = async () => {
     if (!currentBooking) return;

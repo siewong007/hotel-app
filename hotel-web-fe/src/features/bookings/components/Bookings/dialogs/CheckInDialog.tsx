@@ -36,19 +36,27 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
   const [icNumber, setIcNumber] = useState('');
   const [phone, setPhone] = useState('');
 
+  // Re-seed the form when the dialog opens or its booking changes (adjusted
+  // during render); the guest-profile back-fill below stays in an effect.
+  const [seededFor, setSeededFor] = useState<{ open: boolean; booking: typeof booking } | null>(null);
+  if (!seededFor || seededFor.open !== open || seededFor.booking !== booking) {
+    setSeededFor({ open, booking });
+    if (open && booking) {
+      const totalAmt = toMoneyNumber(booking.total_amount);
+      setPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
+      setPaymentMethod(booking.payment_method || 'Cash');
+      setAmountPaid(totalAmt);
+      setDepositChoice('receive');
+      setDepositAmount(getHotelSettings().deposit_amount);
+      setDepositMethod('Cash');
+      setWaiveReason('');
+      setIcNumber('');
+      setPhone(booking.guest_phone || '');
+    }
+  }
+
   useEffect(() => {
     if (!open || !booking) return undefined;
-    const totalAmt = toMoneyNumber(booking.total_amount);
-    setPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
-    setPaymentMethod(booking.payment_method || 'Cash');
-    setAmountPaid(totalAmt);
-    setDepositChoice('receive');
-    setDepositAmount(getHotelSettings().deposit_amount);
-    setDepositMethod('Cash');
-    setWaiveReason('');
-    setIcNumber('');
-    setPhone(booking.guest_phone || '');
-
     // Back-fill IC / phone from the guest profile (booking summary omits IC).
     if (booking.guest_id !== undefined && booking.guest_id !== null) {
       let cancelled = false;
