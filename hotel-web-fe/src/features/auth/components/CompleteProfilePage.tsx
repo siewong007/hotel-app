@@ -24,6 +24,7 @@ import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 import { safeGuestRedirect } from '../guestRedirect';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 // A Google account only ever supplies one combined name; split it into the
 // first/last fields this form (and the backend contract) expect.
@@ -56,7 +57,7 @@ const CompleteProfilePage: React.FC = () => {
   const [prefilled, setPrefilled] = useState(false);
   const errorRef = useAutoFocusError(error);
 
-  useEffect(() => {
+  useResetOnChange([profile, prefilled], () => {
     if (prefilled || !profile) {
       return;
     }
@@ -65,7 +66,7 @@ const CompleteProfilePage: React.FC = () => {
     setLastName(last);
     setPhone(profile.phone ?? '');
     setPrefilled(true);
-  }, [profile, prefilled]);
+  });
 
   if (isLoading) {
     return <LogoLoader variant="fullScreen" />;

@@ -17,6 +17,7 @@ import { errorMessage } from '../../../../utils';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { useTranslation } from '../../../../i18n';
+import { useResetOnChange } from '../../../../hooks/useResetOnChange';
 
 interface BookingDialogProps {
   open: boolean;
@@ -39,7 +40,7 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
   });
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
+  useResetOnChange([open, booking], () => {
     if (open && booking) {
       setFormData({
         complimentary_start_date: booking.complimentary_start_date || '',
@@ -47,7 +48,7 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
         complimentary_reason: booking.complimentary_reason || '',
       });
     }
-  }, [open, booking]);
+  });
 
   const handleUpdate = async () => {
     if (!booking) return;

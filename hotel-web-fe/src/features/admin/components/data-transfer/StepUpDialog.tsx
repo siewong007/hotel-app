@@ -15,6 +15,7 @@ import {
 import { Lock as LockIcon } from '@mui/icons-material';
 import { useStepUpMutation } from '../../hooks/useDataTransferQueries';
 import { useTranslation } from '../../../../i18n';
+import { useResetOnChange } from '../../../../hooks/useResetOnChange';
 
 interface StepUpDialogProps {
   open: boolean;
@@ -45,13 +46,13 @@ const StepUpDialog: React.FC<StepUpDialogProps> = ({ open, reason, onClose, onVe
 
   // Clear credentials whenever the dialog closes — nothing sensitive lingers
   // in component state after the token is handed over.
-  useEffect(() => {
+  useResetOnChange([open], () => {
     if (!open) {
       setPassword('');
       setTotpCode('');
       setError(null);
     }
-  }, [open]);
+  });
 
   const submit = async () => {
     setError(null);

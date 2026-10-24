@@ -26,6 +26,7 @@ import { useTranslation } from '../../../../i18n';
 import { StickyActionBar } from '../../../../components/common/StickyActionBar';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { profileInitials } from './ProfileHeaderCard';
+import { useResetOnChange } from '../../../../hooks/useResetOnChange';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
@@ -66,9 +67,9 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
   const [phoneError, setPhoneError] = useState('');
 
   // Re-seed the form whenever a fresh profile arrives (initial load, refetch).
-  useEffect(() => {
+  useResetOnChange([profile], () => {
     setFormData(formFromProfile(profile));
-  }, [profile]);
+  });
 
   // A guest keeps the email they already confirmed; support changes it for them.
   const canEditEmail = profile.user_type !== 'guest' || !profile.email_configured;

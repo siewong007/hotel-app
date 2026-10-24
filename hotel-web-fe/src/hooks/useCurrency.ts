@@ -7,15 +7,16 @@ import {
   formatCurrency,
   CurrencyInfo,
 } from '../utils/currency';
+import { useResetOnChange } from './useResetOnChange';
 
 export const useCurrency = () => {
   const [currency, setCurrency] = useState<string>(getCurrentCurrency());
   const [currencyInfo, setCurrencyInfo] = useState<CurrencyInfo>(getCurrencyInfo());
 
-  useEffect(() => {
+  useResetOnChange([currency], () => {
     // Update currency info when currency changes
     setCurrencyInfo(getCurrencyInfo(currency));
-  }, [currency]);
+  });
 
   const updateCurrency = (newCurrency: string) => {
     setCurrency(newCurrency);

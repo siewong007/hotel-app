@@ -26,6 +26,7 @@ import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { validateEkycCreateFormKey } from '../utils/ekycCreateValidation';
 import { errorMessage } from '../../../utils/errorMessage';
 import { useTranslation } from '../../../i18n';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const ID_TYPES = [
   { value: 'passport', labelKey: 'idTypes.passport' },
@@ -137,14 +138,14 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
     setError(null);
   };
 
-  useEffect(() => {
+  useResetOnChange([initialGuest, open], () => {
     if (!open || !initialGuest) return;
     setGuest(initialGuest);
     setGuestInput(initialGuest.nick_name || '');
     setGuestOptions([initialGuest]);
     setForm(formFromGuest(initialGuest));
     setError(null);
-  }, [initialGuest, open]);
+  });
 
   useEffect(() => {
     if (!open || lockGuest) return;

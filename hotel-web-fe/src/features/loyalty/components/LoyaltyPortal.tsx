@@ -62,6 +62,7 @@ import { LogoLoader } from '../../../components';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { formatNumber, statusLabel, useTranslation } from '../../../i18n';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const fmt = (n: number | null | undefined): string =>
   typeof n === 'number' ? formatNumber(n) : '—';
@@ -505,7 +506,7 @@ const RewardDialog: React.FC<{
   const [form, setForm] = useState<AdminRewardInput>(emptyReward);
   const [error, setError] = useState('');
 
-  React.useEffect(() => {
+  useResetOnChange([open, reward], () => {
     if (open) {
       setError('');
       setForm(
@@ -526,7 +527,7 @@ const RewardDialog: React.FC<{
           : emptyReward
       );
     }
-  }, [open, reward]);
+  });
 
   const set = <K extends keyof AdminRewardInput>(key: K, value: AdminRewardInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -1009,7 +1010,7 @@ const RulesTab: React.FC = () => {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  React.useEffect(() => {
+  useResetOnChange([rulesQuery.data], () => {
     if (rulesQuery.data) {
       const d = rulesQuery.data;
       setForm({
@@ -1021,7 +1022,7 @@ const RulesTab: React.FC = () => {
         min_eligible_amount: d.min_eligible_amount,
       });
     }
-  }, [rulesQuery.data]);
+  });
 
   if (rulesQuery.isLoading) return <Loading />;
   if (rulesQuery.error) return <Alert severity="error">{errMessage(rulesQuery.error, t('portal.rules.loadFailed'))}</Alert>;
