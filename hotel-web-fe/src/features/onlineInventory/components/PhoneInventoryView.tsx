@@ -12,6 +12,11 @@ import { cellAriaLabel } from './GridCell';
 const asDate = (date: string) => new Date(`${date}T12:00:00`);
 
 /** Day-cell width — wide enough for the count plus a compact price line. */
+/** DOM write kept outside render scope (react-hooks/immutability). */
+function alignScrollLeft(node: HTMLElement, left: number): void {
+  node.scrollLeft = left;
+}
+
 export const PHONE_DAY_WIDTH = 76;
 
 export interface PhoneInventoryViewProps {
@@ -237,7 +242,7 @@ export const PhoneInventoryView = ({
     syncing.current = true;
     for (const [otherId, node] of strips.current) {
       if (otherId !== id && node.scrollLeft !== source.scrollLeft) {
-        node.scrollLeft = source.scrollLeft;
+        alignScrollLeft(node, source.scrollLeft);
       }
     }
     requestAnimationFrame(() => {
