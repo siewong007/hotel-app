@@ -17,6 +17,7 @@ import { useTranslation } from '../../../../i18n/useTranslation';
 import { dateFormatter } from '../../../../i18n/format';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
 import { canCoverRoomsWithCredits, type RoomCreditBucket } from '../../utils/roomManagementUtils';
+import { useCreditFilteredOptions } from './useCreditFilteredOptions';
 import { buildBookingTokens } from './bookingTokens';
 import BookingModalHeader from './components/BookingModalHeader';
 import BookingSummaryAside from './components/BookingSummaryAside';
@@ -688,14 +689,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       ? `Multi-room booking (${selectedBookingRooms.length} rooms: ${selectedRoomNumbers})`
       : '';
 
-    const createdBookings: Booking[] = [];
-    for (const [index, bookingRoom] of selectedBookingRooms.entries()) {
+    const requests: BookingCreateRequest[] = selectedBookingRooms.map((bookingRoom, index) => {
       const bookingRemarks = [
         bookingData.booking_remarks,
         multiRoomNote,
       ].filter(Boolean).join(' | ');
 
-      const created = await BookingsService.createBooking({
+      return {
         ...bookingData,
         room_id: String(bookingRoom.id),
         booking_remarks: bookingRemarks || undefined,
@@ -705,11 +705,17 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         ...(companyBilling
           ? { company_id: companyBilling.id, company_name: companyBilling.name }
           : {}),
-      });
-      createdBookings.push(created);
-    }
+      };
+    });
 
-    return createdBookings;
+    // Several rooms go through the group endpoint: all rooms are booked
+    // atomically under one booking group, so a conflict on one room no longer
+    // leaves the others booked.
+    if (requests.length > 1) {
+      const { bookings } = await BookingsService.createGroupBooking(requests);
+      return bookings;
+    }
+    return [await BookingsService.createBooking(requests[0])];
   };
 
   // Submit booking
@@ -960,43 +966,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const requiredCreditNights = Math.max(1, billableNights);
   const isComplimentaryFlow = effectiveType === 'complimentary';
 
-  const creditFilteredGuests = useMemo(() => {
-    const candidates = guestsWithCredits.filter((guest) => guest.total_complimentary_credits > 0);
-    if (!isComplimentaryFlow || selectedBookingRooms.length === 0) return candidates;
-
-    return candidates.filter((guest) => (
-      canCoverRoomsWithCredits(guest, selectedBookingRooms, requiredCreditNights)
-    ));
-  }, [guestsWithCredits, isComplimentaryFlow, selectedBookingRooms, requiredCreditNights]);
-
-  const creditFilteredAvailableRooms = useMemo(() => {
-    if (!isComplimentaryFlow) return availableRooms;
-
-    return availableRooms.filter((availableRoom) => {
-      const alreadySelected = selectedBookingRooms.some((selected) => String(selected.id) === String(availableRoom.id));
-      const roomsToCover = alreadySelected
-        ? selectedBookingRooms
-        : [...selectedBookingRooms, availableRoom];
-
-      if (selectedGuestWithCredits) {
-        return canCoverRoomsWithCredits(selectedGuestWithCredits, roomsToCover, requiredCreditNights);
-      }
-
-      if (loadingGuestsWithCredits) return true;
-
-      return creditFilteredGuests.some((guest) => (
-        canCoverRoomsWithCredits(guest, roomsToCover, requiredCreditNights)
-      ));
-    });
-  }, [
+  const { creditFilteredGuests, creditFilteredAvailableRooms } = useCreditFilteredOptions({
+    guestsWithCredits,
     availableRooms,
-    isComplimentaryFlow,
     selectedBookingRooms,
     selectedGuestWithCredits,
+    isComplimentaryFlow,
     loadingGuestsWithCredits,
-    creditFilteredGuests,
     requiredCreditNights,
-  ]);
+  });
 
   const selectedRoomTypeNames = useMemo(() => (
     Array.from(new Set(selectedBookingRooms.map((selected) => selected.room_type).filter(Boolean))).join(', ')

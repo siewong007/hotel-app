@@ -264,3 +264,33 @@ describe('BookingsService page fan-out is bounded', () => {
     expect(peak).toBeGreaterThan(0);
   });
 });
+
+describe('BookingsService.createGroupBooking', () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it('posts every room to the group endpoint with numeric room ids', async () => {
+    post.mockReturnValue({
+      json: () => Promise.resolve({ group: { id: 7, group_number: 'G-7' }, bookings: [{ id: 1 }, { id: 2 }] }),
+    });
+    const checkIn = formatLocalDate(addLocalDays(new Date(), 30));
+    const checkOut = formatLocalDate(addLocalDays(new Date(), 32));
+    const base = { guest_id: 5, check_in_date: checkIn, check_out_date: checkOut };
+
+    const result = await BookingsService.createGroupBooking([
+      { ...base, room_id: '11' },
+      { ...base, room_id: '12' },
+    ] as any);
+
+    expect(post).toHaveBeenCalledWith('bookings/group', {
+      json: {
+        bookings: [
+          { ...base, room_id: 11 },
+          { ...base, room_id: 12 },
+        ],
+      },
+    });
+    expect(result.bookings).toHaveLength(2);
+  });
+});
