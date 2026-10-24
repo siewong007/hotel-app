@@ -48,15 +48,22 @@ export const GuestCheckInVerify: React.FC = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  useEffect(() => {
+  // No token: show the error straight away (adjusted during render).
+  const [tokenCheck, setTokenCheck] = useState<{ token: typeof token; t: typeof t } | null>(null);
+  if (!tokenCheck || tokenCheck.token !== token || tokenCheck.t !== t) {
+    setTokenCheck({ token, t });
     if (!token) {
       setError(t('checkin.verify.errors.missingToken'));
       setLoading(false);
-      return;
     }
+  }
 
+  useEffect(() => {
+    if (!token) return;
+    // Async fetch: every setState in the loader runs after an await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBookingData();
-  }, [token, loadBookingData, t]);
+  }, [token, loadBookingData]);
 
   const handleContinue = () => {
     navigate('/guest-checkin/form');

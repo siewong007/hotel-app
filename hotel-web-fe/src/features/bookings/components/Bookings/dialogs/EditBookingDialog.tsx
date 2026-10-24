@@ -142,40 +142,48 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
   }, [channelPreview.data, channelPreview.isError, formatCurrency, t]);
 
   // Initialise the form from the booking each time the dialog opens.
+  // Seed the form when the dialog opens or its booking changes (adjusted
+  // during render); the room-type lookup stays in the effect below.
+  const [seededFor, setSeededFor] = useState<{ open: boolean; booking: typeof booking } | null>(null);
+  if (!seededFor || seededFor.open !== open || seededFor.booking !== booking) {
+    setSeededFor({ open, booking });
+    if (open && booking) {
+      // Get the booking's room rate (price_per_night) - this contains the override if one was set
+      const bookingRate = toMoneyNumber(booking.price_per_night);
+
+      setEditFormData({
+        status: booking.status,
+        payment_status: booking.payment_status || 'unpaid',
+        // Pass-through field: no input edits it, and the value is resubmitted
+        // verbatim — keep the raw API enum, never a humanized label.
+        payment_method: booking.payment_method || '',
+        source: booking.source || 'walk_in',
+        booking_channel_id: booking.booking_channel_id ?? '',
+        ota_reference: booking.ota_reference || '',
+        check_in_date: booking.check_in_date.split('T')[0],
+        check_out_date: booking.check_out_date.split('T')[0],
+        // Actual checkout date (date portion only) — editable so staff can correct
+        // a backdated / mis-recorded stay. Empty until the booking is checked out.
+        actual_check_out: booking.actual_check_out ? booking.actual_check_out.split('T')[0] : '',
+        post_type: booking.post_type || 'normal_stay',
+        rate_code: booking.rate_code || 'RACK',
+        deposit_paid: booking.deposit_paid || false,
+        remarks: booking.remarks || '',
+        special_requests: booking.special_requests || '',
+        // Use the booking's room rate directly (this is the override rate if one was set)
+        price_per_night: bookingRate,
+        has_override: isPositiveMoney(bookingRate),
+        extra_bed_count: booking.extra_bed_count || 0,
+        extra_bed_charge: toMoneyNumber(booking.extra_bed_charge),
+        room_id: booking.room_id,
+        company_id: booking.company_id ?? null,
+        company_name: booking.company_name || '',
+      });
+    }
+  }
+
   useEffect(() => {
     if (!open || !booking) return;
-
-    // Get the booking's room rate (price_per_night) - this contains the override if one was set
-    const bookingRate = toMoneyNumber(booking.price_per_night);
-
-    setEditFormData({
-      status: booking.status,
-      payment_status: booking.payment_status || 'unpaid',
-      // Pass-through field: no input edits it, and the value is resubmitted
-      // verbatim — keep the raw API enum, never a humanized label.
-      payment_method: booking.payment_method || '',
-      source: booking.source || 'walk_in',
-      booking_channel_id: booking.booking_channel_id ?? '',
-      ota_reference: booking.ota_reference || '',
-      check_in_date: booking.check_in_date.split('T')[0],
-      check_out_date: booking.check_out_date.split('T')[0],
-      // Actual checkout date (date portion only) — editable so staff can correct
-      // a backdated / mis-recorded stay. Empty until the booking is checked out.
-      actual_check_out: booking.actual_check_out ? booking.actual_check_out.split('T')[0] : '',
-      post_type: booking.post_type || 'normal_stay',
-      rate_code: booking.rate_code || 'RACK',
-      deposit_paid: booking.deposit_paid || false,
-      remarks: booking.remarks || '',
-      special_requests: booking.special_requests || '',
-      // Use the booking's room rate directly (this is the override rate if one was set)
-      price_per_night: bookingRate,
-      has_override: isPositiveMoney(bookingRate),
-      extra_bed_count: booking.extra_bed_count || 0,
-      extra_bed_charge: toMoneyNumber(booking.extra_bed_charge),
-      room_id: booking.room_id,
-      company_id: booking.company_id ?? null,
-      company_name: booking.company_name || '',
-    });
 
     // Load room type config for extra bed settings
     queryClient.ensureQueryData({

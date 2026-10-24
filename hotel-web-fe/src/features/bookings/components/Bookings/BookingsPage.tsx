@@ -154,9 +154,11 @@ const BookingsPage: React.FC = () => {
   // Deep link: ?create=1 opens the create dialog (sidebar CTA / command
   // palette navigate to /bookings?create=1). The param is stripped on close so
   // refresh or history navigation doesn't re-trigger it.
-  useEffect(() => {
+  const [prevCreateRequested, setPrevCreateRequested] = useState(false);
+  if (createRequested !== prevCreateRequested) {
+    setPrevCreateRequested(createRequested);
     if (createRequested) setCreateDialogOpen(true);
-  }, [createRequested]);
+  }
 
   const closeCreateDialog = () => {
     setCreateDialogOpen(false);

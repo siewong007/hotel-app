@@ -33,9 +33,13 @@ const VoidDialog: React.FC<VoidDialogProps> = ({ open, booking, onClose, onError
   const [reason, setReason] = useState('');
   const [voiding, setVoiding] = useState(false);
 
-  useEffect(() => {
+  // Clear the reason each time the dialog opens (adjusted during render, not
+  // in an effect, so the stale reason never paints).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setReason('');
-  }, [open]);
+  }
 
   const auditDates = getKnownNightAuditDates(booking);
   const needsAuditReview = isNightAuditInvolved(booking);

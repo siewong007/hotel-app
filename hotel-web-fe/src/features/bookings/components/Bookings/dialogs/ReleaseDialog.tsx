@@ -30,9 +30,13 @@ const ReleaseDialog: React.FC<ReleaseDialogProps> = ({ open, booking, onClose, o
   const [reason, setReason] = useState('');
   const [releasing, setReleasing] = useState(false);
 
-  useEffect(() => {
+  // Clear the reason each time the dialog opens (adjusted during render, not
+  // in an effect, so the stale reason never paints).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setReason('');
-  }, [open]);
+  }
 
   const handleConfirm = async () => {
     if (!booking) return;
