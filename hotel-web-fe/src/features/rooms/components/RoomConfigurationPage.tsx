@@ -173,6 +173,77 @@ const emptyRoomForm: RoomFormData = {
   is_smoking: false,
 };
 
+/* ---------- small presentational helpers ---------- */
+const StatCard = ({
+  label,
+  value,
+  color,
+  delta,
+}: {
+  label: string;
+  value: React.ReactNode;
+  color?: string;
+  delta?: string;
+}) => (
+  <Box sx={{ bgcolor: C.surface, p: '14px 18px', flex: 1, minWidth: 150 }}>
+    <Typography
+      sx={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.6px', textTransform: 'uppercase' }}
+    >
+      {label}
+    </Typography>
+    <Typography sx={{ fontSize: 22, fontWeight: 700, color: color || C.ink, lineHeight: 1.15, mt: 0.5 }}>
+      {value}
+    </Typography>
+    {delta && <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.25 }}>{delta}</Typography>}
+  </Box>
+);
+
+const StatusChip = ({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) => (
+  <Box
+    onClick={onClick}
+    sx={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 0.75,
+      bgcolor: active ? C.ink : C.surface,
+      color: active ? 'var(--hotel-bg)' : C.ink2,
+      border: `1px solid ${active ? C.ink : C.border}`,
+      borderRadius: 999,
+      px: 1.5,
+      py: 0.75,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer',
+      userSelect: 'none',
+    }}
+  >
+    {label}
+    <Box
+      component="span"
+      sx={{
+        bgcolor: active ? 'color-mix(in srgb, var(--hotel-bg) 20%, transparent)' : C.surface3,
+        color: active ? 'var(--hotel-bg)' : C.ink3,
+        px: 0.75,
+        borderRadius: 999,
+        fontSize: 10.5,
+        fontWeight: 700,
+      }}
+    >
+      {count}
+    </Box>
+  </Box>
+);
+
 const RoomConfigurationPage: React.FC = () => {
   const { t } = useTranslation('rooms');
   const { hasPermission } = useAuth();
@@ -594,77 +665,6 @@ const RoomConfigurationPage: React.FC = () => {
       <LogoLoader variant="page" minHeight={400} />
     );
   }
-
-  /* ---------- small presentational helpers ---------- */
-  const StatCard = ({
-    label,
-    value,
-    color,
-    delta,
-  }: {
-    label: string;
-    value: React.ReactNode;
-    color?: string;
-    delta?: string;
-  }) => (
-    <Box sx={{ bgcolor: C.surface, p: '14px 18px', flex: 1, minWidth: 150 }}>
-      <Typography
-        sx={{ fontSize: 11, fontWeight: 600, color: C.ink3, letterSpacing: '0.6px', textTransform: 'uppercase' }}
-      >
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: 22, fontWeight: 700, color: color || C.ink, lineHeight: 1.15, mt: 0.5 }}>
-        {value}
-      </Typography>
-      {delta && <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.25 }}>{delta}</Typography>}
-    </Box>
-  );
-
-  const StatusChip = ({
-    active,
-    label,
-    count,
-    onClick,
-  }: {
-    active: boolean;
-    label: string;
-    count: number;
-    onClick: () => void;
-  }) => (
-    <Box
-      onClick={onClick}
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.75,
-        bgcolor: active ? C.ink : C.surface,
-        color: active ? 'var(--hotel-bg)' : C.ink2,
-        border: `1px solid ${active ? C.ink : C.border}`,
-        borderRadius: 999,
-        px: 1.5,
-        py: 0.75,
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: 'pointer',
-        userSelect: 'none',
-      }}
-    >
-      {label}
-      <Box
-        component="span"
-        sx={{
-          bgcolor: active ? 'color-mix(in srgb, var(--hotel-bg) 20%, transparent)' : C.surface3,
-          color: active ? 'var(--hotel-bg)' : C.ink3,
-          px: 0.75,
-          borderRadius: 999,
-          fontSize: 10.5,
-          fontWeight: 700,
-        }}
-      >
-        {count}
-      </Box>
-    </Box>
-  );
 
   const RoomCard = ({ room }: { room: Room }) => {
     const rt = typeByName[room.room_type];
