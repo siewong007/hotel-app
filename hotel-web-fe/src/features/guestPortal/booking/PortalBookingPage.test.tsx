@@ -76,6 +76,9 @@ vi.mock('./useAvailabilitySocket', () => ({
 }));
 
 import PortalBookingPage from './PortalBookingPage';
+import { addRoom, emptyCart, saveCart, withSearchParty } from './cart';
+import { saveCheckoutResume } from './checkoutResume';
+import { formatLocalDate } from '../../../utils/date';
 import { expectNoAxeViolations } from '../../../test/axe';
 
 const offer = {
@@ -181,6 +184,24 @@ describe('PortalBookingPage voucher eligibility', () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it('returns from sign-in to the checkout with the cart and entered details, re-quoted with the session', async () => {
+    const inDate = formatLocalDate(new Date(Date.now() + 3 * 86_400_000));
+    const outDate = formatLocalDate(new Date(Date.now() + 4 * 86_400_000));
+    saveCart(withSearchParty(addRoom(emptyCart({ check_in_date: inDate, check_out_date: outDate, adults: 1, children: 0 }), offer, { check_in_date: inDate, check_out_date: outDate, adults: 1, children: 0 }), { adults: 1, children: 0 }));
+    saveCheckoutResume({ details: { first_name: 'Ana', email: 'ana@example.com', phone: '', tourism_type: 'local' }, specialRequests: 'Late arrival', cleaningPreference: false, smokingPreference: '' });
+    window.history.replaceState({}, '', '/guest-portal?view=booking&resume=checkout');
+
+    render(<PortalBookingPage />);
+
+    await screen.findByText('Review your stay');
+    expect(mocks.search).toHaveBeenCalledWith(expect.objectContaining({ check_in_date: inDate, check_out_date: outDate }), 'guest-token');
+    expect(mocks.voucherOptions).toHaveBeenCalledWith(expect.objectContaining({ room_type_id: 7 }), 'guest-token');
+    expect(screen.getByDisplayValue('Late arrival')).toBeTruthy();
+    expect(window.location.search).toBe('?view=booking');
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+    window.history.replaceState({}, '', '/');
   });
 
   it('disables an ineligible voucher before the guest can select it', async () => {
@@ -466,7 +487,7 @@ describe('PortalBookingPage profile completion guard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
 
     await waitFor(() =>
-      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fportal%2Fbook'),
+      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fguest-portal%3Fview%3Dbooking%26resume%3Dcheckout'),
     );
     expect(mocks.createBooking).not.toHaveBeenCalled();
   });
@@ -494,7 +515,7 @@ describe('PortalBookingPage profile completion guard', () => {
 
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
     await waitFor(() =>
-      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fportal%2Fbook'),
+      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fguest-portal%3Fview%3Dbooking%26resume%3Dcheckout'),
     );
     // The guest is being sent away to finish their profile, so the generic
     // create-failure path must not also run and re-price the stay behind them.

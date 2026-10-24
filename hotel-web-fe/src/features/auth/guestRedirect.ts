@@ -12,12 +12,21 @@ import { authRouteDefinitions } from '../../navigation/routeRegistry';
  */
 const ALLOWED_GUEST_REDIRECTS = new Set([
   '/guest-portal?view=booking',
+  // The booking flow, reopening the checkout the guest left to sign in
+  // (cart and entered details come back from sessionStorage).
+  '/guest-portal?view=booking&resume=checkout',
   // Older links and bookmarks; the route itself redirects to the line above.
   '/portal/book',
 ]);
 
 /** The booking flow, as a `redirect` value. */
 export const GUEST_BOOKING_REDIRECT = '/guest-portal?view=booking';
+
+/** The checkout, as a `redirect` value: sign-in returns the guest to pay. */
+export const GUEST_CHECKOUT_REDIRECT = '/guest-portal?view=booking&resume=checkout';
+
+/** The sign-in page, returning to the checkout afterwards. */
+export const GUEST_CHECKOUT_SIGN_IN = `/login?redirect=${encodeURIComponent(GUEST_CHECKOUT_REDIRECT)}`;
 
 /** The redirect to honour, or `null` to fall back to the portal dashboard. */
 export function safeGuestRedirect(value: string | null | undefined): string | null {

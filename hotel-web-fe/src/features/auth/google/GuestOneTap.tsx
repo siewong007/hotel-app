@@ -15,7 +15,7 @@ import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/
 import { useTranslation } from '../../../i18n';
 import { ConsentNotice } from '../../legal/components/ConsentNotice';
 import { REGISTRATION_NOTICE } from '../../legal/content';
-import { GUEST_BOOKING_REDIRECT } from '../guestRedirect';
+import { GUEST_CHECKOUT_REDIRECT } from '../guestRedirect';
 import { googleOneTapSurface } from './oneTapSurfaces';
 import { useGoogleOneTap } from './useGoogleOneTap';
 
@@ -33,7 +33,7 @@ export function GuestOneTap({ pathname, search }: GuestOneTapProps) {
     // be incomplete, must come back to the booking flow afterwards rather than
     // being dropped on the dashboard with their search abandoned. From the
     // offers page there is nothing to come back to, so the dashboard is right.
-    completeProfileRedirect: surface === 'booking' ? GUEST_BOOKING_REDIRECT : null,
+    completeProfileRedirect: surface === 'booking' ? GUEST_CHECKOUT_REDIRECT : null,
   });
 
   if (!consentPending) return null;
