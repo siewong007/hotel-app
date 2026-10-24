@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { guestSupportWebSocketUrl } from '../api/guestPortalSupport.service';
 
 export function useSupportSocket(token: string | null, onConversationChanged: () => void): void {
   const callbackRef = useRef(onConversationChanged);
-  callbackRef.current = onConversationChanged;
+  useLayoutEffect(() => {
+    callbackRef.current = onConversationChanged;
+  });
 
   useEffect(() => {
     if (!token) return;

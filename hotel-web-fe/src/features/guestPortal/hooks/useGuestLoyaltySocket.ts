@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 import { apiUrl } from '../../../desktop/runtimeApi';
 
 export function useGuestLoyaltySocket(token: string, onMemberUpdated: () => void): void {
   const callback = useRef(onMemberUpdated);
-  callback.current = onMemberUpdated;
+  useLayoutEffect(() => {
+    callback.current = onMemberUpdated;
+  });
 
   useEffect(() => {
     const url = new URL(apiUrl('guest-portal/me/loyalty/socket'), window.location.origin);

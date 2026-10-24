@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { guestAvailabilityWebSocketUrl } from './api';
 import type { AvailabilityEvent } from './types';
@@ -8,7 +8,9 @@ export function useAvailabilitySocket(
   onAvailabilityChange: (event: AvailabilityEvent) => void,
 ): void {
   const callbackRef = useRef(onAvailabilityChange);
-  callbackRef.current = onAvailabilityChange;
+  useLayoutEffect(() => {
+    callbackRef.current = onAvailabilityChange;
+  });
 
   useEffect(() => {
     if (!token) return;

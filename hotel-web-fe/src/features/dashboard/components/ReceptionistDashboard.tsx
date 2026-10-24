@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import {
   Grid,
   Card,
@@ -480,7 +480,9 @@ const ReceptionistDashboard: React.FC = () => {
   // Ref-indirected: the loader reads broad component state, so memoizing it
   // would cascade; the guard ref already pins this to a single load.
   const loadDashboardDataRef = useRef(loadDashboardData);
-  loadDashboardDataRef.current = loadDashboardData;
+  useLayoutEffect(() => {
+    loadDashboardDataRef.current = loadDashboardData;
+  });
   useEffect(() => {
     if (isReceptionist && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
