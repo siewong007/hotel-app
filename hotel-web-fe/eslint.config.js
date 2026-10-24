@@ -31,7 +31,7 @@ export default [
       // has violations. Off for now, tracked as follow-up cleanup.
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/refs": "off",
-      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/preserve-manual-memoization": "error",
       // Ban deriving a YYYY-MM-DD string from Date.toISOString(): toISOString()
       // returns UTC, so .split('T')[0] / .slice(0, 10) yields the previous day
       // during early-morning hours in east-of-UTC timezones. Use the local-date

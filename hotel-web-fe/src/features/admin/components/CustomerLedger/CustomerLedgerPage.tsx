@@ -150,6 +150,17 @@ const normalizeOptionalPaymentText = (value?: string): string | undefined => {
 const normalizeReceiptNumber = (value?: string): string | undefined =>
   normalizeOptionalPaymentText(value)?.toLowerCase();
 
+// Ledger status helpers. Pure, so they live outside the component and need
+// no memoization.
+const isVoidedLedger = (ledger: CustomerLedger) =>
+  Boolean(ledger.void_at) || ledger.status === 'void';
+
+const getLedgerBalanceDue = (ledger: CustomerLedger) =>
+  isVoidedLedger(ledger) ? 0 : toMoneyNumber(ledger.balance_due);
+
+const isInvoiceEligible = (ledger: CustomerLedger) =>
+  !ledger.invoice_number && !isVoidedLedger(ledger) && isPositiveMoney(getLedgerBalanceDue(ledger));
+
 const CustomerLedgerPage: React.FC = () => {
   const [pageSearchParams] = useSearchParams();
   const confirm = useConfirm();
@@ -702,17 +713,6 @@ const CustomerLedgerPage: React.FC = () => {
     setSelectedLedgersForPayment([]);
   };
 
-  const isVoidedLedger = useCallback((ledger: CustomerLedger) => {
-    return Boolean(ledger.void_at) || ledger.status === 'void';
-  }, []);
-
-  const getLedgerBalanceDue = useCallback((ledger: CustomerLedger) => {
-    return isVoidedLedger(ledger) ? 0 : toMoneyNumber(ledger.balance_due);
-  }, [isVoidedLedger]);
-
-  const isInvoiceEligible = useCallback((ledger: CustomerLedger) => {
-    return !ledger.invoice_number && !isVoidedLedger(ledger) && isPositiveMoney(getLedgerBalanceDue(ledger));
-  }, [isVoidedLedger, getLedgerBalanceDue]);
 
   const getSelectedInvoiceLedgers = () =>
     invoiceLedgerEntries.filter(l => selectedInvoiceLedgers.includes(l.id) && (showInvoicePreview || isInvoiceEligible(l)));
@@ -1432,7 +1432,7 @@ const CustomerLedgerPage: React.FC = () => {
       if (invoiceListFilter === 'invoiced') return Boolean(ledger.invoice_number);
       return true; // 'all' shows everything non-voided
     });
-  }, [invoiceLedgerEntries, invoiceListFilter, isVoidedLedger, isInvoiceEligible]);
+  }, [invoiceLedgerEntries, invoiceListFilter]);
 
   const invoiceFilterCounts = useMemo(() => {
     const nonVoid = invoiceLedgerEntries.filter(l => !isVoidedLedger(l));
@@ -1441,11 +1441,11 @@ const CustomerLedgerPage: React.FC = () => {
       all: nonVoid.length,
       invoiced: nonVoid.filter(l => Boolean(l.invoice_number)).length,
     };
-  }, [invoiceLedgerEntries, isVoidedLedger, isInvoiceEligible]);
+  }, [invoiceLedgerEntries]);
 
   const eligibleInvoiceCount = useMemo(
     () => invoiceLedgerEntries.filter(isInvoiceEligible).length,
-    [invoiceLedgerEntries, isInvoiceEligible],
+    [invoiceLedgerEntries],
   );
 
 

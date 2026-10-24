@@ -201,6 +201,38 @@ export class BookingsService {
     }
   }
 
+  /**
+   * Staff multi-room booking (2–5 rooms, one guest, one stay). The backend
+   * creates every room and the booking group in one transaction, so either
+   * all rooms are booked or none are.
+   */
+  static async createGroupBooking(
+    bookings: BookingCreateRequest[]
+  ): Promise<{ group: { id: number; group_number: string }; bookings: Booking[] }> {
+    for (const bookingData of bookings) {
+      const validation = validateBookingRequest(bookingData);
+      if (!validation.isValid) {
+        throw new APIError(
+          `Invalid booking data: ${validation.errors.join(', ')}`,
+          400,
+          { errors: validation.errors }
+        );
+      }
+    }
+
+    try {
+      const backendData = bookings.map((bookingData) => ({
+        ...bookingData,
+        room_id: parseInt(bookingData.room_id, 10),
+      }));
+      return await api
+        .post('bookings/group', { json: { bookings: backendData } })
+        .json<{ group: { id: number; group_number: string }; bookings: Booking[] }>();
+    } catch (error) {
+      throw toApiError(error, t('generic', undefined, 'errors'));
+    }
+  }
+
   static async updateBooking(bookingId: string, updateData: BookingUpdateRequest): Promise<Booking> {
     try {
       return await api

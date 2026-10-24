@@ -45,16 +45,17 @@ export function useCheckoutInvoiceData(
   const [depositRefunded, setDepositRefunded] = useState(false);
   const [editableDailyRates, setEditableDailyRates] = useState<Record<string, number>>({});
 
+  const ledgerId = ledger?.id;
   const reloadPayments = useCallback(async () => {
     if (!booking) return;
     // City-ledger receipts: payments live on the customer ledger, not the
     // booking. Source them from there so the modal reflects what was actually
     // collected (and the resulting balance due) for company-billed stays.
-    if (ledger?.id) {
+    if (ledgerId) {
       try {
         const ledgerPayments = await queryClient.fetchQuery({
-          queryKey: queryKeys.ledgers.payments(ledger.id),
-          queryFn: () => LedgerService.getLedgerPayments(ledger.id),
+          queryKey: queryKeys.ledgers.payments(ledgerId),
+          queryFn: () => LedgerService.getLedgerPayments(ledgerId),
           staleTime: 0,
         });
         setPayments((ledgerPayments || []).map(ledgerPaymentToRecord));
@@ -89,7 +90,7 @@ export function useCheckoutInvoiceData(
     } catch {
       setPayments([]);
     }
-  }, [booking, queryClient, ledger?.id]);
+  }, [booking, queryClient, ledgerId]);
 
   useEffect(() => {
     if (!open || !booking) return;
