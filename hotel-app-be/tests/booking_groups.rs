@@ -694,4 +694,107 @@ mod postgres_tests {
                 .await;
         }
     }
+
+    #[tokio::test]
+    async fn postgres_guest_cancels_one_room_then_the_rest_of_the_group() {
+        use hotel_app_be::modules::bookings::service::{
+            cancel_pending_booking_by_guest, cancel_pending_group_by_guest,
+        };
+        let Some(pool) = pool().await else { return };
+        let suffix = unique_suffix();
+        let mut tx = pool.begin().await.unwrap();
+        let seed = seed(&mut tx, suffix).await;
+        let user_id: i64 = sqlx::query_scalar(
+            "INSERT INTO users (username, email, password_hash, full_name, user_type, guest_id, \
+                 is_active, is_verified) \
+             VALUES ($1, $2, 'x', 'Group Guest', 'guest', $3, true, true) RETURNING id",
+        )
+        .bind(format!("grpcancel{suffix}"))
+        .bind(format!("grpcancel-{suffix}@hotel.test"))
+        .bind(seed.guest_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        let group = BookingGroupRepository::create_tx(
+            &mut tx,
+            &NewBookingGroup {
+                guest_id: seed.guest_id,
+                check_in_date: day(10),
+                check_out_date: day(12),
+                source: "website".to_string(),
+                currency: "MYR".to_string(),
+                voucher_id: None,
+                hold_expires_at: None,
+                portal_request_id: Some(format!("grpc-{suffix}")),
+                created_by: None,
+            },
+        )
+        .await
+        .unwrap();
+        let mut ids = Vec::new();
+        for (n, room_id) in seed.room_ids.iter().enumerate() {
+            ids.push(
+                insert_booking(
+                    &mut tx,
+                    seed.guest_id,
+                    *room_id,
+                    format!("GC{n}-{suffix:x}"),
+                    "200.00",
+                    "210.00",
+                    "unpaid",
+                )
+                .await,
+            );
+        }
+        BookingGroupRepository::attach_tx(&mut tx, group.id, &ids)
+            .await
+            .unwrap();
+        BookingGroupRepository::refresh_totals_tx(&mut tx, group.id)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        // One room: the group keeps the other and its totals shrink.
+        cancel_pending_booking_by_guest(&pool, user_id, ids[0], None)
+            .await
+            .expect("single room cancel");
+        let (status, rooms): (String, i32) =
+            sqlx::query_as("SELECT status, room_count FROM booking_groups WHERE id = $1")
+                .bind(group.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!((status.as_str(), rooms), ("active", 1));
+
+        // Someone else's account can't cancel the group.
+        let stranger = cancel_pending_group_by_guest(&pool, -1, group.id, None).await;
+        assert!(stranger.is_err());
+
+        // The rest of the group, in one go.
+        let result = cancel_pending_group_by_guest(&pool, user_id, group.id, None)
+            .await
+            .expect("group cancel");
+        assert_eq!(result["booking_ids"], serde_json::json!([ids[1]]));
+        let (status, rooms): (String, i32) =
+            sqlx::query_as("SELECT status, room_count FROM booking_groups WHERE id = $1")
+                .bind(group.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!((status.as_str(), rooms), ("voided", 0));
+        let live: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 AND status <> 'voided'",
+        )
+        .bind(group.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(live, 0);
+        // Already cancelled: a second click is refused, not a silent no-op.
+        assert!(
+            cancel_pending_group_by_guest(&pool, user_id, group.id, None)
+                .await
+                .is_err()
+        );
+    }
 }

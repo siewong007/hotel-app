@@ -105,18 +105,50 @@ pub async fn cancel_pending_booking_by_guest(
 
     let affected_night_audit_dates =
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
+    let group_id = booking_repo::booking_group_id(pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
-    booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
-    booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
-    let change_reason = reason.as_deref().unwrap_or("Booking cancelled by guest");
-    booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason)
+    // Lock the group first (same order as the group paths) so totals are
+    // recomputed against a stable member set.
+    if let Some(group_id) = group_id {
+        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
+            &mut tx, group_id,
+        )
         .await?;
-    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+    }
+    void_booking_by_guest_tx(&mut tx, &booking, user_id, reason.as_deref()).await?;
+    if let Some(group_id) = group_id {
+        crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(serde_json::json!({
+        "message": "Booking cancelled successfully",
+        "booking_id": booking_id,
+        "affected_night_audit_dates": affected_night_audit_dates,
+        "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
+    }))
+}
+
+/// Void one guest-cancellable booking inside the caller's transaction.
+async fn void_booking_by_guest_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    booking: &Booking,
+    user_id: i64,
+    reason: Option<&str>,
+) -> Result<(), ApiError> {
+    booking_repo::void_booking_tx(tx, booking.id, Some(user_id)).await?;
+    booking_repo::release_room_tx(tx, booking.room_id).await?;
+    booking_repo::void_uncompleted_booking_payments_tx(tx, booking.id).await?;
+    let change_reason = reason.unwrap_or("Booking cancelled by guest");
+    booking_repo::void_booking_ledgers_tx(tx, booking.id, Some(user_id), change_reason).await?;
+    payments::recompute_payment_status_tx(tx, booking.id).await?;
 
     booking_repo::record_booking_history_tx(
-        &mut tx,
-        booking_id,
+        tx,
+        booking.id,
         Some(&booking.status),
         "voided",
         Some(user_id),
@@ -129,15 +161,67 @@ pub async fn cancel_pending_booking_by_guest(
         }),
     )
     .await?;
-    booking_repo::record_booking_void_modification_tx(&mut tx, &booking, user_id).await?;
-    AuditLog::log_booking_voided_tx(&mut tx, user_id, booking_id).await?;
-    tx.commit().await.map_err(ApiError::from)?;
+    booking_repo::record_booking_void_modification_tx(tx, booking, user_id).await?;
+    AuditLog::log_booking_voided_tx(tx, user_id, booking.id).await?;
+    Ok(())
+}
 
+/// Cancel every room of an unpaid multi-room booking in one transaction.
+///
+/// All-or-nothing: if any active room can't be cancelled online the whole
+/// request is refused, so a group is never left half-cancelled by accident.
+pub async fn cancel_pending_group_by_guest(
+    pool: &DbPool,
+    user_id: i64,
+    group_id: i64,
+    reason: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    use crate::modules::booking_groups::repository::BookingGroupRepository;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let group = BookingGroupRepository::lock_tx(&mut tx, group_id).await?;
+    if !booking_repo::user_owns_booking(pool, user_id, group.guest_id).await? {
+        return Err(ApiError::Forbidden(
+            "You don't have permission to cancel this booking".to_string(),
+        ));
+    }
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' ORDER BY id",
+    )
+    .bind(group_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(ApiError::from)?;
+    if ids.is_empty() {
+        return Err(ApiError::BadRequest(
+            "This booking has already been cancelled.".to_string(),
+        ));
+    }
+    let mut bookings = Vec::with_capacity(ids.len());
+    for id in &ids {
+        let booking = booking_service::fetch_booking_by_id(pool, *id).await?;
+        if !is_guest_cancellable_booking(&booking.status) {
+            return Err(ApiError::BadRequest(
+                "Only upcoming bookings can be cancelled online.".to_string(),
+            ));
+        }
+        bookings.push(booking);
+    }
+    let mut affected_night_audit_dates = Vec::new();
+    for booking in &bookings {
+        affected_night_audit_dates
+            .extend(booking_repo::booking_night_audit_dates(pool, booking.id).await?);
+        void_booking_by_guest_tx(&mut tx, booking, user_id, reason.as_deref()).await?;
+    }
+    BookingGroupRepository::refresh_totals_tx(&mut tx, group_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    affected_night_audit_dates.sort();
+    affected_night_audit_dates.dedup();
     Ok(serde_json::json!({
         "message": "Booking cancelled successfully",
-        "booking_id": booking_id,
+        "booking_group_id": group_id,
+        "booking_ids": ids,
+        "night_audit_rerun_required": !affected_night_audit_dates.is_empty(),
         "affected_night_audit_dates": affected_night_audit_dates,
-        "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     }))
 }
 

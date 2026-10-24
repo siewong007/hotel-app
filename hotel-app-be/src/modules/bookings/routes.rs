@@ -59,11 +59,31 @@ pub fn routes() -> Router<DbPool> {
             "/bookings/{id}/convert-credits",
             post(convert_complimentary_to_credits),
         )
+        .route("/bookings/{id}/group", get(get_booking_group))
         // Generic parameterized routes come AFTER specific ones
         .route("/bookings/{id}", get(get_booking))
         .route("/bookings/{id}", patch(update_booking))
         .route("/bookings/{id}", put(update_booking))
         .route("/bookings/{id}", delete(delete_booking))
+}
+
+/// Staff view of the multi-room booking a room belongs to: the group and all
+/// of its rooms (cancelled ones included, so staff see the full history).
+/// `null` for a booking that isn't part of a group.
+async fn get_booking_group(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    use crate::modules::booking_groups::repository::BookingGroupRepository;
+    let Some(group_id) = crate::modules::bookings::booking_group_id(&pool, booking_id).await?
+    else {
+        return Ok(Json(serde_json::Value::Null));
+    };
+    let group = BookingGroupRepository::find_by_id(&pool, group_id).await?;
+    let rooms = BookingGroupRepository::members(&pool, group_id).await?;
+    Ok(Json(serde_json::json!({ "group": group, "rooms": rooms })))
 }
 
 async fn get_bookings(
