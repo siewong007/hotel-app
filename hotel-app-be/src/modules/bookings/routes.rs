@@ -28,6 +28,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
         .route("/bookings/void", post(void_booking))
+        .route("/bookings/group", post(create_group_booking))
         // Complimentary management routes (static paths)
         .route("/complimentary/summary", get(get_complimentary_summary))
         .route(
@@ -102,6 +103,18 @@ async fn create_booking(
 ) -> Result<Json<models::Booking>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:create").await?;
     handlers::create_booking_handler(State(pool), Extension(user_id), Json(input)).await
+}
+
+/// Staff multi-room booking: every room plus the group, in one transaction.
+async fn create_group_booking(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<super::group_create::GroupBookingInput>,
+) -> Result<Json<super::group_create::GroupBookingResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:create").await?;
+    super::group_create::create_group_booking_handler(&pool, user_id, input)
+        .await
+        .map(Json)
 }
 
 async fn get_new_reservations(

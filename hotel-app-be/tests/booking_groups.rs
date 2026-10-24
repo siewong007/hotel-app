@@ -798,3 +798,238 @@ mod postgres_tests {
         );
     }
 }
+
+/// Staff `POST /bookings/group`: every room and the group commit together or
+/// not at all. These tests commit through the real handler, so they use fixed
+/// fixture ids and clean up before and after.
+mod staff_group_create_tests {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::BookingInput;
+    use hotel_app_be::modules::bookings::group_create::{
+        GroupBookingInput, create_group_booking_handler, validate_group_input,
+    };
+    use sqlx::PgPool;
+    use sqlx::postgres::PgPoolOptions;
+
+    const ACTOR: i64 = 961_001;
+    const GUEST: i64 = 961_201;
+    const OTHER_GUEST: i64 = 961_202;
+    const ROOMS: [i64; 3] = [961_301, 961_302, 961_303];
+
+    fn input(guest_id: i64, room_id: i64, check_in: &str, check_out: &str) -> BookingInput {
+        serde_json::from_value(serde_json::json!({
+            "guest_id": guest_id,
+            "room_id": room_id,
+            "check_in_date": check_in,
+            "check_out_date": check_out,
+        }))
+        .unwrap()
+    }
+
+    fn group(items: Vec<BookingInput>) -> GroupBookingInput {
+        GroupBookingInput { bookings: items }
+    }
+
+    #[test]
+    fn rejects_bad_group_shapes() {
+        let (a, b) = ("2031-04-01", "2031-04-03");
+        let bad =
+            |g: GroupBookingInput| matches!(validate_group_input(&g), Err(ApiError::BadRequest(_)));
+        assert!(
+            bad(group(vec![input(1, 1, a, b)])),
+            "one room is not a group"
+        );
+        assert!(
+            bad(group((1..=6).map(|r| input(1, r, a, b)).collect())),
+            "more than 5 rooms"
+        );
+        assert!(
+            bad(group(vec![input(1, 1, a, b), input(2, 2, a, b)])),
+            "mixed guests"
+        );
+        assert!(
+            bad(group(vec![input(1, 1, a, b), input(1, 1, a, b)])),
+            "repeated room"
+        );
+        assert!(
+            bad(group(vec![input(1, 1, a, b), input(1, 2, a, "2031-04-04")])),
+            "mixed dates"
+        );
+        assert!(validate_group_input(&group(vec![input(1, 1, a, b), input(1, 2, a, b)])).is_ok());
+    }
+
+    async fn pool() -> Option<PgPool> {
+        let url = std::env::var("DATABASE_URL")
+            .ok()
+            .filter(|u| !u.is_empty())?;
+        Some(
+            PgPoolOptions::new()
+                .max_connections(3)
+                .after_connect(|conn, _| {
+                    Box::pin(async move {
+                        sqlx::query("SET app.allow_audit_mutation = 'on'")
+                            .execute(conn)
+                            .await
+                            .map(|_| ())
+                    })
+                })
+                .connect(&url)
+                .await
+                .expect("connect"),
+        )
+    }
+
+    async fn exec(pool: &PgPool, sql: &str, id: i64) {
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap_or_else(|e| panic!("{sql}: {e}"));
+    }
+
+    async fn cleanup(pool: &PgPool) {
+        for room in ROOMS {
+            for sql in [
+                "DELETE FROM booking_modifications WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+                "DELETE FROM booking_history WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+                "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+                "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+                "DELETE FROM bookings WHERE room_id = $1",
+            ] {
+                exec(pool, sql, room).await;
+            }
+        }
+        for guest in [GUEST, OTHER_GUEST] {
+            exec(
+                pool,
+                "DELETE FROM booking_groups WHERE guest_id = $1",
+                guest,
+            )
+            .await;
+            exec(pool, "DELETE FROM guests WHERE id = $1", guest).await;
+        }
+        for room in ROOMS {
+            exec(
+                pool,
+                "DELETE FROM room_status_change_log WHERE room_id = $1",
+                room,
+            )
+            .await;
+            exec(pool, "DELETE FROM rooms WHERE id = $1", room).await;
+        }
+        exec(pool, "DELETE FROM user_roles WHERE user_id = $1", ACTOR).await;
+        exec(pool, "DELETE FROM users WHERE id = $1", ACTOR).await;
+    }
+
+    async fn seed(pool: &PgPool) {
+        sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) OVERRIDING SYSTEM VALUE VALUES ($1, 'pg_group_actor', 'pg-group-actor@hotel.local', 'Group Actor', 'staff', true, true)")
+            .bind(ACTOR).execute(pool).await.unwrap();
+        for guest in [GUEST, OTHER_GUEST] {
+            sqlx::query("INSERT INTO guests (id, first_name, last_name, nick_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Group', 'Guest', $2)")
+                .bind(guest).bind(format!("Staff Group Guest {guest}")).execute(pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO room_types (id, name, code, base_price) OVERRIDING SYSTEM VALUE VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
+            .execute(pool).await.unwrap();
+        for room in ROOMS {
+            sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status, is_active) OVERRIDING SYSTEM VALUE VALUES ($1, $2, 1, 'available', true)")
+                .bind(room).bind(format!("G{room}")).execute(pool).await.unwrap();
+        }
+    }
+
+    async fn count(pool: &PgPool, sql: &str, id: i64) -> i64 {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    /// One test drives both paths in sequence so the fixed fixture ids are
+    /// never shared by two tests running in parallel.
+    #[tokio::test]
+    async fn staff_group_create_is_atomic() {
+        let Some(pool) = pool().await else {
+            eprintln!("Skipping staff group create test: DATABASE_URL not set");
+            return;
+        };
+        cleanup(&pool).await;
+        seed(&pool).await;
+        let (a, b) = ("2031-05-01", "2031-05-04");
+
+        // Happy path: three rooms, one group, every booking attached.
+        let created = create_group_booking_handler(
+            &pool,
+            ACTOR,
+            group(ROOMS.iter().map(|r| input(GUEST, *r, a, b)).collect()),
+        )
+        .await
+        .expect("group create");
+        assert_eq!(created.bookings.len(), 3);
+        assert_eq!(created.group.room_count, 3);
+        assert_eq!(created.group.source, "staff");
+        let attached = count(
+            &pool,
+            "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1",
+            created.group.id,
+        )
+        .await;
+        assert_eq!(attached, 3);
+        // Input order is preserved in the response.
+        let rooms: Vec<i64> = created.bookings.iter().map(|b| b.room_id).collect();
+        assert_eq!(rooms, ROOMS.to_vec());
+
+        // Conflict on the last room: nothing of the second group survives.
+        let (c, d) = ("2031-06-01", "2031-06-03");
+        create_group_booking_handler(
+            &pool,
+            ACTOR,
+            group(vec![
+                input(OTHER_GUEST, ROOMS[1], c, d),
+                input(OTHER_GUEST, ROOMS[2], c, d),
+            ]),
+        )
+        .await
+        .expect("blocking group");
+        let before = count(
+            &pool,
+            "SELECT COUNT(*) FROM bookings WHERE room_id = $1",
+            ROOMS[0],
+        )
+        .await;
+        let result = create_group_booking_handler(
+            &pool,
+            ACTOR,
+            group(vec![
+                input(GUEST, ROOMS[0], c, d),
+                input(GUEST, ROOMS[2], c, d),
+            ]),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "overlapping room must fail the whole group"
+        );
+        let after = count(
+            &pool,
+            "SELECT COUNT(*) FROM bookings WHERE room_id = $1",
+            ROOMS[0],
+        )
+        .await;
+        assert_eq!(
+            before, after,
+            "room 1 booking must roll back with the group"
+        );
+        let groups = count(
+            &pool,
+            "SELECT COUNT(*) FROM booking_groups WHERE guest_id = $1",
+            GUEST,
+        )
+        .await;
+        assert_eq!(
+            groups, 1,
+            "failed group must not leave a booking_groups row"
+        );
+
+        cleanup(&pool).await;
+    }
+}

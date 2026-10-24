@@ -1091,6 +1091,35 @@ pub async fn create_booking_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<BookingInput>,
 ) -> Result<Json<Booking>, ApiError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let booking = create_booking_tx(&pool, &mut tx, user_id, &input).await?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    after_booking_created(&pool, user_id, &input, &booking).await?;
+
+    // Staff-created bookings are inserted as `confirmed`, so this is the
+    // booking-confirmed trigger for the front-desk path. Best-effort and
+    // post-commit: a mail failure must not fail the booking creation.
+    if booking.status == "confirmed" {
+        super::emails::try_queue_booking_confirmation_email(&pool, booking.id).await;
+    }
+
+    Ok(Json(booking))
+}
+
+/// The staff booking insert and everything that must commit with it, on a
+/// caller-owned transaction, so a multi-room group can create every room
+/// atomically. Post-commit work lives in `after_booking_created`.
+pub(crate) async fn create_booking_tx(
+    pool: &DbPool,
+    tx: &mut DbTransaction<'_>,
+    user_id: i64,
+    input: &BookingInput,
+) -> Result<Booking, ApiError> {
     let check_in = parse_date_flexible(&input.check_in_date)
         .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?;
     let check_out = parse_date_flexible(&input.check_out_date)
@@ -1101,13 +1130,6 @@ pub async fn create_booking_handler(
             "Check-out date must be on or after check-in date".to_string(),
         ));
     }
-
-    // Start a transaction to prevent race conditions:
-    // The FOR UPDATE lock on the room row + conflict check + insert must be atomic
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let row = sqlx::query(
         r#"
@@ -1123,7 +1145,7 @@ pub async fn create_booking_handler(
         "#,
     )
     .bind(input.room_id)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
@@ -1144,7 +1166,7 @@ pub async fn create_booking_handler(
     };
     let room_type_id: i64 = row.get(10);
 
-    let today: NaiveDate = hotel_today(&mut *tx).await?;
+    let today: NaiveDate = hotel_today(&mut **tx).await?;
 
     // Only block rooms that are under maintenance or out of order
     let room_status = room.status.as_deref().unwrap_or("available");
@@ -1173,7 +1195,7 @@ pub async fn create_booking_handler(
         .bind(input.room_id)
         .bind(check_in)
         .bind(check_out)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1184,7 +1206,7 @@ pub async fn create_booking_handler(
     }
 
     let (is_tourist, tourism_tax_amount) =
-        canonical_tourism_tax_for_guest(&pool, input.guest_id, check_in, check_out).await?;
+        canonical_tourism_tax_for_guest(pool, input.guest_id, check_in, check_out).await?;
 
     let nights = (check_out - check_in).num_days() as i32;
     let is_hourly = nights == 0; // Same-day check-in/check-out = hourly booking
@@ -1219,7 +1241,7 @@ pub async fn create_booking_handler(
     let mut net_revenue: Option<Decimal> = None;
     let mut channel_pricing_snapshot: Option<serde_json::Value> = None;
     if let Some(channel_id) = input.booking_channel_id {
-        let channel = crate::modules::booking_channels::repository::find_by_id(&pool, channel_id)
+        let channel = crate::modules::booking_channels::repository::find_by_id(pool, channel_id)
             .await
             .map_err(|_| ApiError::BadRequest("Unknown booking channel".to_string()))?;
 
@@ -1235,7 +1257,7 @@ pub async fn create_booking_handler(
             )?
         } else {
             crate::modules::booking_channels::service::commission_config_for(
-                &pool, &channel, check_in,
+                pool, &channel, check_in,
             )
             .await?
         };
@@ -1248,7 +1270,7 @@ pub async fn create_booking_handler(
             sources.push((
                 date,
                 crate::modules::booking_channels::service::source_rate_for(
-                    &pool,
+                    pool,
                     room_type_id,
                     date,
                     input.rate_plan_id,
@@ -1262,7 +1284,7 @@ pub async fn create_booking_handler(
         }
 
         let nights = crate::modules::booking_channels::service::resolve_channel_nights(
-            &pool,
+            pool,
             channel_id,
             room_type_id,
             input.rate_plan_id,
@@ -1405,7 +1427,7 @@ pub async fn create_booking_handler(
         .bind(commission_amount)
         .bind(net_revenue)
         .bind(&channel_pricing_snapshot)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
@@ -1416,7 +1438,7 @@ pub async fn create_booking_handler(
     // timeline and the arrival-day sweep holds the room on the day. An
     // occupied room is never overwritten. The booking trigger already ran
     // this; repeating it inside the transaction keeps the rule explicit.
-    crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(input.room_id)).await?;
+    crate::modules::rooms::queries::reconcile_room_holds(&mut **tx, Some(input.room_id)).await?;
 
     // Record a deposit payment as part of the same transaction as the booking.
     // `record_checkin_payment_tx` handles the database schema despite its
@@ -1441,26 +1463,31 @@ pub async fn create_booking_handler(
             payment_type: Some("deposit".to_string()),
             notes: Some("Deposit paid at booking".to_string()),
         };
-        record_checkin_payment_tx(&mut tx, booking.id, &deposit_payment, user_id).await?;
+        record_checkin_payment_tx(tx, booking.id, &deposit_payment, user_id).await?;
     }
 
-    // Commit the transaction - all conflict check + insert + room update are now atomic
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    Ok(booking)
+}
 
+/// Post-commit follow-up for a staff-created booking: payment status,
+/// audit log and history. Best-effort parts never fail the booking.
+pub(crate) async fn after_booking_created(
+    pool: &DbPool,
+    user_id: i64,
+    input: &BookingInput,
+    booking: &Booking,
+) -> Result<(), ApiError> {
     // If a deposit row was inserted above, recompute payment_status so the
     // stored column reflects the new running total (e.g. partial vs unpaid).
     if matches!(input.amount_paid, Some(a) if a > 0.0) {
-        crate::modules::payments::handlers::recompute_payment_status(&pool, booking.id).await?;
+        crate::modules::payments::handlers::recompute_payment_status(pool, booking.id).await?;
     }
 
     // Log booking creation (outside transaction - non-critical)
-    let _ =
-        AuditLog::log_booking_created(&pool, user_id, booking.id, input.guest_id, input.room_id)
-            .await;
+    let _ = AuditLog::log_booking_created(pool, user_id, booking.id, input.guest_id, input.room_id)
+        .await;
     record_booking_history(
-        &pool,
+        pool,
         booking.id,
         None,
         &booking.status,
@@ -1478,14 +1505,7 @@ pub async fn create_booking_handler(
     )
     .await;
 
-    // Staff-created bookings are inserted as `confirmed`, so this is the
-    // booking-confirmed trigger for the front-desk path. Best-effort and
-    // post-commit: a mail failure must not fail the booking creation.
-    if booking.status == "confirmed" {
-        super::emails::try_queue_booking_confirmation_email(&pool, booking.id).await;
-    }
-
-    Ok(Json(booking))
+    Ok(())
 }
 
 pub async fn get_booking_handler(
