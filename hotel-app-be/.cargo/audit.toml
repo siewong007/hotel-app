@@ -27,4 +27,12 @@ ignore = [
     # is why it fires anyway. Re-evaluate if rust_decimal's `rkyv` feature is
     # ever enabled or a rust_decimal release moves to rkyv >=0.8.17.
     "RUSTSEC-2026-0235",
+
+    # RUSTSEC-2026-0387 — crypto-bigint timing variability in operations meant
+    # to be constant-time. TEMPORARY: remove when upstream fix ships.
+    # crypto-bigint 0.5.5 is pulled in only via jsonwebtoken -> p256/p384
+    # (elliptic-curve 0.13); the fix (>=0.7.6) is not reachable until
+    # jsonwebtoken moves. The EC paths are unreachable: the app only uses HMAC
+    # and RS256 JWTs, never ES256/ES384. Re-evaluate on every jsonwebtoken bump.
+    "RUSTSEC-2026-0387",
 ]
