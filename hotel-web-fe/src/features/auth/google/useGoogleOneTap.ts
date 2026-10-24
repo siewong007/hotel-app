@@ -31,7 +31,7 @@
  * over the next screen.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
@@ -84,15 +84,17 @@ export function useGoogleOneTap({
   // Kept in refs so a re-render caused by any of them cannot re-fire the
   // prompt: the effect below depends only on whether prompting is allowed.
   const loginWithGoogleRef = useRef(loginWithGoogle);
-  loginWithGoogleRef.current = loginWithGoogle;
   const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
   const translateRef = useRef(t);
-  translateRef.current = t;
   const localeRef = useRef(legalLocale);
-  localeRef.current = legalLocale;
   const redirectRef = useRef(completeProfileRedirect);
-  redirectRef.current = completeProfileRedirect;
+  useLayoutEffect(() => {
+    loginWithGoogleRef.current = loginWithGoogle;
+    navigateRef.current = navigate;
+    translateRef.current = t;
+    localeRef.current = legalLocale;
+    redirectRef.current = completeProfileRedirect;
+  });
 
   const promptedRef = useRef(false);
   const [pendingCredential, setPendingCredential] = useState<string | null>(null);

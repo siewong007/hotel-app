@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
 import { Box } from '@mui/material';
 import {
   googleClientId,
@@ -39,7 +39,9 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onCredentialRef = useRef(onCredential);
-  onCredentialRef.current = onCredential;
+  useLayoutEffect(() => {
+    onCredentialRef.current = onCredential;
+  });
   const locale = useLocale();
 
   const clientId = googleClientId();
