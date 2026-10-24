@@ -49,6 +49,7 @@ import RoomStatusUpdateDialog from './RoomStatusUpdateDialog';
 import NewTicketDialog from './NewTicketDialog';
 import { useCreateMaintenanceTicket } from '../hooks/useMaintenanceQueries';
 import type { HousekeepingActionContext, HousekeepingActionHandlers } from './RoomTaskCard';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface Snack {
   severity: 'success' | 'error' | 'info';
@@ -82,18 +83,22 @@ export default function HousekeepingPage() {
   const [pageSearchParams, setPageSearchParams] = useSearchParams();
   const routedTab = pageSearchParams.get('tab') || '';
   const routedCreate = pageSearchParams.get('create') || '';
-  useEffect(() => {
+  useResetOnChange([routedTab, canViewMaintenance], () => {
     if (routedTab === 'tasks') setTab(1);
     else if (routedTab === 'maintenance' && canViewMaintenance) setTab(2);
-  }, [routedTab, canViewMaintenance]);
-  useEffect(() => {
-    if (!routedCreate) return;
+  });
+  // Deep link ?create=task|ticket opens the matching dialog (during render);
+  // the effect below strips the param from the URL.
+  useResetOnChange([routedCreate, canCreate, canWriteMaintenance], () => {
     if (routedCreate === 'task' && canCreate) setNewTaskRoom(null);
     else if (routedCreate === 'ticket' && canWriteMaintenance) setTicketRoom(null);
+  });
+  useEffect(() => {
+    if (!routedCreate) return;
     const next = new URLSearchParams(pageSearchParams);
     next.delete('create');
     setPageSearchParams(next, { replace: true });
-  }, [routedCreate, canCreate, canWriteMaintenance, pageSearchParams, setPageSearchParams]);
+  }, [routedCreate, pageSearchParams, setPageSearchParams]);
 
   const boardQuery = useHousekeepingBoard();
   const createTask = useCreateHousekeepingTask();

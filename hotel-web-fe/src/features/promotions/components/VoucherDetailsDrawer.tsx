@@ -36,6 +36,7 @@ import {
   voucherSourceLabel,
 } from '../utils';
 import { VoucherStatusChip } from './VoucherStatusChip';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface VoucherDetailsDrawerProps {
   voucherId: number | null;
@@ -135,13 +136,13 @@ export function VoucherDetailsDrawer({
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const [reason, setReason] = useState('');
 
-  useEffect(() => {
+  useResetOnChange([open, voucherId], () => {
     if (open) {
       setCopied(false);
       setConfirmingRevoke(false);
       setReason('');
     }
-  }, [open, voucherId]);
+  });
 
   const displayCode = voucher ? voucherCodeLabel(voucher) : '';
   const expired = voucher ? voucherDisplayStatus(voucher) === 'expired' : false;

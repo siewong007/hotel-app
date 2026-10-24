@@ -25,6 +25,7 @@ import type { HousekeepingBoardRoom } from '../../../types/housekeeping.types';
 import { MAINTENANCE_PRIORITIES } from '../housekeepingConfig';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const CATEGORIES: MaintenanceCategory[] = [
   'electrical',
@@ -78,12 +79,12 @@ export default function NewTicketDialog({
   const rooms = roomsQuery.data ?? [];
   const staff = staffQuery.data ?? [];
 
-  useEffect(() => {
+  useResetOnChange([open, initialRoom], () => {
     if (open) {
       setForm(initialState(initialRoom));
       setError(null);
     }
-  }, [open, initialRoom]);
+  });
 
   const patch = (update: Partial<FormState>) => setForm((prev) => ({ ...prev, ...update }));
 

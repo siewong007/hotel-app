@@ -25,6 +25,7 @@ import type {
 } from '../../../types/housekeeping.types';
 import { PRIORITIES, TASK_TYPES } from '../housekeepingConfig';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface NewTaskDialogProps {
   open: boolean;
@@ -68,12 +69,12 @@ export default function NewTaskDialog({
   const staffQuery = useAssignableStaff('housekeeping', open);
   const staff = staffQuery.data ?? [];
 
-  useEffect(() => {
+  useResetOnChange([open, initialRoom], () => {
     if (open) {
       setForm(initialState(initialRoom));
       setError(null);
     }
-  }, [open, initialRoom]);
+  });
 
   const patch = (update: Partial<FormState>) => setForm((prev) => ({ ...prev, ...update }));
 

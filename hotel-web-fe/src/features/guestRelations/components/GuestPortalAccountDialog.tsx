@@ -14,6 +14,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { errorMessage } from '../../../utils';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { useTransferGuestPortalAccount } from '../../guests/hooks/useGuestQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface GuestPortalAccountDialogProps {
   guest: Guest | null;
@@ -36,11 +37,11 @@ const GuestPortalAccountDialog: React.FC<GuestPortalAccountDialogProps> = ({
   const [username, setUsername] = React.useState('');
   const [transferError, setTransferError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
+  useResetOnChange([open, guest?.account_username], () => {
     if (!open) return;
     setUsername(guest?.account_username ?? '');
     setTransferError(null);
-  }, [open, guest?.account_username]);
+  });
 
   const handleTransfer = async () => {
     if (!guest) return;

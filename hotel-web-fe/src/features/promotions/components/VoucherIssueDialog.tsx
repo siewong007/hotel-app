@@ -28,6 +28,7 @@ import {
   formatPromotionDiscount,
   promotionClaimIssue,
 } from '../utils';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const CODE_PATTERN = /^[A-Z0-9]{8,64}$/;
 
@@ -74,7 +75,7 @@ export function VoucherIssueDialog({
   });
   const guestOptions = guestsQuery.data?.data ?? [];
 
-  useEffect(() => {
+  useResetOnChange([open], () => {
     if (open) {
       setPromotionId('');
       setGuest(null);
@@ -83,7 +84,7 @@ export function VoucherIssueDialog({
       setExpiresAt('');
       setError(null);
     }
-  }, [open]);
+  });
 
   const selectedPromotion =
     promotions.find((promotion) => promotion.id === promotionId) ?? null;

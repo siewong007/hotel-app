@@ -16,6 +16,7 @@ import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { COMMISSION_SCOPES, COMMISSION_TYPES } from '../constants';
 import { toNumber } from '../../../utils/currency';
 import type { ChannelCommissionRule, ChannelCommissionRuleInput } from '../types';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface Props {
   open: boolean;
@@ -58,9 +59,9 @@ const fromRule = (rule: ChannelCommissionRule): FormState => ({
 export const CommissionRuleDialog = ({ open, rule, saving, onClose, onSubmit }: Props) => {
   const { t, tOr } = useTranslation('channels');
   const [form, setForm] = useState<FormState>(emptyForm);
-  useEffect(() => {
+  useResetOnChange([open, rule], () => {
     if (open) setForm(rule ? fromRule(rule) : emptyForm());
-  }, [open, rule]);
+  });
 
   const set = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));
