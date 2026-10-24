@@ -357,6 +357,9 @@
     "/api/bookings/complimentary": {
       "GET": {}
     },
+    "/api/bookings/group": {
+      "POST": {}
+    },
     "/api/bookings/new-reservations": {
       "GET": {}
     },

@@ -3,6 +3,7 @@
 mod checkin_advisory;
 mod complimentary;
 mod credits;
+pub mod group_create;
 mod lifecycle;
 pub(crate) mod new_reservations;
 mod summary;

@@ -242,8 +242,101 @@ pub async fn queue_booking_confirmation_email(
     let Some((source, recipient)) = load_source(pool, booking_id).await? else {
         return Ok(());
     };
+    queue_confirmation_for(
+        pool,
+        &source,
+        &recipient,
+        &format!("booking-confirmed:{booking_id}"),
+    )
+    .await
+}
 
-    let locale = resolve_locale(pool, &source).await;
+/// One confirmation for a whole multi-room group: the lead room's guest
+/// context with the group number, every room, and the summed total.
+pub async fn queue_group_confirmation_email(pool: &DbPool, group_id: i64) -> Result<(), ApiError> {
+    #[derive(sqlx::FromRow)]
+    struct Member {
+        id: i64,
+        room_number: Option<String>,
+        room_type: Option<String>,
+        total_amount: rust_decimal::Decimal,
+    }
+    let members = sqlx::query_as::<_, Member>(
+        r#"
+        SELECT b.id, r.room_number, rt.name AS room_type, b.total_amount
+        FROM bookings b
+        LEFT JOIN rooms r ON r.id = b.room_id
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE b.booking_group_id = $1
+          AND b.status NOT IN ('cancelled', 'voided')
+        ORDER BY b.id
+        "#,
+    )
+    .bind(group_id)
+    .fetch_all(pool)
+    .await
+    .map_err(ApiError::from)?;
+    let Some(lead) = members.first() else {
+        return Ok(());
+    };
+    let Some((mut source, recipient)) = load_source(pool, lead.id).await? else {
+        return Ok(());
+    };
+    let group_number: Option<String> =
+        sqlx::query_scalar("SELECT group_number FROM booking_groups WHERE id = $1")
+            .bind(group_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+    if group_number.is_some() {
+        source.booking_number = group_number;
+    }
+    source.room_number = Some(
+        members
+            .iter()
+            .map(|m| m.room_number.clone().unwrap_or_else(|| "-".to_string()))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    let mut counts: Vec<(String, usize)> = Vec::new();
+    for member in &members {
+        let name = member.room_type.clone().unwrap_or_else(|| "-".to_string());
+        match counts.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, c)) => *c += 1,
+            None => counts.push((name, 1)),
+        }
+    }
+    source.room_type = Some(
+        counts
+            .into_iter()
+            .map(|(name, c)| format!("{c} × {name}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    source.total_amount = members.iter().map(|m| m.total_amount).sum();
+    queue_confirmation_for(
+        pool,
+        &source,
+        &recipient,
+        &format!("booking-group-confirmed:{group_id}"),
+    )
+    .await
+}
+
+/// Best-effort wrapper for the group confirmation.
+pub async fn try_queue_group_confirmation_email(pool: &DbPool, group_id: i64) {
+    if let Err(error) = queue_group_confirmation_email(pool, group_id).await {
+        log::error!("Failed to queue group confirmation email for group {group_id}: {error}");
+    }
+}
+
+async fn queue_confirmation_for(
+    pool: &DbPool,
+    source: &BookingEmailSource,
+    recipient: &str,
+    idempotency_key: &str,
+) -> Result<(), ApiError> {
+    let locale = resolve_locale(pool, source).await;
     let hotel = email_layout::hotel_display_name();
     let booking = source.booking_label(locale);
     let subject = locale.format(
@@ -292,11 +385,11 @@ pub async fn queue_booking_confirmation_email(
     queue(
         pool,
         source.guest_id,
-        &recipient,
+        recipient,
         &subject,
         &rendered.html,
         &rendered.text,
-        &format!("booking-confirmed:{booking_id}"),
+        idempotency_key,
     )
     .await
 }
