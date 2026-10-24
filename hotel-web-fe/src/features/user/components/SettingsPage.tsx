@@ -294,6 +294,10 @@ const SettingsPage: React.FC = () => {
     setPaymentMethods(settings.payment_methods);
   };
 
+  // Baseline capture flags (see the baseline comment further down).
+  const pendingBaseline = useRef(false);
+  const baselineArmed = useRef(false);
+
   useEffect(() => {
     if (settingsQuery.data) {
       pendingBaseline.current = true;
@@ -407,8 +411,6 @@ const SettingsPage: React.FC = () => {
   // effect so the setters have flushed into state, hence the arm flag.
   // booking_channels is excluded: it is table-managed, not a saved setting,
   // and arrives via a separate query that would dirty the form spuriously.
-  const pendingBaseline = useRef(false);
-  const baselineArmed = useRef(false);
   const [baselineJson, setBaselineJson] = useState<string | null>(null);
   useEffect(() => {
     if (pendingBaseline.current && baselineArmed.current) {
