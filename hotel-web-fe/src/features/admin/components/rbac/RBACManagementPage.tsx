@@ -142,6 +142,28 @@ const permCode = (p: Permission) => p.name;
 const initials = (s: string) =>
   s.split(/[\s._-]+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
+const PtabBtn = ({ id, label, count, on, onSelect }: { id: PageTab; label: string; count: string; on: boolean; onSelect: (id: PageTab) => void }) => {
+  const Icon = PAGE_TAB_ICONS[id];
+  return (
+    <Box
+      component="button"
+      onClick={() => onSelect(id)}
+      sx={{
+        display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.75, py: 1,
+        borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+        color: on ? 'var(--hotel-bg)' : T.ink3, bgcolor: on ? T.ink : 'transparent',
+        '&:hover': { color: on ? 'var(--hotel-bg)' : T.ink },
+      }}
+    >
+      <Icon sx={{ fontSize: 18 }} />
+      {label}
+      <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 18%, transparent)' : T.surface3, color: on ? 'var(--hotel-bg)' : T.ink3, fontWeight: 700 }}>
+        {count}
+      </Box>
+    </Box>
+  );
+};
+
 const RBACManagementPage: React.FC = () => {
   const { t, locale } = useTranslation('admin');
   const {
@@ -488,28 +510,6 @@ const RBACManagementPage: React.FC = () => {
     );
   }
 
-  const PtabBtn = ({ id, label, count }: { id: PageTab; label: string; count: string }) => {
-    const Icon = PAGE_TAB_ICONS[id];
-    const on = tab === id;
-    return (
-      <Box
-        component="button"
-        onClick={() => setTab(id)}
-        sx={{
-          display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.75, py: 1,
-          borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          color: on ? 'var(--hotel-bg)' : T.ink3, bgcolor: on ? T.ink : 'transparent',
-          '&:hover': { color: on ? 'var(--hotel-bg)' : T.ink },
-        }}
-      >
-        <Icon sx={{ fontSize: 18 }} />
-        {label}
-        <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 18%, transparent)' : T.surface3, color: on ? 'var(--hotel-bg)' : T.ink3, fontWeight: 700 }}>
-          {count}
-        </Box>
-      </Box>
-    );
-  };
 
   return (
     <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: 'var(--hotel-bg)', minHeight: '100%' }}>
@@ -556,9 +556,9 @@ const RBACManagementPage: React.FC = () => {
         p: '4px',
         mb: 2,
       }}>
-        <PtabBtn id="roles" label={t('rbac.title')} count={`${roles.length} / ${totalPerms}`} />
-        <PtabBtn id="users" label={t('rbac.usersTab')} count={`${users.length}`} />
-        <PtabBtn id="pages" label={t('rbac.pageAccess.tab')} count={`${pageAccessCount}`} />
+        <PtabBtn id="roles" on={tab === 'roles'} onSelect={setTab} label={t('rbac.title')} count={`${roles.length} / ${totalPerms}`} />
+        <PtabBtn id="users" on={tab === 'users'} onSelect={setTab} label={t('rbac.usersTab')} count={`${users.length}`} />
+        <PtabBtn id="pages" on={tab === 'pages'} onSelect={setTab} label={t('rbac.pageAccess.tab')} count={`${pageAccessCount}`} />
       </Box>
       {loading && (
         <LogoLoader variant="page" />
