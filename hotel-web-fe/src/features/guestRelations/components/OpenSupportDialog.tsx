@@ -21,6 +21,7 @@ import { formatStatusLabel } from '../../../utils/formatters';
 import { SUPPORT_PRIORITY_OPTIONS, type SupportPriority } from '../../support/types';
 import { useSupportAgents } from '../../support/hooks/useSupportQueries';
 import { useCreateSupportConversation } from '../hooks/useGuestRelationsQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const SUPPORT_CATEGORIES: GuestSupportConversationCategory[] = [
   'service_request',
@@ -65,7 +66,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
   const [assigneeId, setAssigneeId] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useResetOnChange([open], () => {
     if (!open) return;
     setCategory('service_request');
     setSubject('');
@@ -73,7 +74,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
     setPriority('normal');
     setAssigneeId('');
     setFormError(null);
-  }, [open]);
+  });
 
   const handleSubmit = async () => {
     if (!message.trim()) {

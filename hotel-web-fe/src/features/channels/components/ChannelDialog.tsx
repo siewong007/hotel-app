@@ -20,6 +20,7 @@ import {
   INTEGRATION_MODES,
 } from '../constants';
 import type { BookingChannel, BookingChannelInput } from '../types';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface Props {
   open: boolean;
@@ -69,9 +70,9 @@ const fromChannel = (channel: BookingChannel): FormState => ({
 export const ChannelDialog = ({ open, channel, saving, onClose, onSubmit }: Props) => {
   const { t, tOr } = useTranslation('channels');
   const [form, setForm] = useState<FormState>(emptyForm);
-  useEffect(() => {
+  useResetOnChange([open, channel], () => {
     if (open) setForm(channel ? fromChannel(channel) : emptyForm());
-  }, [open, channel]);
+  });
 
   const set = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));

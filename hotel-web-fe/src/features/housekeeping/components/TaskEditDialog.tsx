@@ -26,6 +26,7 @@ import type {
 } from '../../../types/housekeeping.types';
 import { PRIORITIES } from '../housekeepingConfig';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface TaskEditDialogProps {
   open: boolean;
@@ -62,12 +63,12 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
   const staffQuery = useAssignableStaff('housekeeping', open);
   const staff = staffQuery.data ?? [];
 
-  useEffect(() => {
+  useResetOnChange([open, task], () => {
     if (open && task) {
       setForm(stateFromTask(task));
       setError(null);
     }
-  }, [open, task]);
+  });
 
   if (!task) return null;
 

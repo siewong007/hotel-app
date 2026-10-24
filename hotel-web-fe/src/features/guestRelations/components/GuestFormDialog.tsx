@@ -42,6 +42,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import type { GuestFormData } from '../../guests/types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useGuestCompanyOptions } from '../hooks/useGuestCompanyOptions';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface GuestFormDialogProps {
   open: boolean;
@@ -118,10 +119,10 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  React.useEffect(() => {
+  useResetOnChange([formData.company_name, open], () => {
     if (!open) return;
     setCompanySearch(formData.company_name || '');
-  }, [formData.company_name, open]);
+  });
 
   const handleCompanyChange = (_event: React.SyntheticEvent, value: Company | string | null) => {
     const companyName = typeof value === 'string' ? value : value?.company_name || '';

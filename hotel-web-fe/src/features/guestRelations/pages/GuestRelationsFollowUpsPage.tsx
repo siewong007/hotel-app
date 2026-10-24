@@ -26,6 +26,7 @@ import { getPaginationState } from '../../../utils/pagination';
 import { useTranslation } from '../../../i18n';
 import { GUEST_DESIGN } from '../../guests/constants';
 import { useCompleteFollowUp, useGuestFollowUps } from '../hooks/useGuestRelationsQueries';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const DUE_FILTERS: Array<{ key: FollowUpDue; labelKey: string }> = [
   { key: 'overdue', labelKey: 'followUps.filters.overdue' },
@@ -68,11 +69,11 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
   // Deep links (`?due=overdue`) — same contract as the guest list's `?search=`
   // handling: a changed param re-seeds the filter, an absent one leaves it.
   const routedDue = normalizeDueParam(pageSearchParams.get('due'));
-  useEffect(() => {
+  useResetOnChange([routedDue], () => {
     if (!routedDue) return;
     setDue(routedDue);
     setCurrentPage(1);
-  }, [routedDue]);
+  });
 
   const followUpsQuery = useGuestFollowUps(due, currentPage, hasAccess);
   const {

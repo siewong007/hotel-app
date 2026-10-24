@@ -17,6 +17,7 @@ import { useRatePlans, useRateRoomTypes } from '../../rates/hooks/useRatePlans';
 import { PERCENT_RULE_TYPES, PRICING_RULE_TYPES } from '../constants';
 import { toNumber } from '../../../utils/currency';
 import type { ChannelPricingRule, ChannelPricingRuleInput } from '../types';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 interface Props {
   open: boolean;
@@ -78,12 +79,12 @@ export const PricingRuleDialog = ({ open, rule, saving, onClose, onSubmit }: Pro
   const plans = useRatePlans();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  useResetOnChange([open, rule], () => {
     if (open) {
       setForm(rule ? fromRule(rule) : emptyForm());
       setError(null);
     }
-  }, [open, rule]);
+  });
 
   const set = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));

@@ -68,6 +68,7 @@ import {
 } from '../segments';
 import { buildGuestsCsv, duplicateGuestReference } from '../utils';
 import { formatLocalDate } from '../../../utils/date';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const PAGE_SIZE = 50;
 
@@ -137,12 +138,12 @@ const GuestRelationsPage: React.FC = () => {
   const routedGuestSearch = pageSearchParams.get('search') || '';
   const routedGuestId = pageSearchParams.get('guest_id') || '';
 
-  useEffect(() => {
+  useResetOnChange([routedGuestSearch, routedGuestId], () => {
     if (!routedGuestSearch && !routedGuestId) return;
     setSearchTerm(routedGuestSearch || routedGuestId);
     setSegment('all');
     setCurrentPage(1);
-  }, [routedGuestSearch, routedGuestId]);
+  });
 
   // Dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
