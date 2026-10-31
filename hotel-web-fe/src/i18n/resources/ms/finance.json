@@ -646,5 +646,21 @@
     "label": "Sebab",
     "helper": "Wajib. Disimpan bersama rekod dan dalam log audit.",
     "tooShort": "Masukkan sekurang-kurangnya {{min}} aksara."
+  },
+  "groupReceipt": {
+    "button": "Resit kumpulan",
+    "title": "Resit kumpulan",
+    "groupNumber": "Kumpulan",
+    "paymentRef": "Rujukan bayaran",
+    "rooms": "Bilik",
+    "dates": "Tarikh",
+    "nights": "Malam",
+    "roomCharges": "Caj bilik",
+    "tourismTax": "Cukai pelancongan",
+    "extraBeds": "Katil tambahan",
+    "total": "Jumlah",
+    "grandTotal": "Jumlah keseluruhan",
+    "print": "Cetak resit kumpulan",
+    "loadFailed": "Resit kumpulan tidak dapat dimuatkan."
   }
 }

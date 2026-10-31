@@ -47,6 +47,7 @@ import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../u
 import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
+import GroupReceiptButton from './GroupReceiptButton';
 import DepositSection, { DEPOSIT_STATUS_CHIP } from './DepositSection';
 import { getSettlementLock, isSettlementLocked } from '../../bookings/utils/settlementLock';
 import ReasonDialog from './ReasonDialog';
@@ -2163,6 +2164,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               onClick={handlePrint}
               startIcon={<PrintIcon />}
             >{t('checkout.printInvoice')}</Button>
+            <GroupReceiptButton bookingId={Number(booking.id)} hotelSettings={hotelSettings} />
           </>
         ) : checkoutStep === 'preview' ? (
           <>
@@ -2173,6 +2175,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               startIcon={<PrintIcon />}
               disabled={blockers.length > 0}
             >{t('checkout.printPreview')}</Button>
+            <GroupReceiptButton bookingId={Number(booking.id)} hotelSettings={hotelSettings} />
             <Button
               variant="contained"
               onClick={handleProceedToConfirm}

@@ -32,6 +32,9 @@ const mocks = vi.hoisted(() => ({
   payments: [] as CheckoutPaymentRecord[],
 }));
 
+// Group receipt has its own test; keep this file free of its group lookup.
+vi.mock('./GroupReceiptButton', () => ({ default: () => null }));
+
 vi.mock('../../../hooks/useCurrency', () => ({
   useCurrency: () => ({ format: (amount: number) => `RM${Number(amount).toFixed(2)}`, symbol: 'RM' }),
 }));
