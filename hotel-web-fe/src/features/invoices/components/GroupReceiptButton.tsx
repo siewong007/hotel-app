@@ -119,7 +119,7 @@ const GroupReceiptButton: React.FC<Props> = ({ bookingId, hotelSettings }) => {
       <Button variant="outlined" startIcon={<ReceiptIcon />} onClick={() => setOpen(true)} data-testid="group-receipt-button">
         {t('groupReceipt.button')}
       </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
           {t('groupReceipt.title')}
           {receipt && (
@@ -134,7 +134,7 @@ const GroupReceiptButton: React.FC<Props> = ({ bookingId, hotelSettings }) => {
           {receiptQuery.isError && <Alert severity="error">{t('groupReceipt.loadFailed')}</Alert>}
           {receipt && (
             <Box sx={{ overflowX: 'auto' }}>
-              <Table size="small" data-testid="group-receipt-table">
+              <Table size="small" data-testid="group-receipt-table" sx={{ '& td, & th': { whiteSpace: 'nowrap' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>{t('checkout.field.invoiceNumber')}</TableCell>
