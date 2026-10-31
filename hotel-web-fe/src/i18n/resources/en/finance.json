@@ -656,5 +656,21 @@
     "label": "Reason",
     "helper": "Required. Saved with the record and in the audit log.",
     "tooShort": "Enter at least {{min}} characters."
+  },
+  "groupReceipt": {
+    "button": "Group receipt",
+    "title": "Group receipt",
+    "groupNumber": "Group",
+    "paymentRef": "Payment ref",
+    "rooms": "Rooms",
+    "dates": "Dates",
+    "nights": "Nights",
+    "roomCharges": "Room charges",
+    "tourismTax": "Tourism tax",
+    "extraBeds": "Extra beds",
+    "total": "Total",
+    "grandTotal": "Grand total",
+    "print": "Print group receipt",
+    "loadFailed": "Could not load the group receipt."
   }
 }

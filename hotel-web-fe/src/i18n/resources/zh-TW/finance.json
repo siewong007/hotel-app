@@ -646,5 +646,21 @@
     "label": "原因",
     "helper": "必填。將隨紀錄儲存並寫入稽核日誌。",
     "tooShort": "請至少輸入 {{min}} 個字元。"
+  },
+  "groupReceipt": {
+    "button": "團體收據",
+    "title": "團體收據",
+    "groupNumber": "團體",
+    "paymentRef": "付款參考",
+    "rooms": "房間數",
+    "dates": "日期",
+    "nights": "晚數",
+    "roomCharges": "房費",
+    "tourismTax": "旅遊稅",
+    "extraBeds": "加床",
+    "total": "合計",
+    "grandTotal": "總計",
+    "print": "列印團體收據",
+    "loadFailed": "無法載入團體收據。"
   }
 }

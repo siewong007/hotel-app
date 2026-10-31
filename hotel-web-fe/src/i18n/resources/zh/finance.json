@@ -646,5 +646,21 @@
     "label": "原因",
     "helper": "必填。将随记录保存并写入审计日志。",
     "tooShort": "请至少输入 {{min}} 个字符。"
+  },
+  "groupReceipt": {
+    "button": "团体收据",
+    "title": "团体收据",
+    "groupNumber": "团体",
+    "paymentRef": "付款参考",
+    "rooms": "房间数",
+    "dates": "日期",
+    "nights": "晚数",
+    "roomCharges": "房费",
+    "tourismTax": "旅游税",
+    "extraBeds": "加床",
+    "total": "合计",
+    "grandTotal": "总计",
+    "print": "打印团体收据",
+    "loadFailed": "无法加载团体收据。"
   }
 }
