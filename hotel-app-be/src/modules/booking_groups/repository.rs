@@ -146,6 +146,33 @@ impl BookingGroupRepository {
         Ok(())
     }
 
+    /// Keep a room's group in step after a single-room change (payment or
+    /// void). No-op for bookings outside a group. Skips the refresh
+    /// when another transaction holds the group lock: every group-level path
+    /// refreshes the group itself before committing, and waiting here would
+    /// invert the group → booking lock order those paths use.
+    pub async fn refresh_for_booking_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<(), ApiError> {
+        let group_id: Option<i64> = sqlx::query_scalar(
+            r#"
+            SELECT g.id FROM bookings b
+            JOIN booking_groups g ON g.id = b.booking_group_id
+            WHERE b.id = $1
+            FOR UPDATE OF g SKIP LOCKED
+            "#,
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        if let Some(group_id) = group_id {
+            Self::refresh_totals_tx(tx, group_id).await?;
+        }
+        Ok(())
+    }
+
     /// Recompute the group's totals, room count, payment status and status
     /// from its non-voided members. Call after any member changes (create,
     /// single-room cancel, payment) inside the same transaction.

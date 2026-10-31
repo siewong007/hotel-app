@@ -1017,6 +1017,72 @@ mod staff_group_create_tests {
             hotel_app_be::modules::payments::group_receipt::group_receipt(&pool, ACTOR, -1).await;
         assert!(matches!(missing, Err(ApiError::NotFound(_))));
 
+        // Paying every room settles the group (single-room payments refresh it).
+        let group_field = |field: &'static str| {
+            let pool = pool.clone();
+            let id = created.group.id;
+            async move {
+                sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(format!(
+                    "SELECT {field} FROM booking_groups WHERE id = $1"
+                )))
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+            }
+        };
+        for (i, row) in receipt.rooms.iter().enumerate() {
+            let request: hotel_app_be::modules::payments::models::RecordPaymentRequest =
+                serde_json::from_value(serde_json::json!({
+                    "booking_id": row.booking_id,
+                    "amount": row.total.to_string().parse::<f64>().unwrap(),
+                    "payment_method": "cash",
+                    "idempotency_key": format!("group-paid-test-{}", row.booking_id),
+                }))
+                .unwrap();
+            hotel_app_be::modules::payments::service::record_payment(&pool, ACTOR, request)
+                .await
+                .expect("record payment");
+            let expected = if i + 1 == receipt.rooms.len() {
+                "paid"
+            } else {
+                "partial"
+            };
+            assert_eq!(group_field("payment_status").await, expected);
+        }
+
+        // Once no room is live, the group is no longer active.
+        for row in &receipt.rooms {
+            sqlx::query("UPDATE bookings SET status = 'voided' WHERE id = $1")
+                .bind(row.booking_id)
+                .execute(&pool)
+                .await
+                .unwrap();
+            hotel_app_be::modules::payments::service::recompute_payment_status(
+                &pool,
+                row.booking_id,
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(group_field("status").await, "voided");
+
+        // Editing a guest whose last name was never set: clearing the IC
+        // number works and the missing name stays missing (was a 500).
+        sqlx::query("UPDATE guests SET last_name = NULL, ic_number = 'TEST000000' WHERE id = $1")
+            .bind(GUEST)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let clear_ic: hotel_app_be::modules::guests::models::GuestUpdateInput =
+            serde_json::from_value(serde_json::json!({ "ic_number": "" })).unwrap();
+        let guest =
+            hotel_app_be::modules::guests::service::update_guest(&pool, ACTOR, GUEST, clear_ic)
+                .await
+                .expect("update guest with NULL last name");
+        assert!(guest.ic_number.is_none());
+        assert!(guest.last_name.is_none());
+
         // Conflict on the last room: nothing of the second group survives.
         let (c, d) = ("2031-06-01", "2031-06-03");
         create_group_booking_handler(

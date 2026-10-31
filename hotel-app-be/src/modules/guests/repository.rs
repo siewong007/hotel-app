@@ -426,7 +426,8 @@ impl GuestRepository {
     ) -> Result<Option<GuestUpdateState>, ApiError> {
         sqlx::query_as::<_, GuestUpdateState>(
             r#"
-            SELECT first_name, last_name, email, phone, ic_number, nationality,
+            SELECT COALESCE(first_name, '') AS first_name, COALESCE(last_name, '') AS last_name,
+                   email, phone, ic_number, nationality,
                    address_line_1 as address_line1, city, state as state_province,
                    postal_code, country, title, alt_phone, company_name,
                    guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage,
@@ -453,8 +454,10 @@ impl GuestRepository {
             r#"
             UPDATE guests
             SET nick_name = $1,
-                first_name = $2,
-                last_name = $3,
+                -- A name that was never set stays NULL when the edit leaves it
+                -- blank (partial updates read NULL as '').
+                first_name = CASE WHEN first_name IS NULL AND $2 = '' THEN NULL ELSE $2 END,
+                last_name = CASE WHEN last_name IS NULL AND $3 = '' THEN NULL ELSE $3 END,
                 email = $4,
                 phone = $5,
                 ic_number = $6,

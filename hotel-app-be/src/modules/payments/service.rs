@@ -192,14 +192,21 @@ async fn try_queue_paid_online_booking_room_assignment(pool: &DbPool, booking_id
 }
 
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
-    PaymentRepository::recompute_booking_payment_status(pool, booking_id).await
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    tx.commit().await.map_err(ApiError::from)
 }
 
 pub async fn recompute_payment_status_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<(), ApiError> {
-    PaymentRepository::recompute_booking_payment_status_tx(tx, booking_id).await
+    PaymentRepository::recompute_booking_payment_status_tx(tx, booking_id).await?;
+    // A room's payment status feeds its group's; keep the group in step.
+    crate::modules::booking_groups::repository::BookingGroupRepository::refresh_for_booking_tx(
+        tx, booking_id,
+    )
+    .await
 }
 
 pub async fn calculate_payment_summary(
