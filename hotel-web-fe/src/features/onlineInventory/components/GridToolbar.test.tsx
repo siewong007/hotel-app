@@ -50,10 +50,12 @@ describe('GridToolbar', () => {
 
   it('changes the start date through the date field', () => {
     const props = renderToolbar();
+    // Relative to today so the value never falls outside the field's range.
+    const target = shiftDate(formatLocalDate(), 1);
     fireEvent.change(screen.getByLabelText('Start date'), {
-      target: { value: '2026-10-01' },
+      target: { value: target },
     });
-    expect(props.onStartChange).toHaveBeenCalledWith('2026-10-01');
+    expect(props.onStartChange).toHaveBeenCalledWith(target);
   });
 
   it('shows Today only when the window does not already start today', () => {

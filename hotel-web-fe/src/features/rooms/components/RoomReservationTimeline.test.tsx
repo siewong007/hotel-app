@@ -37,6 +37,10 @@ const rooms: Room[] = [
   { id: 'r-104', room_number: '104', room_type: 'Deluxe King', price_per_night: 320, available: false, max_occupancy: 2, status: 'reserved' },
 ];
 
+// "Today" is pinned below; derive the in-house stay from the same day so it
+// is not computed from the real clock at module load.
+const PINNED_TODAY = new Date(2026, 9, 12, 12, 0, 0);
+
 const bookings: BookingWithDetails[] = [
   {
     id: 'bk-1',
@@ -48,8 +52,8 @@ const bookings: BookingWithDetails[] = [
     room_number: '101',
     room_type: 'Deluxe King',
     price_per_night: 320,
-    check_in_date: formatLocalDate(),
-    check_out_date: formatLocalDate(addLocalDays(new Date(), 2)),
+    check_in_date: formatLocalDate(PINNED_TODAY),
+    check_out_date: formatLocalDate(addLocalDays(PINNED_TODAY, 2)),
     total_amount: 640,
     status: 'checked_in',
   },
@@ -103,7 +107,7 @@ const bookings: BookingWithDetails[] = [
 // Fixtures use fixed 2026-10 dates; pin "today" so they never age out.
 beforeAll(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date(2026, 9, 12, 12, 0, 0));
+  vi.setSystemTime(PINNED_TODAY);
 });
 afterAll(() => {
   vi.useRealTimers();
