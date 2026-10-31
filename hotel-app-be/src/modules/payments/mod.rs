@@ -1,5 +1,6 @@
 //! payments domain.
 
+pub mod group_receipt;
 pub mod handlers;
 pub mod models;
 pub mod paypal_client;

@@ -893,6 +893,7 @@ mod staff_group_create_tests {
                 "DELETE FROM booking_modifications WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
                 "DELETE FROM booking_history WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
                 "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+                "DELETE FROM invoices WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
                 "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id IN (SELECT id FROM bookings WHERE room_id = $1)",
                 "DELETE FROM bookings WHERE room_id = $1",
             ] {
@@ -977,6 +978,44 @@ mod staff_group_create_tests {
         // Input order is preserved in the response.
         let rooms: Vec<i64> = created.bookings.iter().map(|b| b.room_id).collect();
         assert_eq!(rooms, ROOMS.to_vec());
+
+        // Combined receipt: one row per room, each with its own invoice, and
+        // group totals that add up. Calling it again reuses the invoices.
+        let receipt = hotel_app_be::modules::payments::group_receipt::group_receipt(
+            &pool,
+            ACTOR,
+            created.group.id,
+        )
+        .await
+        .expect("group receipt");
+        assert_eq!(receipt.rooms.len(), 3);
+        assert_eq!(receipt.group_number, created.group.group_number);
+        assert!(receipt.group_payment_ref.is_none());
+        let total: rust_decimal::Decimal = receipt.rooms.iter().map(|r| r.total).sum();
+        assert_eq!(receipt.grand_total, total);
+        let mut numbers: Vec<_> = receipt
+            .rooms
+            .iter()
+            .map(|r| r.invoice_number.clone())
+            .collect();
+        numbers.dedup();
+        assert_eq!(numbers.len(), 3, "each room keeps its own invoice");
+        let again = hotel_app_be::modules::payments::group_receipt::group_receipt(
+            &pool,
+            ACTOR,
+            created.group.id,
+        )
+        .await
+        .expect("group receipt again");
+        let again_numbers: Vec<_> = again
+            .rooms
+            .iter()
+            .map(|r| r.invoice_number.clone())
+            .collect();
+        assert_eq!(again_numbers, numbers, "receipt is idempotent");
+        let missing =
+            hotel_app_be::modules::payments::group_receipt::group_receipt(&pool, ACTOR, -1).await;
+        assert!(matches!(missing, Err(ApiError::NotFound(_))));
 
         // Conflict on the last room: nothing of the second group survives.
         let (c, d) = ("2031-06-01", "2031-06-03");
