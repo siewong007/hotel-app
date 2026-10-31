@@ -92,6 +92,19 @@ pub fn routes() -> Router<DbPool> {
         .route("/invoices/preview/{booking_id}", get(get_invoice_preview))
         .route("/invoices/generate/{booking_id}", post(generate_invoice))
         .route("/invoices", get(get_user_invoices))
+        .route("/booking-groups/{id}/receipt", get(get_group_receipt))
+}
+
+async fn get_group_receipt(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(group_id): Path<i64>,
+) -> Result<Json<super::group_receipt::GroupReceipt>, ApiError> {
+    // Same gate as the per-booking invoice preview, which it aggregates.
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    super::group_receipt::group_receipt(&pool, user_id, group_id)
+        .await
+        .map(Json)
 }
 
 async fn calculate_payment(

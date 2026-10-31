@@ -311,6 +311,9 @@
       "GET": {},
       "POST": {}
     },
+    "/api/booking-groups/{id}/receipt": {
+      "GET": {}
+    },
     "/api/booking/group-quote": {
       "POST": {}
     },
