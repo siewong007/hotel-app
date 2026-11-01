@@ -83,7 +83,17 @@ same artifacts but never publish a release — the release job is tag-gated.
 
 ## Frontend flag
 
-Update UI is gated on `VITE_DESKTOP_UPDATER_ENABLED === 'true'` at build time
+Two update surfaces share the same three commands:
+
+- `src/desktop/UpdateNotifier.tsx` (mounted in the staff shell, `RootLayout`)
+  checks silently 15 s after launch and every 6 h after that. When an update
+  exists it shows a snackbar (Install / Later), then offers a restart.
+  "Later" hides that version until the next launch, and deferring the restart
+  stops further checks. A failed check never shows an error.
+- `src/desktop/UpdateChecker.tsx`, the "App updates" card on System Health,
+  is the manual check and does report errors.
+
+Both are gated on `VITE_DESKTOP_UPDATER_ENABLED === 'true'` at build time
 (and `shouldUseDesktopRuntime()`). CI sets it on all three bundle steps. For
 a local `bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
 `hotel-web-fe/.env.tauri` (untracked via root `.env.*`); `build-frontend.mjs`

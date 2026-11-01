@@ -230,6 +230,7 @@
       "installed": "更新已安裝。重新啟動以套用版本 {{version}}。",
       "restartNow": "立即重新啟動",
       "restartLater": "稍後",
+      "remindLater": "稍後",
       "checkFailed": "更新檢查失敗",
       "installFailed": "更新安裝失敗"
     }

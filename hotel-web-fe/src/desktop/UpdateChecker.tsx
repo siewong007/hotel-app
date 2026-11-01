@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 
 import { useTranslation } from '../i18n';
+import { describeUpdateError } from './describeUpdateError';
 import {
   checkForUpdates,
   getDesktopStatus,
@@ -22,17 +23,6 @@ import {
 } from './runtimeApi';
 
 type UpdatePhase = 'idle' | 'checking' | 'available' | 'installing' | 'installed';
-
-/** Tauri invoke rejections arrive as plain strings, not Error instances. */
-function describeError(cause: unknown, fallback: string): string {
-  if (cause instanceof Error) {
-    return cause.message;
-  }
-  if (typeof cause === 'string' && cause) {
-    return cause;
-  }
-  return fallback;
-}
 
 /**
  * "App updates" card for the system-health grid. Rendered as a full-width
@@ -87,7 +77,7 @@ export function UpdateChecker() {
         setPhase('idle');
       }
     } catch (checkError) {
-      setError(describeError(checkError, t('desktop.updates.checkFailed')));
+      setError(describeUpdateError(checkError, t('desktop.updates.checkFailed')));
       setPhase(update ? 'available' : 'idle');
     }
   };
@@ -113,7 +103,7 @@ export function UpdateChecker() {
         setPhase('idle');
       }
     } catch (installError) {
-      setError(describeError(installError, t('desktop.updates.installFailed')));
+      setError(describeUpdateError(installError, t('desktop.updates.installFailed')));
       setPhase(update ? 'available' : 'idle');
     }
   };

@@ -230,6 +230,7 @@
       "installed": "Kemas kini dipasang. Mulakan semula untuk menggunakan versi {{version}}.",
       "restartNow": "Mulakan semula sekarang",
       "restartLater": "Kemudian",
+      "remindLater": "Kemudian",
       "checkFailed": "Semakan kemas kini gagal",
       "installFailed": "Pemasangan kemas kini gagal"
     }

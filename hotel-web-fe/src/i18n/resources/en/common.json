@@ -234,6 +234,7 @@
       "installed": "Update installed. Restart to apply version {{version}}.",
       "restartNow": "Restart now",
       "restartLater": "Later",
+      "remindLater": "Later",
       "checkFailed": "Update check failed",
       "installFailed": "Update install failed"
     }

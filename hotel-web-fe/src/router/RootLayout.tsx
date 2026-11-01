@@ -10,6 +10,7 @@ import { MobileNavBar } from '../components/layout/MobileNavBar';
 import { MobileQuickActions } from '../components/layout/MobileQuickActions';
 import { UrgentTransferAlert } from '../features/admin/components/UrgentTransferAlert';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
+import { UpdateNotifier } from '../desktop/UpdateNotifier';
 import { BootSplash, LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
@@ -189,6 +190,8 @@ export const RootLayout: React.FC = () => {
 
         <MobileNavBar />
         <MobileQuickActions />
+        {/* Desktop-only background update check; renders nothing on the web. */}
+        <UpdateNotifier />
 
         <Suspense fallback={<MinimalLoadingFallback />}>
           <FirstLoginPasskeyPrompt

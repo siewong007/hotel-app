@@ -230,6 +230,7 @@
       "installed": "更新已安装。重启以应用版本 {{version}}。",
       "restartNow": "立即重启",
       "restartLater": "稍后",
+      "remindLater": "稍后",
       "checkFailed": "更新检查失败",
       "installFailed": "更新安装失败"
     }
