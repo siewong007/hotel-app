@@ -165,7 +165,10 @@
       "groupNumber": "Group booking number",
       "emailNote": "We've emailed a confirmation listing every room.",
       "capacityShort_one": "Your rooms fit {{count}} guest but you searched for {{guests}}. Add another room so everyone has a bed.",
-      "capacityShort_other": "Your rooms fit {{count}} guests but you searched for {{guests}}. Add another room so everyone has a bed."
+      "capacityShort_other": "Your rooms fit {{count}} guests but you searched for {{guests}}. Add another room so everyone has a bed.",
+      "creditNightsTitle": "Choose which nights your credits cover",
+      "creditNightsHint": "We start with the cheapest nights. Tick or untick nights to move a credit to another room of the same type.",
+      "creditNightLabel": "Use a complimentary night for {{room}} on {{date}}"
     }
   },
   "booking": {

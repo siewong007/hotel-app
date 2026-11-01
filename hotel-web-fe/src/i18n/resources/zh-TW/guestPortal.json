@@ -163,7 +163,10 @@
       "groupNumber": "團體預訂編號",
       "emailNote": "我們已寄出列出所有房間的確認信。",
       "capacityShort_one": "您的房間可容納 {{count}} 位客人，但您搜尋的是 {{guests}} 位。請再新增一間房，讓每個人都有床位。",
-      "capacityShort_other": "您的房間可容納 {{count}} 位客人，但您搜尋的是 {{guests}} 位。請再新增一間房，讓每個人都有床位。"
+      "capacityShort_other": "您的房間可容納 {{count}} 位客人，但您搜尋的是 {{guests}} 位。請再新增一間房，讓每個人都有床位。",
+      "creditNightsTitle": "選擇點數折抵的晚數",
+      "creditNightsHint": "預設先折抵最便宜的晚數。勾選或取消勾選，可將點數移到同房型的其他房間。",
+      "creditNightLabel": "為 {{room}} 在 {{date}} 使用免費住宿晚數"
     }
   },
   "booking": {

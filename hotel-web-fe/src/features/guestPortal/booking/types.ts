@@ -176,6 +176,14 @@ export interface GroupQuoteRequest {
   voucher_id?: number;
   /** Signed-in only: spend credits on the cheapest room-nights first. */
   use_credits?: boolean;
+  /** Signed-in only: the guest's own credit placement (overrides the default). */
+  complimentary?: GroupCreditNight[];
+}
+
+/** One complimentary credit placed on one room-night of the cart. */
+export interface GroupCreditNight {
+  room_index: number;
+  date: string;
 }
 
 export interface GroupRoomQuote {
@@ -224,6 +232,7 @@ interface GroupCreateCommon {
 export interface CreateGuestGroupBookingRequest extends GroupCreateCommon {
   voucher_id?: number;
   use_credits?: boolean;
+  complimentary?: GroupCreditNight[];
 }
 
 export interface CreateAnonymousGroupBookingRequest extends GroupCreateCommon {

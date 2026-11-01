@@ -163,7 +163,10 @@
       "groupNumber": "Nombor tempahan kumpulan",
       "emailNote": "Kami telah menghantar e-mel pengesahan yang menyenaraikan setiap bilik.",
       "capacityShort_one": "Bilik anda memuatkan {{count}} tetamu tetapi anda mencari untuk {{guests}}. Tambah bilik lagi supaya semua orang ada katil.",
-      "capacityShort_other": "Bilik anda memuatkan {{count}} tetamu tetapi anda mencari untuk {{guests}}. Tambah bilik lagi supaya semua orang ada katil."
+      "capacityShort_other": "Bilik anda memuatkan {{count}} tetamu tetapi anda mencari untuk {{guests}}. Tambah bilik lagi supaya semua orang ada katil.",
+      "creditNightsTitle": "Pilih malam yang dilindungi kredit anda",
+      "creditNightsHint": "Kami bermula dengan malam paling murah. Tandakan atau nyahtanda malam untuk memindahkan kredit ke bilik lain jenis yang sama.",
+      "creditNightLabel": "Guna malam percuma untuk {{room}} pada {{date}}"
     }
   },
   "booking": {

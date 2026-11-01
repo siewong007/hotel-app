@@ -165,7 +165,10 @@
       "groupNumber": "团体预订编号",
       "emailNote": "我们已发送列出所有房间的确认邮件。",
       "capacityShort_one": "您的房间可容纳 {{count}} 位客人，但您搜索的是 {{guests}} 位。请再添加一间房，让每个人都有床位。",
-      "capacityShort_other": "您的房间可容纳 {{count}} 位客人，但您搜索的是 {{guests}} 位。请再添加一间房，让每个人都有床位。"
+      "capacityShort_other": "您的房间可容纳 {{count}} 位客人，但您搜索的是 {{guests}} 位。请再添加一间房，让每个人都有床位。",
+      "creditNightsTitle": "选择积分抵扣的晚数",
+      "creditNightsHint": "默认先抵扣最便宜的晚数。勾选或取消勾选，可将积分移到同房型的其他房间。",
+      "creditNightLabel": "为 {{room}} 在 {{date}} 使用免费住宿晚数"
     }
   },
   "booking": {
