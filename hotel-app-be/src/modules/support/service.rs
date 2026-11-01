@@ -1100,6 +1100,19 @@ pub struct CancellationRequest<'a> {
     pub reason: Option<String>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
+    /// Set when the guest cancelled a whole multi-room booking: every room
+    /// still gets its own request (the per-room review staff already use), and
+    /// each one names the group and its rooms so staff review them together.
+    pub group: Option<CancellationGroup<'a>>,
+}
+
+/// The multi-room booking a batched cancellation request belongs to.
+pub struct CancellationGroup<'a> {
+    pub group_number: &'a str,
+    pub booking_numbers: &'a [String],
+    /// Ring the desk bell for this request. A batch rings it once (first room)
+    /// instead of once per room.
+    pub notify: bool,
 }
 
 /// Open a cancellation request in the support queue for a paid booking.
@@ -1128,6 +1141,7 @@ pub async fn open_cancellation_request(
         reason,
         ip_address,
         user_agent,
+        group,
     } = request;
     if let Some(existing) =
         SupportRepository::find_open_cancellation_request(pool, booking_id, guest_id).await?
@@ -1144,6 +1158,14 @@ pub async fn open_cancellation_request(
         "Please cancel booking {booking_number} ({check_in_date} to {check_out_date}). \
          The stay is paid — please review against the cancellation policy and advise on the refund."
     );
+    if let Some(group) = group.as_ref() {
+        body.push_str(&format!(
+            "\n\nThis is part of a request to cancel the whole multi-room booking {} (rooms: {}). \
+             Please review the rooms together.",
+            group.group_number,
+            group.booking_numbers.join(", ")
+        ));
+    }
     if let Some(reason) = reason.as_deref() {
         body.push_str(&format!("\n\nGuest's reason: {reason}"));
     }
@@ -1183,6 +1205,7 @@ pub async fn open_cancellation_request(
                 "kind": "cancellation_request",
                 "category": "booking",
                 "booking_id": booking_id,
+                "group_number": group.as_ref().map(|group| group.group_number),
             })),
         },
     )
@@ -1190,16 +1213,26 @@ pub async fn open_cancellation_request(
     // This path does not call create_guest_conversation, so the desk bell is
     // written here. A repeat request returns the open conversation above and
     // does not insert a second row. The opening message is the same request.
-    notify_guest_support_tx(
-        &mut transaction,
-        "guest_support_conversation",
-        &number,
-        "Cancellation request",
-        &format!(
-            "A guest asked to cancel booking {booking_number}. Support conversation {number}."
-        ),
-    )
-    .await?;
+    if group.as_ref().is_none_or(|group| group.notify) {
+        let message = match group.as_ref() {
+            Some(group) => format!(
+                "A guest asked to cancel multi-room booking {} ({} rooms). Support conversation {number}.",
+                group.group_number,
+                group.booking_numbers.len()
+            ),
+            None => format!(
+                "A guest asked to cancel booking {booking_number}. Support conversation {number}."
+            ),
+        };
+        notify_guest_support_tx(
+            &mut transaction,
+            "guest_support_conversation",
+            &number,
+            "Cancellation request",
+            &message,
+        )
+        .await?;
+    }
     transaction.commit().await.map_err(ApiError::from)?;
     hub.publish(SupportEvent::conversation_changed(
         guest_id,
