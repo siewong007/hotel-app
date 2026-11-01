@@ -108,12 +108,13 @@ pub async fn cancel_pending_booking_by_guest(
     let group_id = booking_repo::booking_group_id(pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     // Lock the group first (same order as the group paths) so totals are
-    // recomputed against a stable member set.
+    // recomputed against a stable member set. A guest change never waits on
+    // another change to the same group: it is refused with "try again".
+    // Rooms can't be removed online once any room of the group has arrived.
     if let Some(group_id) = group_id {
-        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
-            &mut tx, group_id,
-        )
-        .await?;
+        use crate::modules::booking_groups::repository::BookingGroupRepository;
+        BookingGroupRepository::lock_tx_nowait(&mut tx, group_id).await?;
+        BookingGroupRepository::ensure_no_room_arrived_tx(&mut tx, group_id).await?;
     }
     void_booking_by_guest_tx(&mut tx, &booking, user_id, reason.as_deref()).await?;
     if let Some(group_id) = group_id {
@@ -139,6 +140,13 @@ async fn void_booking_by_guest_tx(
     user_id: i64,
     reason: Option<&str>,
 ) -> Result<(), ApiError> {
+    // Before the room's payments change: the frozen check reads them.
+    crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
+        tx,
+        booking.id,
+        Some(user_id),
+    )
+    .await?;
     booking_repo::void_booking_tx(tx, booking.id, Some(user_id)).await?;
     booking_repo::release_room_tx(tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(tx, booking.id).await?;
@@ -324,6 +332,18 @@ async fn perform_release(
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    // Group lock first (same order as payment and cancel), then hand any
+    // unpaid voucher share on to the rooms that stay.
+    if let Some(group_id) = booking_repo::booking_group_id(pool, booking_id).await? {
+        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
+    crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
+        &mut tx, booking_id, actor,
+    )
+    .await?;
     booking_repo::void_booking_tx(&mut tx, booking_id, actor).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
@@ -586,6 +606,14 @@ pub async fn void_booking(
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    // A group member: lock the group before any booking row, as the payment
+    // and cancel paths do, so the voucher re-split and totals are serialised.
+    if let Some(group_id) = booking_repo::booking_group_id(pool, booking_id).await? {
+        crate::modules::booking_groups::repository::BookingGroupRepository::lock_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
     let (nights_credited, ledger_entries_voided, ledger_entries_with_payments) =
         void_booking_in_tx(&mut tx, user_id, &booking, reason.as_deref()).await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -627,6 +655,13 @@ pub(crate) async fn void_booking_in_tx(
     reason: Option<&str>,
 ) -> Result<(i32, u64, u64), ApiError> {
     let booking_id = booking.id;
+    // Before `void_booking_payments_tx`: the frozen check reads the payments.
+    crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
+        tx,
+        booking_id,
+        Some(user_id),
+    )
+    .await?;
     booking_repo::void_booking_tx(tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(tx, booking.room_id).await?;
     booking_repo::void_booking_payments_tx(tx, booking_id).await?;

@@ -770,6 +770,21 @@ pub async fn cancel_my_booking(
                 .unwrap_or_else(|| "This booking cannot be cancelled.".to_string()),
         ));
     }
+    // Rooms can't be removed from a multi-room booking online once any of its
+    // rooms has arrived (paid or not): the guest is told to contact the hotel.
+    if let Some(group_id) = booking.booking_group_id {
+        let arrived: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM bookings WHERE booking_group_id = $1 AND status = ANY($2))",
+        )
+        .bind(group_id)
+        .bind(crate::modules::booking_groups::voucher_resplit::ARRIVED_STATUSES)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        if arrived {
+            return Err(ApiError::GroupRoomCheckedIn);
+        }
+    }
     // A paid booking is never voided by a guest click: money has moved, so the
     // booking stays intact and the request goes to the staff queue, where the
     // first-night-charge decision the terms leave to the hotel is made.

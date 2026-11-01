@@ -87,6 +87,7 @@ required_payload=(
   database/patches/0024_runtime_capabilities.sql
   database/patches/0025_booking_groups.sql
   database/patches/0026_booking_group_totals_backfill.sql
+  database/patches/0027_booking_group_voucher_share.sql
   database/db-least-privilege.sql
 )
 for payload in "${required_payload[@]}"; do
@@ -345,6 +346,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0024_runtime_capabilities.sql" "$APP_DIR/database/patches/0024_runtime_capabilities.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0025_booking_groups.sql" "$APP_DIR/database/patches/0025_booking_groups.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0026_booking_group_totals_backfill.sql" "$APP_DIR/database/patches/0026_booking_group_totals_backfill.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0027_booking_group_voucher_share.sql" "$APP_DIR/database/patches/0027_booking_group_voucher_share.sql"
   install -m 0644 "$RELEASE_DIR/database/db-least-privilege.sql" "$APP_DIR/database/db-least-privilege.sql"
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.

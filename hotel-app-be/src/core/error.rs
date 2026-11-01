@@ -116,6 +116,13 @@ pub enum ApiError {
     /// (or the pre-rename `idx_guests_full_name_unique`). Stable `code` so the
     /// public form can highlight the nickname without matching English text.
     GuestNameTaken,
+    /// A room of a multi-room booking is already checked in, so rooms can no
+    /// longer be added to or removed from it online. Stable `code` so the
+    /// portal shows a translated "contact the hotel" message.
+    GroupRoomCheckedIn,
+    /// Another change to the same multi-room booking is in progress (its
+    /// group lock is held). Nothing was written; the client may retry.
+    GroupBusy,
     /// Guest self check-in was refused by the eligibility gates. The body
     /// carries `block_code` — the same stable code
     /// `GuestEkycStatusSummary.auto_checkin_block_code` reports — so the guest
@@ -150,6 +157,8 @@ impl std::fmt::Display for ApiError {
                 write!(f, "Profile incomplete: missing {}", fields.join(", "))
             }
             ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
+            ApiError::GroupRoomCheckedIn => write!(f, "Conflict: group room checked in"),
+            ApiError::GroupBusy => write!(f, "Conflict: group busy"),
             ApiError::TwoFactorRequired { .. } => write!(f, "Unauthorized: 2FA required"),
             ApiError::TwoFactorInvalid { attempts_remaining } => write!(
                 f,
@@ -173,6 +182,13 @@ impl std::error::Error for ApiError {}
 /// trimmed, free of leaked internal prefixes, sentence-cased, and ending with
 /// terminal punctuation. Call sites supply the wording; this guarantees the
 /// mechanical polish so every pop-out reads the same way.
+/// English text of [`ApiError::GroupRoomCheckedIn`]; the portal translates the
+/// stable code instead (`errors:api.group_room_checked_in`).
+pub const GROUP_ROOM_CHECKED_IN_MESSAGE: &str = "A room in this booking is already checked in, so rooms can't be added or removed online. Please contact the hotel.";
+/// English text of [`ApiError::GroupBusy`] (`errors:api.group_busy`).
+pub const GROUP_BUSY_MESSAGE: &str =
+    "This booking is being updated right now. Please try again in a moment.";
+
 fn polish_message(raw: &str, fallback: &str) -> String {
     let mut msg = raw.trim();
 
@@ -312,6 +328,16 @@ impl IntoResponse for ApiError {
                     "This nickname is already used. Please choose another.",
                 ),
                 "guest_name_taken",
+            ),
+            ApiError::GroupRoomCheckedIn => (
+                StatusCode::CONFLICT,
+                GROUP_ROOM_CHECKED_IN_MESSAGE.to_string(),
+                "group_room_checked_in",
+            ),
+            ApiError::GroupBusy => (
+                StatusCode::CONFLICT,
+                GROUP_BUSY_MESSAGE.to_string(),
+                "group_busy",
             ),
             ApiError::AutoCheckinBlocked { message, .. } => (
                 StatusCode::BAD_REQUEST,
@@ -496,6 +522,12 @@ mod tests {
                 StatusCode::CONFLICT,
                 "guest_name_taken",
             ),
+            (
+                ApiError::GroupRoomCheckedIn,
+                StatusCode::CONFLICT,
+                "group_room_checked_in",
+            ),
+            (ApiError::GroupBusy, StatusCode::CONFLICT, "group_busy"),
             (
                 ApiError::AutoCheckinBlocked {
                     block_code: "ekyc_pending".into(),

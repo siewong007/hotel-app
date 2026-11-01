@@ -8,12 +8,14 @@
 //!
 //! Money split across rooms (fixed vouchers pro-rata, complimentary credits
 //! per room-night) is decided once at creation by [`allocation`] and persisted
-//! on each member booking, so a later single-room cancel/refund never has to
-//! recompute the group.
+//! on each member booking. When a room later leaves, only a fixed voucher's
+//! unpaid share moves (see [`voucher_resplit`]); paid rooms are never
+//! re-priced.
 
 pub mod allocation;
 pub mod models;
 pub mod repository;
+pub mod voucher_resplit;
 
 /// Most rooms a guest may put in one portal booking.
 pub const MAX_ROOMS_PER_GUEST_BOOKING: usize = 5;

@@ -88,6 +88,16 @@ pub fn to_status(err: ApiError) -> Status {
             "Guest name is already taken",
             info("GUEST_NAME_TAKEN"),
         ),
+        ApiError::GroupRoomCheckedIn => Status::with_error_details(
+            Code::FailedPrecondition,
+            crate::core::error::GROUP_ROOM_CHECKED_IN_MESSAGE,
+            info("GROUP_ROOM_CHECKED_IN"),
+        ),
+        ApiError::GroupBusy => Status::with_error_details(
+            Code::Aborted,
+            crate::core::error::GROUP_BUSY_MESSAGE,
+            info("GROUP_BUSY"),
+        ),
         ApiError::AutoCheckinBlocked {
             block_code,
             message,

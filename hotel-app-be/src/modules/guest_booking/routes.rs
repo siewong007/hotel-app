@@ -45,6 +45,10 @@ pub fn routes() -> Router<DbPool> {
             get(handlers::get_group_booking_handler),
         )
         .route(
+            "/guest-portal/me/booking-groups/{id}/rooms",
+            post(handlers::add_group_room_handler),
+        )
+        .route(
             "/guest-portal/me/booking-options",
             get(handlers::search_handler),
         )

@@ -151,6 +151,20 @@ pub struct GuestGroupBookingRequest {
     pub discounts: GroupDiscountRequest,
 }
 
+/// `POST /guest-portal/me/booking-groups/{id}/rooms` — add one room to a
+/// group the guest already holds. The room is priced at list price and takes
+/// no share of the group voucher.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AddGroupRoomRequest {
+    pub client_request_id: String,
+    pub room: GroupRoomRequest,
+    pub expected_total: Decimal,
+    #[serde(default)]
+    pub smoking_preference: Option<String>,
+    #[serde(default)]
+    pub consents: Vec<ConsentAcceptance>,
+}
+
 // --------------------------------------------------------------- responses
 
 #[derive(Debug, Clone, Serialize)]
@@ -844,133 +858,25 @@ async fn create_group_inner(
     )
     .await?;
 
+    let member = MemberContext {
+        guest_id,
+        actor_user_id,
+        request_id: &input.request_id,
+        booking_channel_id,
+        special_requests: special_requests.clone(),
+        cleaning_preference: input.cleaning_preference,
+        smoking_preference,
+        group_id: group.id,
+        group_number: &group.group_number,
+        anonymous: matches!(booker, Booker::Anonymous(_)),
+        consents: input.consents,
+        ip_address: input.ip_address.clone(),
+        user_agent: input.user_agent.clone(),
+        history_reason: "Booking created in guest portal as part of a multi-room booking (pending payment)",
+    };
     let mut booking_ids = Vec::new();
-    for (room, (commission_amount, net_revenue, snapshot)) in
-        group_quote.rooms.iter().zip(economics)
-    {
-        let quote = &room.quote;
-        Repository::ensure_online_room_available_tx(
-            &mut tx,
-            quote.room_type_id,
-            quote.check_in_date,
-            quote.check_out_date,
-        )
-        .await
-        .map_err(|_| conflict_for_taken_room(room.index, &quote.room_type_name))?;
-        let allocated = Repository::allocate_room_tx(
-            &mut tx,
-            quote.room_type_id,
-            quote.check_in_date,
-            quote.check_out_date,
-            smoking_preference,
-        )
-        .await
-        .map_err(|_| conflict_for_taken_room(room.index, &quote.room_type_name))?;
-        let first_rate = quote
-            .nightly_rates
-            .first()
-            .map(|rate| rate.amount)
-            .ok_or_else(|| {
-                ApiError::BadRequest("A booking requires at least one night".to_string())
-            })?;
-        let daily_rates = json!(
-            quote
-                .nightly_rates
-                .iter()
-                .map(|rate| (rate.date.to_string(), rate.amount))
-                .collect::<BTreeMap<_, _>>()
-        );
-        let preference_note =
-            super::validation::smoking_preference_note(smoking_preference, allocated.is_smoking);
-        let booking_number = crate::modules::bookings::helpers::generate_booking_number_for_date(
-            quote.check_in_date,
-        );
-        let insert = BookingInsert {
-            portal_request_id: member_request_id(&input.request_id, room.index),
-            guest_id,
-            actor_user_id,
-            room_id: allocated.room_id,
-            booking_number: booking_number.clone(),
-            check_in_date: quote.check_in_date,
-            check_out_date: quote.check_out_date,
-            adults: quote.adults,
-            children: quote.children,
-            room_rate: first_rate,
-            subtotal: quote.subtotal,
-            discount_amount: quote.discount_amount,
-            total_amount: quote.total_amount - quote.tax_amount,
-            currency: quote.currency.clone(),
-            special_requests: special_requests.clone(),
-            cleaning_preference: input.cleaning_preference,
-            smoking_preference,
-            internal_notes: preference_note.clone(),
-            booking_channel_id,
-            nightly_rates: daily_rates,
-            complimentary_reason: complimentary_reason(quote),
-            complimentary_nights: quote.complimentary_nights,
-            settled_by_credits: room_settled_by_credits(room),
-            is_tourist: quote.tax_amount > Decimal::ZERO,
-            tourism_tax_amount: quote.tax_amount,
-            commission_amount,
-            net_revenue,
-            channel_pricing_snapshot: snapshot,
-        };
-        let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
-        if room.extra_bed_count > 0 {
-            sqlx::query(
-                "UPDATE bookings SET extra_bed_count = $1, extra_bed_charge = $2 WHERE id = $3",
-            )
-            .bind(room.extra_bed_count)
-            .bind(room.extra_bed_charge)
-            .bind(booking_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
-        }
-        Repository::mark_room_reserved_tx(&mut tx, allocated.room_id).await?;
-        crate::modules::bookings::record_booking_history_tx(
-            &mut tx,
-            booking_id,
-            None,
-            if room_settled_by_credits(room) {
-                "confirmed"
-            } else {
-                "pending_payment"
-            },
-            actor_user_id,
-            Some(
-                "Booking created in guest portal as part of a multi-room booking (pending payment)",
-            ),
-            json!({
-                "source": PORTAL_SOURCE,
-                "guest_id": guest_id,
-                "room_type_id": quote.room_type_id,
-                "portal_request_id": input.request_id,
-                "booking_group_id": group.id,
-                "group_number": group.group_number,
-                "room_index": room.index + 1,
-                "smoking_preference": smoking_preference.map(|preference| preference.as_str()),
-                "smoking_preference_met": preference_note.is_none(),
-                "anonymous": matches!(booker, Booker::Anonymous(_)),
-            }),
-        )
-        .await?;
-        let subject = match &booker {
-            Booker::Guest { .. } => ConsentSubject::guest(guest_id).with_booking(booking_id),
-            Booker::Anonymous(_) => ConsentSubject::anonymous_booking(guest_id, booking_id),
-        };
-        consent_service::record_tx(
-            &mut tx,
-            subject,
-            input.consents,
-            ConsentSource::OnlineBooking,
-            &ConsentContext {
-                ip_address: input.ip_address.clone(),
-                user_agent: input.user_agent.clone(),
-            },
-        )
-        .await?;
-        booking_ids.push(booking_id);
+    for (room, economics) in group_quote.rooms.iter().zip(economics) {
+        booking_ids.push(insert_member_tx(&mut tx, &member, room, room.index, economics).await?);
     }
     BookingGroupRepository::attach_tx(&mut tx, group.id, &booking_ids).await?;
     redeem_group_discounts_tx(&mut tx, guest_id, actor_user_id, &group_quote, &booking_ids).await?;
@@ -1074,6 +980,159 @@ async fn create_group_inner(
     Ok(confirmation)
 }
 
+/// Everything a member room insert needs besides its own quote.
+struct MemberContext<'a> {
+    guest_id: i64,
+    actor_user_id: Option<i64>,
+    request_id: &'a str,
+    booking_channel_id: Option<i64>,
+    special_requests: Option<String>,
+    cleaning_preference: Option<bool>,
+    smoking_preference: Option<super::models::SmokingPreference>,
+    group_id: i64,
+    group_number: &'a str,
+    anonymous: bool,
+    consents: &'a [ConsentAcceptance],
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+    history_reason: &'a str,
+}
+
+type Economics = (Option<Decimal>, Option<Decimal>, Option<serde_json::Value>);
+
+/// Allocate, insert and reserve one member room (shared by checkout and
+/// "add a room"). `slot` is the room's position for its request id.
+async fn insert_member_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    member: &MemberContext<'_>,
+    room: &GroupRoomQuote,
+    slot: usize,
+    (commission_amount, net_revenue, snapshot): Economics,
+) -> Result<i64, ApiError> {
+    let quote = &room.quote;
+    let guest_id = member.guest_id;
+    let actor_user_id = member.actor_user_id;
+    let smoking_preference = member.smoking_preference;
+    Repository::ensure_online_room_available_tx(
+        tx,
+        quote.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+    )
+    .await
+    .map_err(|_| conflict_for_taken_room(room.index, &quote.room_type_name))?;
+    let allocated = Repository::allocate_room_tx(
+        tx,
+        quote.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+        smoking_preference,
+    )
+    .await
+    .map_err(|_| conflict_for_taken_room(room.index, &quote.room_type_name))?;
+    let first_rate = quote
+        .nightly_rates
+        .first()
+        .map(|rate| rate.amount)
+        .ok_or_else(|| ApiError::BadRequest("A booking requires at least one night".to_string()))?;
+    let daily_rates = json!(
+        quote
+            .nightly_rates
+            .iter()
+            .map(|rate| (rate.date.to_string(), rate.amount))
+            .collect::<BTreeMap<_, _>>()
+    );
+    let preference_note =
+        super::validation::smoking_preference_note(smoking_preference, allocated.is_smoking);
+    let booking_number =
+        crate::modules::bookings::helpers::generate_booking_number_for_date(quote.check_in_date);
+    let insert = BookingInsert {
+        portal_request_id: member_request_id(member.request_id, slot),
+        guest_id,
+        actor_user_id,
+        room_id: allocated.room_id,
+        booking_number: booking_number.clone(),
+        check_in_date: quote.check_in_date,
+        check_out_date: quote.check_out_date,
+        adults: quote.adults,
+        children: quote.children,
+        room_rate: first_rate,
+        subtotal: quote.subtotal,
+        discount_amount: quote.discount_amount,
+        total_amount: quote.total_amount - quote.tax_amount,
+        currency: quote.currency.clone(),
+        special_requests: member.special_requests.clone(),
+        cleaning_preference: member.cleaning_preference,
+        smoking_preference,
+        internal_notes: preference_note.clone(),
+        booking_channel_id: member.booking_channel_id,
+        nightly_rates: daily_rates,
+        complimentary_reason: complimentary_reason(quote),
+        complimentary_nights: quote.complimentary_nights,
+        settled_by_credits: room_settled_by_credits(room),
+        is_tourist: quote.tax_amount > Decimal::ZERO,
+        tourism_tax_amount: quote.tax_amount,
+        commission_amount,
+        net_revenue,
+        channel_pricing_snapshot: snapshot,
+    };
+    let booking_id = Repository::insert_booking_tx(tx, &insert).await?;
+    if room.extra_bed_count > 0 {
+        sqlx::query(
+            "UPDATE bookings SET extra_bed_count = $1, extra_bed_charge = $2 WHERE id = $3",
+        )
+        .bind(room.extra_bed_count)
+        .bind(room.extra_bed_charge)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+    }
+    Repository::mark_room_reserved_tx(tx, allocated.room_id).await?;
+    crate::modules::bookings::record_booking_history_tx(
+        tx,
+        booking_id,
+        None,
+        if room_settled_by_credits(room) {
+            "confirmed"
+        } else {
+            "pending_payment"
+        },
+        actor_user_id,
+        Some(member.history_reason),
+        json!({
+            "source": PORTAL_SOURCE,
+            "guest_id": guest_id,
+            "room_type_id": quote.room_type_id,
+            "portal_request_id": member.request_id,
+            "booking_group_id": member.group_id,
+            "group_number": member.group_number,
+            "room_index": slot + 1,
+            "smoking_preference": smoking_preference.map(|preference| preference.as_str()),
+            "smoking_preference_met": preference_note.is_none(),
+            "anonymous": member.anonymous,
+        }),
+    )
+    .await?;
+    let subject = if member.anonymous {
+        ConsentSubject::anonymous_booking(guest_id, booking_id)
+    } else {
+        ConsentSubject::guest(guest_id).with_booking(booking_id)
+    };
+    consent_service::record_tx(
+        tx,
+        subject,
+        member.consents,
+        ConsentSource::OnlineBooking,
+        &ConsentContext {
+            ip_address: member.ip_address.clone(),
+            user_agent: member.user_agent.clone(),
+        },
+    )
+    .await?;
+    Ok(booking_id)
+}
+
 fn complimentary_reason(quote: &GuestBookingQuote) -> Option<String> {
     (quote.complimentary_nights > 0).then(|| {
         let dates = quote
@@ -1151,6 +1210,23 @@ async fn redeem_group_discounts_tx(
         return Err(ApiError::Conflict(
             "This voucher was already used".to_string(),
         ));
+    }
+    // Each room's voucher share, kept on the room so a later room change can
+    // re-split a fixed voucher (`booking_groups::voucher_resplit`).
+    for (room, booking_id) in quote.rooms.iter().zip(booking_ids) {
+        let share = room
+            .quote
+            .voucher_pricing
+            .as_ref()
+            .map_or(Decimal::ZERO, |pricing| pricing.discount);
+        if share > Decimal::ZERO {
+            sqlx::query("UPDATE bookings SET group_voucher_share = $2 WHERE id = $1")
+                .bind(booking_id)
+                .bind(share)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
     }
     let mut allocations: Vec<(i64, VoucherRedemptionAllocation)> = Vec::new();
     for (room, booking_id) in quote.rooms.iter().zip(booking_ids) {
@@ -1447,6 +1523,161 @@ async fn group_guest_id(pool: &DbPool, group_id: i64) -> Result<Option<i64>, Api
         .fetch_optional(pool)
         .await
         .map_err(ApiError::from)
+}
+
+/// Add one unpaid room to the guest's own active group.
+///
+/// The new room is quoted alone at list price (no voucher share, no
+/// credits), so rooms already paid are never re-priced and the guest pays
+/// only for the new room (group payments cover unpaid rooms only).
+/// Serialised on the group row (`NOWAIT`: a concurrent change answers
+/// [`ApiError::GroupBusy`]); refused once any room has arrived.
+pub async fn add_room_for_guest(
+    pool: &DbPool,
+    hub: &AvailabilityHub,
+    guest_id: i64,
+    group_id: i64,
+    request: AddGroupRoomRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<GroupBookingConfirmation, ApiError> {
+    let request_id = validate_client_request_id(&request.client_request_id)?;
+    validate_cart_shape(std::slice::from_ref(&request.room))?;
+    consent_validation::validate_locales(&request.consents)?;
+    consent_validation::require_consents(&request.consents, consent_validation::BOOKING_REQUIRED)?;
+    let group = BookingGroupRepository::find_for_guest(pool, group_id, guest_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM bookings WHERE guest_id = $1 AND portal_request_id = $2 \
+         AND booking_group_id = $3",
+    )
+    .bind(guest_id)
+    .bind(member_request_id(&request_id, 0))
+    .bind(group.id)
+    .fetch_optional(pool)
+    .await
+    .map_err(ApiError::from)?;
+    if existing.is_some() {
+        return replay(pool, group.id).await;
+    }
+    if group.status != "active" {
+        return Err(ApiError::Conflict(
+            "This booking can no longer be changed.".to_string(),
+        ));
+    }
+    let completion = completion_for_guest(pool, guest_id).await?;
+    if !completion.complete {
+        return Err(profile_incomplete_error(completion));
+    }
+    let smoking_preference = validate_smoking_preference(request.smoking_preference.as_deref())?;
+    let room_quote = quote_group(
+        pool,
+        Some(guest_id),
+        &GroupQuoteRequest {
+            check_in_date: group.check_in_date.to_string(),
+            check_out_date: group.check_out_date.to_string(),
+            rooms: vec![request.room.clone()],
+            tourism_type: None,
+            discounts: GroupDiscountRequest::default(),
+        },
+    )
+    .await?;
+    if room_quote.total_amount != request.expected_total.round_dp(2) {
+        return Err(ApiError::Conflict(
+            "The booking price changed. Please review the refreshed total.".to_string(),
+        ));
+    }
+    let room = room_quote
+        .rooms
+        .first()
+        .ok_or_else(|| ApiError::BadRequest("Choose a room to add".to_string()))?;
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
+    let economics = channel_economics(pool, booking_channel_id, &room.quote).await?;
+    let actor_user_id = Repository::guest_contact(pool, guest_id)
+        .await?
+        .actor_user_id;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    // Group row first (same order as payment and cancel paths), then the
+    // room-type lock, then booking rows.
+    let locked = BookingGroupRepository::lock_tx_nowait(&mut tx, group.id).await?;
+    if locked.status != "active" {
+        return Err(ApiError::Conflict(
+            "This booking can no longer be changed.".to_string(),
+        ));
+    }
+    BookingGroupRepository::ensure_no_room_arrived_tx(&mut tx, group.id).await?;
+    let live_rooms: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 AND status <> 'voided'",
+    )
+    .bind(group.id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(ApiError::from)?;
+    if live_rooms >= MAX_ROOMS_PER_GUEST_BOOKING as i64 {
+        return Err(ApiError::BadRequest(format!(
+            "A booking can hold at most {MAX_ROOMS_PER_GUEST_BOOKING} rooms."
+        )));
+    }
+    BookingGroupRepository::lock_room_types_tx(&mut tx, &[request.room.room_type_id]).await?;
+    let member = MemberContext {
+        guest_id,
+        actor_user_id,
+        request_id: &request_id,
+        booking_channel_id,
+        special_requests: None,
+        cleaning_preference: None,
+        smoking_preference,
+        group_id: group.id,
+        group_number: &group.group_number,
+        anonymous: false,
+        consents: &request.consents,
+        ip_address: ip_address.clone(),
+        user_agent: user_agent.clone(),
+        history_reason: "Room added in guest portal to a multi-room booking (pending payment)",
+    };
+    let booking_id = insert_member_tx(&mut tx, &member, room, 0, economics).await?;
+    BookingGroupRepository::attach_tx(&mut tx, group.id, &[booking_id]).await?;
+    BookingGroupRepository::refresh_totals_tx(&mut tx, group.id).await?;
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: actor_user_id,
+            action: "guest_portal.group_room_added",
+            resource_type: "booking_group",
+            resource_id: Some(group.id),
+            details: Some(json!({
+                "group_number": group.group_number,
+                "booking_id": booking_id,
+                "room_type_id": request.room.room_type_id,
+                "total_amount": room_quote.total_amount.to_string(),
+                "currency": group.currency,
+            })),
+            ip_address,
+            user_agent,
+        },
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let remaining = Repository::available_count(
+        pool,
+        request.room.room_type_id,
+        group.check_in_date,
+        group.check_out_date,
+    )
+    .await?;
+    hub.publish(AvailabilityEvent {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "availability_changed",
+        reason: "booking_created",
+        room_type_id: Some(request.room.room_type_id),
+        check_in_date: Some(group.check_in_date),
+        check_out_date: Some(group.check_out_date),
+        remaining_rooms: Some(remaining),
+    });
+    replay(pool, group.id).await
 }
 
 /// A signed-in guest's own group (IDOR-safe: scoped to the session guest).

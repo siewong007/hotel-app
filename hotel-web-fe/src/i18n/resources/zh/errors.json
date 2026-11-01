@@ -17,7 +17,9 @@
     "rate_limited": "请求过于频繁，请稍后重试。",
     "profile_incomplete": "请完善您的个人资料后继续。",
     "two_factor_enrollment_required": "您的角色要求启用双重身份验证，请完成设置后继续。",
-    "guest_name_taken": "该昵称已被使用，请更换。"
+    "guest_name_taken": "该昵称已被使用，请更换。",
+    "group_room_checked_in": "此预订中已有房间办理入住，因此无法在线添加或移除房间。请联系酒店。",
+    "group_busy": "此预订正在更新中，请稍后再试。"
   },
   "status": {
     "serverError": "服务器出现问题，请稍后重试。",
