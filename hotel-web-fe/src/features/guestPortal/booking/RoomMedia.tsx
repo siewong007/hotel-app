@@ -6,7 +6,7 @@ import HotelIcon from '@mui/icons-material/Hotel';
 import { Box, CircularProgress, IconButton, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useTranslation } from '../../../i18n';
 import type { GuestBookingOffer } from './types';
-import { modelCodeFor, offerPhotos } from './roomMedia';
+import { modelCodeFor, offerPhotos } from './roomMediaSources';
 
 // three.js + the landing room only download when a guest taps 3D.
 const RoomModel3D = lazy(() => import('./RoomModel3D'));
