@@ -353,4 +353,67 @@ async fn group_paypal_order_capture_and_webhook() {
     );
     assert!(rows(&pool, &f).await.iter().all(|r| r.0 == "pending"));
     cleanup(&pool, &f).await;
+
+    // 5) Tourism tax and extra beds are charged with each room: the order is
+    // for the full billable total, and every room ends `paid`, not `partial`.
+    let f = fixture(&pool, 5).await;
+    // Foreign guest: the bookings trigger derives tourism tax from it.
+    sqlx::query("UPDATE guests SET tourism_type = 'foreign' WHERE id = $1")
+        .bind(f.guest_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (id, extra_bed) in [(f.bookings[0], "60.00"), (f.bookings[1], "0")] {
+        sqlx::query(
+            "UPDATE bookings SET is_tourist = true, tourism_tax_amount = 20.00, \
+             extra_bed_charge = $2::numeric WHERE id = $1",
+        )
+        .bind(id)
+        .bind(extra_bed)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let order = payments::create_group_paypal_order(&pool, f.guest_id, f.group_id).await;
+    let ordered = order
+        .as_ref()
+        .ok()
+        .map(|order| ORDERS.lock().unwrap()[&order.order_id].1.clone());
+    let charged: Vec<Decimal> = rows(&pool, &f).await.iter().map(|r| r.1).collect();
+    let captured = match &order {
+        Ok(order) => Some(
+            payments::capture_group_paypal_payment(
+                &pool,
+                f.guest_id,
+                f.group_id,
+                &order.order_id,
+                order.payment_id,
+            )
+            .await
+            .map(|response| response.status),
+        ),
+        Err(_) => None,
+    };
+    let room_payment: Vec<String> =
+        sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = ANY($1) ORDER BY id")
+            .bind(&f.bookings)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    let group_payment: String =
+        sqlx::query_scalar("SELECT payment_status FROM booking_groups WHERE id = $1")
+            .bind(f.group_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    cleanup(&pool, &f).await;
+    assert!(order.is_ok(), "create order: {:?}", order.err());
+    assert_eq!(ordered.as_deref(), Some("500.50"), "230.00 + 270.50");
+    assert_eq!(charged, vec![dec("230.00"), dec("270.50")]);
+    assert!(
+        matches!(captured.as_ref(), Some(Ok(status)) if status == "completed"),
+        "capture: {captured:?}"
+    );
+    assert_eq!(room_payment, ["paid", "paid"]);
+    assert_eq!(group_payment, "paid");
 }

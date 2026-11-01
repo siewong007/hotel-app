@@ -152,8 +152,9 @@ pub struct GuestGroupBookingRequest {
 }
 
 /// `POST /guest-portal/me/booking-groups/{id}/rooms` — add one room to a
-/// group the guest already holds. The room is priced at list price and takes
-/// no share of the group voucher.
+/// group the guest already holds, while nothing has been paid on it (once
+/// paid, a group's rooms are locked in). The room is priced at list price and
+/// takes no share of the group voucher.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AddGroupRoomRequest {
     pub client_request_id: String,
@@ -1608,6 +1609,7 @@ pub async fn add_room_for_guest(
         ));
     }
     BookingGroupRepository::ensure_no_room_arrived_tx(&mut tx, group.id).await?;
+    BookingGroupRepository::ensure_unpaid_tx(&mut tx, group.id).await?;
     let live_rooms: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1 AND status <> 'voided'",
     )

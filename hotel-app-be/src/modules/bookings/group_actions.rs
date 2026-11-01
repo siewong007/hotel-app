@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 
 use super::helpers as booking_service;
 use super::models::BookingUpdateInput;
-use super::service::{CheckinSourceContext, checkin_booking_in_tx, void_booking_in_tx};
+use super::service::{
+    CheckinSourceContext, CompletedPaymentDisposition, checkin_booking_in_tx, void_booking_in_tx,
+};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::modules::booking_groups::repository::BookingGroupRepository;
@@ -163,6 +165,15 @@ async fn run_in_one_tx(
     .map_err(ApiError::from)?;
     let (targets, skipped) = plan_group_action(action, &rooms)?;
 
+    // Unpaid group: give the voucher back before any room's share is moved.
+    // A paid group keeps the voucher; its room charges are refunded below.
+    if action == GroupAction::Cancel {
+        crate::modules::booking_groups::voucher_resplit::return_unpaid_group_voucher_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
+
     for id in &targets {
         // Read inside the tx so each room sees the earlier rooms' writes.
         let booking = super::repository::BookingRepository::find_mapped_by_id(&mut *tx, *id)
@@ -171,7 +182,14 @@ async fn run_in_one_tx(
         match action {
             GroupAction::Cancel => {
                 let reason = reason.as_deref().or(Some("Group cancelled"));
-                void_booking_in_tx(&mut tx, user_id, &booking, reason).await?;
+                void_booking_in_tx(
+                    &mut tx,
+                    user_id,
+                    &booking,
+                    reason,
+                    CompletedPaymentDisposition::Refund,
+                )
+                .await?;
             }
             GroupAction::CheckIn => {
                 checkin_booking_in_tx(
@@ -306,6 +324,95 @@ async fn run_checkout(
         action: GroupAction::CheckOut.name(),
         processed: done,
         skipped,
+    })
+}
+
+/// Bring every room of a fully cancelled group back. One room of a group
+/// cannot be reactivated on its own. If any room's dates are already taken,
+/// nothing is reactivated.
+pub async fn reactivate_group(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+) -> Result<GroupActionResult, ApiError> {
+    let group_id = group_id_for(pool, booking_id).await?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    BookingGroupRepository::lock_tx(&mut tx, group_id).await?;
+    let rooms: Vec<(i64, String, i64, chrono::NaiveDate, chrono::NaiveDate)> = sqlx::query_as(
+        "SELECT id, COALESCE(status, 'pending'), room_id, check_in_date, check_out_date \
+         FROM bookings WHERE booking_group_id = $1 ORDER BY id FOR UPDATE",
+    )
+    .bind(group_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(ApiError::from)?;
+    if rooms.is_empty() || rooms.iter().any(|(_, status, ..)| status != "voided") {
+        return Err(ApiError::BadRequest(
+            "Only a fully cancelled group can be reactivated.".to_string(),
+        ));
+    }
+    for (id, _, room_id, check_in, check_out) in &rooms {
+        let conflict: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = $1
+                  AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
+                  AND id <> $4
+                  AND check_in_date < $3 AND check_out_date > $2
+            )
+            "#,
+        )
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        if conflict {
+            return Err(ApiError::BadRequest(format!(
+                "Booking {id} cannot be reactivated because the room is already booked for these dates. No room was reactivated."
+            )));
+        }
+    }
+    let ids: Vec<i64> = rooms.iter().map(|(id, ..)| *id).collect();
+    for (id, _, room_id, _, _) in &rooms {
+        let updated = sqlx::query(
+            "UPDATE bookings SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP, \
+             remarks = COALESCE(remarks, '') || ' | Group reactivated from voided status' \
+             WHERE id = $1 AND status = 'voided'",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?
+        .rows_affected();
+        if updated != 1 {
+            return Err(ApiError::BadRequest(
+                "A room is no longer voided. No room was reactivated.".to_string(),
+            ));
+        }
+        crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(*room_id)).await?;
+        crate::modules::payments::service::recompute_payment_status_tx(&mut tx, *id).await?;
+        super::record_booking_history_tx(
+            &mut tx,
+            *id,
+            Some("voided"),
+            "confirmed",
+            Some(user_id),
+            Some("Group reactivated"),
+            serde_json::json!({ "booking_group_id": group_id }),
+        )
+        .await?;
+    }
+    BookingGroupRepository::refresh_totals_tx(&mut tx, group_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(GroupActionResult {
+        booking_group_id: group_id,
+        action: "reactivate",
+        processed: ids,
+        skipped: Vec::new(),
     })
 }
 

@@ -19,7 +19,8 @@
     "two_factor_enrollment_required": "您的角色需要兩步驟驗證，請先完成設定再繼續。",
     "guest_name_taken": "此暱稱已被使用，請選擇其他暱稱。",
     "group_room_checked_in": "此預訂中已有房間辦理入住，因此無法線上新增或移除房間。請聯絡飯店。",
-    "group_busy": "此預訂正在更新中，請稍後再試。"
+    "group_busy": "此預訂正在更新中，請稍後再試。",
+    "group_paid": "此預訂已付款，因此無法線上新增房間。請聯絡飯店。"
   },
   "status": {
     "serverError": "發生伺服器錯誤，請稍後重試。",

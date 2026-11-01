@@ -476,6 +476,7 @@
       "cancelDialog": {
         "cancelTitle": "Batal tempahan untuk {{number}}?",
         "charactersRemaining_other": "{{count}} aksara berbaki",
+        "claimNotice": "Pindahan bank untuk tempahan ini masih disemak, jadi ia tidak boleh dibatalkan serta-merta. Hantar permintaan pembatalan dan pasukan kami akan menyemaknya. Tempahan anda kekal aktif sehingga itu.",
         "customReasonLabel": "Sebab pembatalan tersuai",
         "keepBooking": "Kekalkan tempahan",
         "paidNotice": "Tempahan ini telah dibayar, jadi pembatalan disemak oleh pasukan kami — tempahan anda kekal aktif sementara itu. Permintaan yang dibuat sekurang-kurangnya 3 hari sebelum ketibaan dikembalikan sepenuhnya; permintaan lewat mungkin dikenakan caj penginapan malam pertama.",

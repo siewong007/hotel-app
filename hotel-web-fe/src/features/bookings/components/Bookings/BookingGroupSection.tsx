@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import { api, toApiError } from '../../../../api/client';
 import { statusLabel, useTranslation } from '../../../../i18n';
@@ -70,16 +70,20 @@ export function availableGroupActions(rooms: StaffBookingGroupRoom[]): GroupActi
   return actions;
 }
 
+const PAY_METHODS = ['cash', 'card', 'bank_transfer', 'duitnow', 'online_banking'] as const;
+
 interface BookingGroupSectionProps {
   bookingId: number | string;
   /** Staff with bookings:update — shows the group action buttons. */
   canManage?: boolean;
   /** Called after a group action succeeds so the caller can refresh the booking. */
   onChanged?: () => void | Promise<void>;
+  /** True once this booking is known to belong to a group. */
+  onGroup?: (inGroup: boolean) => void;
 }
 
 /** Staff view of the multi-room booking this room belongs to; renders nothing for a single-room booking. */
-export function BookingGroupSection({ bookingId, canManage = false, onChanged }: BookingGroupSectionProps) {
+export function BookingGroupSection({ bookingId, canManage = false, onChanged, onGroup }: BookingGroupSectionProps) {
   const { t } = useTranslation('bookings');
   const { format: formatCurrency } = useCurrency();
   const [data, setData] = useState<{ id: number | string; value: StaffBookingGroup | null } | null>(null);
@@ -89,11 +93,28 @@ export function BookingGroupSection({ bookingId, canManage = false, onChanged }:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<(typeof PAY_METHODS)[number]>('cash');
+  const [payReference, setPayReference] = useState('');
+  const [payNotes, setPayNotes] = useState('');
+  const [reactivateOpen, setReactivateOpen] = useState(false);
+  const onGroupRef = useRef(onGroup);
+  useEffect(() => {
+    onGroupRef.current = onGroup;
+  }, [onGroup]);
   useEffect(() => {
     let live = true;
     fetchBookingGroup(bookingId)
-      .then((value) => { if (live) setData({ id: bookingId, value }); })
-      .catch(() => { if (live) setData({ id: bookingId, value: null }); });
+      .then((value) => {
+        if (!live) return;
+        setData({ id: bookingId, value });
+        onGroupRef.current?.(Boolean(value?.group));
+      })
+      .catch(() => {
+        if (!live) return;
+        setData({ id: bookingId, value: null });
+        onGroupRef.current?.(false);
+      });
     return () => { live = false; };
   }, [bookingId, reloadKey]);
   const confirm = useCallback(async () => {
@@ -117,6 +138,57 @@ export function BookingGroupSection({ bookingId, canManage = false, onChanged }:
   if (!value?.group) return null;
   const { group, rooms } = value;
   const actions = canManage ? availableGroupActions(rooms) : [];
+  const liveRooms = rooms.filter((room) => room.status !== 'voided');
+  const owesMoney = liveRooms.some((room) => ['unpaid', 'unpaid_deposit', 'partial'].includes(room.payment_status));
+  const claimOpen = liveRooms.some((room) => room.status === 'pending_confirmation');
+  const canPay = canManage && owesMoney && !claimOpen;
+  const canReactivateGroup = canManage && rooms.length > 0 && rooms.every((room) => room.status === 'voided');
+  const refundWarning = liveRooms.some((room) => room.payment_status === 'paid' || room.payment_status === 'partial');
+  const methodLabel = (method: (typeof PAY_METHODS)[number]) => {
+    if (method === 'cash') return t('details.group.actions.pay.methods.cash');
+    if (method === 'card') return t('details.group.actions.pay.methods.card');
+    if (method === 'bank_transfer') return t('details.group.actions.pay.methods.bank_transfer');
+    if (method === 'duitnow') return t('details.group.actions.pay.methods.duitnow');
+    return t('details.group.actions.pay.methods.online_banking');
+  };
+  const takePayment = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.post(`bookings/${bookingId}/group/pay`, {
+        json: {
+          payment_method: payMethod,
+          transaction_reference: payReference.trim() || null,
+          notes: payNotes.trim() || null,
+        },
+      }).json<{ amount: string | number }>();
+      setNotice(t('details.group.actions.pay.done', { amount: formatCurrency(toMoneyNumber(result.amount)) }));
+      setPayOpen(false);
+      setPayReference('');
+      setPayNotes('');
+      setReloadKey((key) => key + 1);
+      await onChanged?.();
+    } catch (err) {
+      setError(toApiError(err, t('details.group.actions.failed')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reactivate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`bookings/${bookingId}/group/reactivate`).json();
+      setNotice(t('details.group.actions.reactivate.done'));
+      setReactivateOpen(false);
+      setReloadKey((key) => key + 1);
+      await onChanged?.();
+    } catch (err) {
+      setError(toApiError(err, t('details.group.actions.failed')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Box data-testid="staff-booking-group" sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>
@@ -145,8 +217,18 @@ export function BookingGroupSection({ bookingId, canManage = false, onChanged }:
         ))}
       </Stack>
       {notice && <Alert severity="success" sx={{ mt: 1.5 }} onClose={() => setNotice(null)}>{notice}</Alert>}
-      {actions.length > 0 && (
+      {(actions.length > 0 || canPay || canReactivateGroup) && (
         <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', rowGap: 1 }} data-testid="staff-booking-group-actions">
+          {canPay && (
+            <Button size="small" variant="contained" onClick={() => { setError(null); setPayOpen(true); }}>
+              {t('details.group.actions.pay.button')}
+            </Button>
+          )}
+          {canReactivateGroup && (
+            <Button size="small" variant="outlined" onClick={() => { setError(null); setReactivateOpen(true); }}>
+              {t('details.group.actions.reactivate.button')}
+            </Button>
+          )}
           {actions.map((action) => (
             <Button
               key={action}
@@ -168,6 +250,9 @@ export function BookingGroupSection({ bookingId, canManage = false, onChanged }:
               <Typography variant="body2" sx={{ mb: pending === 'cancel' ? 2 : 0 }}>
                 {t(`details.group.actions.${pending}.body`)}
               </Typography>
+              {pending === 'cancel' && refundWarning && (
+                <Alert severity="warning" sx={{ mb: 2 }}>{t('details.group.actions.cancel.refundWarning')}</Alert>
+              )}
               {pending === 'cancel' && (
                 <TextField
                   fullWidth
@@ -192,6 +277,60 @@ export function BookingGroupSection({ bookingId, canManage = false, onChanged }:
             </DialogActions>
           </>
         )}
+      </Dialog>
+      <Dialog open={payOpen} onClose={() => { if (!busy) setPayOpen(false); }} fullWidth maxWidth="xs">
+        <DialogTitle>{t('details.group.actions.pay.title', { number: group.group_number })}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>{t('details.group.actions.pay.body')}</Typography>
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label={t('details.group.actions.pay.method')}
+            value={payMethod}
+            onChange={(event) => setPayMethod(event.target.value as (typeof PAY_METHODS)[number])}
+          >
+            {PAY_METHODS.map((method) => (
+              <MenuItem key={method} value={method}>{methodLabel(method)}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth
+            size="small"
+            sx={{ mt: 2 }}
+            label={t('details.group.actions.pay.reference')}
+            value={payReference}
+            onChange={(event) => setPayReference(event.target.value)}
+          />
+          <TextField
+            fullWidth
+            size="small"
+            sx={{ mt: 2 }}
+            label={t('details.group.actions.pay.notes')}
+            value={payNotes}
+            onChange={(event) => setPayNotes(event.target.value)}
+          />
+          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPayOpen(false)} disabled={busy}>{t('details.group.actions.back')}</Button>
+          <Button variant="contained" onClick={() => { void takePayment(); }} disabled={busy}>
+            {t('details.group.actions.pay.confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={reactivateOpen} onClose={() => { if (!busy) setReactivateOpen(false); }} fullWidth maxWidth="xs">
+        <DialogTitle>{t('details.group.actions.reactivate.title', { number: group.group_number })}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">{t('details.group.actions.reactivate.body')}</Typography>
+          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReactivateOpen(false)} disabled={busy}>{t('details.group.actions.back')}</Button>
+          <Button variant="contained" onClick={() => { void reactivate(); }} disabled={busy}>
+            {t('details.group.actions.reactivate.confirm')}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

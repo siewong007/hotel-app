@@ -123,6 +123,11 @@ pub enum ApiError {
     /// Another change to the same multi-room booking is in progress (its
     /// group lock is held). Nothing was written; the client may retry.
     GroupBusy,
+    /// Money has moved on a multi-room booking (a completed or in-flight
+    /// payment, or a transfer claim under review), so its rooms are locked
+    /// and none can be added online. Stable `code` so the portal shows a
+    /// translated "contact the hotel" message.
+    GroupPaid,
     /// Guest self check-in was refused by the eligibility gates. The body
     /// carries `block_code` — the same stable code
     /// `GuestEkycStatusSummary.auto_checkin_block_code` reports — so the guest
@@ -159,6 +164,7 @@ impl std::fmt::Display for ApiError {
             ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
             ApiError::GroupRoomCheckedIn => write!(f, "Conflict: group room checked in"),
             ApiError::GroupBusy => write!(f, "Conflict: group busy"),
+            ApiError::GroupPaid => write!(f, "Conflict: group paid"),
             ApiError::TwoFactorRequired { .. } => write!(f, "Unauthorized: 2FA required"),
             ApiError::TwoFactorInvalid { attempts_remaining } => write!(
                 f,
@@ -188,6 +194,8 @@ pub const GROUP_ROOM_CHECKED_IN_MESSAGE: &str = "A room in this booking is alrea
 /// English text of [`ApiError::GroupBusy`] (`errors:api.group_busy`).
 pub const GROUP_BUSY_MESSAGE: &str =
     "This booking is being updated right now. Please try again in a moment.";
+/// English text of [`ApiError::GroupPaid`] (`errors:api.group_paid`).
+pub const GROUP_PAID_MESSAGE: &str = "Payment has been made for this booking, so rooms can't be added online. Please contact the hotel.";
 
 fn polish_message(raw: &str, fallback: &str) -> String {
     let mut msg = raw.trim();
@@ -338,6 +346,11 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 GROUP_BUSY_MESSAGE.to_string(),
                 "group_busy",
+            ),
+            ApiError::GroupPaid => (
+                StatusCode::CONFLICT,
+                GROUP_PAID_MESSAGE.to_string(),
+                "group_paid",
             ),
             ApiError::AutoCheckinBlocked { message, .. } => (
                 StatusCode::BAD_REQUEST,
@@ -528,6 +541,7 @@ mod tests {
                 "group_room_checked_in",
             ),
             (ApiError::GroupBusy, StatusCode::CONFLICT, "group_busy"),
+            (ApiError::GroupPaid, StatusCode::CONFLICT, "group_paid"),
             (
                 ApiError::AutoCheckinBlocked {
                     block_code: "ekyc_pending".into(),

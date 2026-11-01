@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GuestPortalBookingSummary } from "../../../../types/guestPortal.types";
-import { groupPortalBookings } from "./PortalDashboardSections";
+import { groupPortalBookings, portalPayTargets } from "./PortalDashboardSections";
 
 const room = (id: number, extra: Partial<GuestPortalBookingSummary> = {}): GuestPortalBookingSummary =>
   ({
@@ -28,6 +28,34 @@ describe("groupPortalBookings cancel-all", () => {
     ]).get(7);
     expect(group?.canCancelAll).toBe(true);
     expect(group?.paidPaymentId).toBe(55);
+  });
+
+  it("treats a bank-transfer claim under review as a cancellation request", () => {
+    const group = groupPortalBookings([
+      room(1, { status: "pending_confirmation", can_cancel: true }),
+      room(2, { status: "pending_confirmation", can_cancel: false }),
+    ]).get(7);
+    expect(group?.claimUnderReview).toBe(true);
+    expect(group?.canCancelAll).toBe(true);
+    expect(group?.paidPaymentId).toBeNull();
+  });
+
+  it("pays an unpaid group once and hides pay once money has moved", () => {
+    const pending = room(1, { status: "pending", total_amount: "100", amount_due: "120" });
+    const sibling = room(2, { status: "pending", total_amount: "80", amount_due: "90" });
+    const targets = portalPayTargets([pending, sibling, room(3, { booking_group_id: null, status: "pending", booking_number: "BK-3" })]);
+    expect(targets).toEqual([
+      { key: "group-7", label: "GBK-7", amount: 210, groupId: 7 },
+      { key: "booking-3", label: "BK-3", amount: 100, bookingId: 3 },
+    ]);
+    expect(portalPayTargets([
+      room(1, { status: "pending" }),
+      room(2, { status: "pending_confirmation" }),
+    ])).toEqual([]);
+    expect(portalPayTargets([
+      room(1, { status: "pending", completed_payment_id: 4 }),
+      room(2, { status: "pending" }),
+    ])).toEqual([]);
   });
 
   it("hides cancel-all when a paid group has an arrived room or is already fully under review", () => {

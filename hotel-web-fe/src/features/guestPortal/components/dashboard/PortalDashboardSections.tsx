@@ -161,7 +161,17 @@ interface PortalBookingGroupInfo {
   canCancelAll: boolean;
   /** A live room's completed payment, if any — a paid group's cancel is a review request. */
   paidPaymentId: number | null;
+  /** A bank-transfer claim is still under review, so cancel is a request, not a void. */
+  claimUnderReview: boolean;
 }
+
+function portalAmount(booking: GuestPortalBookingSummary): number {
+  const raw = booking.amount_due ?? booking.total_amount;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+const PORTAL_CLOSED = ["voided", "cancelled"];
 
 const PORTAL_UPCOMING_STATUSES = ["pending", "pending_payment", "pending_confirmation", "confirmed"];
 
@@ -171,20 +181,30 @@ export function groupPortalBookings(items: GuestPortalBookingSummary[]): Map<num
   for (const booking of items) {
     const id = booking.booking_group_id;
     if (id == null) continue;
-    const group = groups.get(id) ?? { id, number: booking.group_number ?? "", firstBookingId: booking.id, rooms: [], total: 0, canCancelAll: true, paidPaymentId: null };
+    const group = groups.get(id) ?? {
+      id,
+      number: booking.group_number ?? "",
+      firstBookingId: booking.id,
+      rooms: [],
+      total: 0,
+      canCancelAll: true,
+      paidPaymentId: null,
+      claimUnderReview: false,
+    };
     group.rooms.push(booking);
-    const live = !["voided", "cancelled"].includes(booking.status.toLowerCase());
+    const live = !PORTAL_CLOSED.includes(booking.status.toLowerCase());
     if (live) {
-      group.total += Number(booking.total_amount) || 0;
+      group.total += portalAmount(booking);
       if (booking.completed_payment_id != null && group.paidPaymentId == null) group.paidPaymentId = booking.completed_payment_id;
+      if (booking.status.toLowerCase() === "pending_confirmation") group.claimUnderReview = true;
     }
     groups.set(id, group);
   }
   for (const group of groups.values()) {
-    const live = group.rooms.filter((room) => !["voided", "cancelled"].includes(room.status.toLowerCase()));
+    const live = group.rooms.filter((room) => !PORTAL_CLOSED.includes(room.status.toLowerCase()));
     if (live.length < 2) {
       group.canCancelAll = false;
-    } else if (group.paidPaymentId != null) {
+    } else if (group.paidPaymentId != null || group.claimUnderReview) {
       group.canCancelAll =
         live.every((room) => room.cancellation_pending || PORTAL_UPCOMING_STATUSES.includes(room.status.toLowerCase())) &&
         !live.every((room) => room.cancellation_pending);
@@ -193,6 +213,53 @@ export function groupPortalBookings(items: GuestPortalBookingSummary[]): Map<num
     }
   }
   return groups;
+}
+
+/** One pay row per single booking, or one row for a whole unpaid group. */
+export interface PortalPayTarget {
+  key: string;
+  label: string;
+  amount: number;
+  bookingId?: number;
+  groupId?: number;
+}
+
+export function portalPayTargets(items: GuestPortalBookingSummary[]): PortalPayTarget[] {
+  const groups = groupPortalBookings(items);
+  const locked = new Set<number>();
+  for (const group of groups.values()) {
+    const live = group.rooms.filter((room) => !PORTAL_CLOSED.includes(room.status.toLowerCase()));
+    if (live.some((room) => room.completed_payment_id != null || room.status.toLowerCase() === "pending_confirmation")) {
+      locked.add(group.id);
+    }
+  }
+  const seen = new Set<number>();
+  const targets: PortalPayTarget[] = [];
+  for (const booking of items) {
+    if (booking.status !== "pending") continue;
+    const groupId = booking.booking_group_id;
+    if (groupId != null) {
+      if (locked.has(groupId) || seen.has(groupId)) continue;
+      seen.add(groupId);
+      const group = groups.get(groupId);
+      if (!group) continue;
+      const live = group.rooms.filter((room) => !PORTAL_CLOSED.includes(room.status.toLowerCase()));
+      targets.push({
+        key: `group-${groupId}`,
+        label: group.number || booking.booking_number,
+        amount: live.reduce((sum, room) => sum + portalAmount(room), 0),
+        groupId,
+      });
+      continue;
+    }
+    targets.push({
+      key: `booking-${booking.id}`,
+      label: booking.booking_number,
+      amount: portalAmount(booking),
+      bookingId: booking.id,
+    });
+  }
+  return targets;
 }
 
 function requiresPaymentReceipt(booking: GuestPortalBookingSummary): boolean {
@@ -239,6 +306,7 @@ function RefundBookingDialog({
   open,
   isSubmitting,
   error,
+  claimReview = false,
   onClose,
   onConfirm,
 }: {
@@ -246,6 +314,8 @@ function RefundBookingDialog({
   open: boolean;
   isSubmitting: boolean;
   error: string | null;
+  /** Group bank-transfer claim still under review: request cancellation, do not void. */
+  claimReview?: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }) {
@@ -268,8 +338,9 @@ function RefundBookingDialog({
 
   if (!booking) return null;
 
-  const isRefund = booking.completed_payment_id != null;
-  const actionLabel = isRefund
+  const isPaid = booking.completed_payment_id != null;
+  const isReview = isPaid || claimReview;
+  const actionLabel = isReview
     ? t("dashboard.bookings.cancelDialog.submitRequest")
     : t("dashboard.bookings.cancelBooking");
 
@@ -297,7 +368,7 @@ function RefundBookingDialog({
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: "var(--hotel-text)", fontWeight: 700 }}>
-          {isRefund
+          {isReview
             ? t("dashboard.bookings.cancelDialog.requestTitle", {
                 number: booking.booking_number,
               })
@@ -313,9 +384,13 @@ function RefundBookingDialog({
             {formatPortalDate(booking.check_out_date)} ·{" "}
             {formatPortalCurrency(booking.total_amount)}
           </Typography>
-          {isRefund ? (
+          {isPaid ? (
             <Alert severity="info" role="alert" sx={{ mt: 2 }}>
               {t("dashboard.bookings.cancelDialog.paidNotice")}
+            </Alert>
+          ) : claimReview ? (
+            <Alert severity="info" role="alert" sx={{ mt: 2 }}>
+              {t("dashboard.bookings.cancelDialog.claimNotice")}
             </Alert>
           ) : (
             <Alert severity="warning" role="alert" sx={{ mt: 2 }}>
@@ -668,12 +743,14 @@ export function OverviewSection({
 
 function BookingDetailsDialog({
   booking,
+  group,
   token,
   onClose,
   onPaymentUpdated,
   onRequestCancel,
 }: {
   booking: GuestPortalBookingSummary | null;
+  group: PortalBookingGroupInfo | null;
   token: string;
   onClose: () => void;
   onPaymentUpdated: () => void;
@@ -696,6 +773,9 @@ function BookingDetailsDialog({
   if (!booking) return null;
   const awaitingPayment = ["pending", "pending_payment"].includes(booking.status);
   const awaitingConfirmation = booking.status === "pending_confirmation";
+  const groupLocked = group != null && (group.paidPaymentId != null || group.claimUnderReview);
+  const payAsGroup = awaitingPayment && group != null && !groupLocked;
+  const payThisRoom = awaitingPayment && group == null;
 
   const handleReceiptUpload = async () => {
     if (!booking.receipt_request_payment_id || !receiptFile) return;
@@ -842,14 +922,15 @@ function BookingDetailsDialog({
             {t("dashboard.bookings.details.paymentRejected", { reason: booking.payment_rejection_reason })}
           </Alert>
         ) : null}
-        {awaitingPayment ? (
+        {payAsGroup || payThisRoom ? (
           <Box sx={{ mt: 2 }}>
             <GuestPaymentPanel
               mode="session"
-              bookingId={booking.id}
+              bookingId={payAsGroup ? undefined : booking.id}
+              groupId={payAsGroup && group ? group.id : undefined}
               token={token}
-              amount={booking.total_amount}
-              paymentMethodName={`guest-payment-method-${booking.id}`}
+              amount={payAsGroup && group ? group.total : portalAmount(booking)}
+              paymentMethodName={`guest-payment-method-${payAsGroup && group ? `group-${group.id}` : booking.id}`}
               onPaid={onPaymentUpdated}
             />
           </Box>
@@ -863,7 +944,7 @@ function BookingDetailsDialog({
             onClick={() => onRequestCancel(booking)}
             sx={{ mr: "auto" }}
           >
-            {booking.completed_payment_id != null
+            {booking.completed_payment_id != null || group?.claimUnderReview
               ? t("dashboard.bookings.requestCancellation")
               : t("dashboard.bookings.cancelBooking")}
           </Button>
@@ -998,7 +1079,13 @@ export function BookingsSection({ token }: { token: string }) {
     </Stack>
   );
   const dialogBooking: GuestPortalBookingSummary | null = groupToCancel
-    ? { ...groupToCancel.rooms[0], booking_number: groupToCancel.number, completed_payment_id: groupToCancel.paidPaymentId, can_cancel: true }
+    ? {
+        ...groupToCancel.rooms[0],
+        booking_number: groupToCancel.number,
+        completed_payment_id: groupToCancel.paidPaymentId,
+        can_cancel: true,
+        total_amount: groupToCancel.total,
+      }
     : bookingToCancel;
 
   return (
@@ -1259,6 +1346,7 @@ export function BookingsSection({ token }: { token: string }) {
             open={Boolean(dialogBooking)}
             isSubmitting={isCancelling}
             error={cancellationError}
+            claimReview={Boolean(groupToCancel && groupToCancel.paidPaymentId == null && groupToCancel.claimUnderReview)}
             onClose={() => {
               if (!isCancelling) {
                 setBookingToCancel(null);
@@ -1270,12 +1358,18 @@ export function BookingsSection({ token }: { token: string }) {
           />
           <BookingDetailsDialog
             booking={bookingToView}
+            group={bookingToView?.booking_group_id != null ? groups.get(bookingToView.booking_group_id) ?? null : null}
             token={token}
             onClose={() => setBookingToView(null)}
             onPaymentUpdated={() => void load()}
             onRequestCancel={(booking) => {
               setCancellationError(null);
-              setBookingToCancel(booking);
+              const group = booking.booking_group_id != null ? groups.get(booking.booking_group_id) : undefined;
+              if (group && (group.paidPaymentId != null || group.claimUnderReview)) {
+                setGroupToCancel(group);
+              } else {
+                setBookingToCancel(booking);
+              }
               setBookingToView(null);
             }}
           />
@@ -1299,7 +1393,7 @@ export function PaymentsSection({ token }: { token: string }) {
   // doesn't expose a separate "amount due"/balance field on
   // GuestPortalBookingSummary, so booking status `pending` is the signal
   // used here to detect bookings still awaiting payment.
-  const [pendingBookings, setPendingBookings] = useState<GuestPortalBookingSummary[]>([]);
+  const [portalBookings, setPortalBookings] = useState<GuestPortalBookingSummary[]>([]);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [pendingError, setPendingError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -1326,12 +1420,12 @@ export function PaymentsSection({ token }: { token: string }) {
         { page: 1, per_page: 50 },
         token,
       );
-      setPendingBookings(response.items.filter((booking) => booking.status === "pending"));
+      setPortalBookings(response.items);
     } catch (caught) {
       // Secondary surface: the transactions list below is still valid, so a
       // failed pending-bookings check warns inline instead of taking the
       // whole section down.
-      setPendingBookings([]);
+      setPortalBookings([]);
       setPendingError(
         guestErrorMessage(caught, t("payments.pendingLoadFailed")),
       );
@@ -1347,6 +1441,7 @@ export function PaymentsSection({ token }: { token: string }) {
   }, [loadPendingBookings]);
   // The pending-payments check is a secondary surface: its failure warns above
   // the list with a retry instead of replacing the transactions it sits on.
+  const payTargets = portalPayTargets(portalBookings);
   const pendingAlert = pendingError ? (
     <Alert
       severity="warning"
@@ -1376,7 +1471,7 @@ export function PaymentsSection({ token }: { token: string }) {
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} retry={() => void load()} />
-      ) : items.length === 0 && pendingBookings.length === 0 ? (
+      ) : items.length === 0 && payTargets.length === 0 ? (
         <>
           {pendingAlert}
           {pendingError ? null : (
@@ -1429,8 +1524,8 @@ export function PaymentsSection({ token }: { token: string }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {pendingBookings.map((booking) => (
-                  <TableRow key={`pending-booking-${booking.id}`} hover>
+                {payTargets.map((target) => (
+                  <TableRow key={target.key} hover>
                     <TableCell>—</TableCell>
                     <TableCell>
                       <Chip
@@ -1441,14 +1536,15 @@ export function PaymentsSection({ token }: { token: string }) {
                       />
                     </TableCell>
                     <TableCell>{t("dashboard.payments.amountDue")}</TableCell>
-                    <TableCell>{booking.booking_number}</TableCell>
+                    <TableCell>{target.label}</TableCell>
                     <TableCell sx={{ minWidth: 300, py: 2 }}>
                       <GuestPaymentPanel
                         mode="session"
-                        bookingId={booking.id}
+                        bookingId={target.bookingId}
+                        groupId={target.groupId}
                         token={token}
-                        amount={booking.total_amount}
-                        paymentMethodName={`guest-payment-method-${booking.id}`}
+                        amount={target.amount}
+                        paymentMethodName={`guest-payment-method-${target.key}`}
                         onPaid={() => {
                           void loadPendingBookings();
                           void load();
@@ -1457,7 +1553,7 @@ export function PaymentsSection({ token }: { token: string }) {
                     </TableCell>
                     <TableCell>{t("dashboard.payments.awaitingPayment")}</TableCell>
                     <TableCell align="right">
-                      {formatPortalCurrency(booking.total_amount)}
+                      {formatPortalCurrency(target.amount)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1498,8 +1594,8 @@ export function PaymentsSection({ token }: { token: string }) {
             </Table>
           </TableContainer>
           <Stack spacing={1.5} sx={{ display: { xs: "flex", lg: "none" } }}>
-            {pendingBookings.map((booking) => (
-              <Card key={`pending-booking-${booking.id}`} variant="outlined">
+            {payTargets.map((target) => (
+              <Card key={target.key} variant="outlined">
                 <CardContent>
                   <Stack direction="row" spacing={1} sx={{
                     justifyContent: "space-between"
@@ -1508,10 +1604,10 @@ export function PaymentsSection({ token }: { token: string }) {
                     <Typography sx={{
                       fontWeight: 700
                     }}>
-                      {formatPortalCurrency(booking.total_amount)}
+                      {formatPortalCurrency(target.amount)}
                     </Typography>
                   </Stack>
-                  <Typography sx={{ mt: 1 }}>{t("dashboard.payments.bookingLabel", { number: booking.booking_number })}</Typography>
+                  <Typography sx={{ mt: 1 }}>{t("dashboard.payments.bookingLabel", { number: target.label })}</Typography>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
@@ -1520,10 +1616,11 @@ export function PaymentsSection({ token }: { token: string }) {
                   <Box sx={{ mt: 2 }}>
                     <GuestPaymentPanel
                       mode="session"
-                      bookingId={booking.id}
+                      bookingId={target.bookingId}
+                      groupId={target.groupId}
                       token={token}
-                      amount={booking.total_amount}
-                      paymentMethodName={`guest-payment-method-${booking.id}`}
+                      amount={target.amount}
+                      paymentMethodName={`guest-payment-method-${target.key}`}
                       onPaid={() => {
                         void loadPendingBookings();
                         void load();

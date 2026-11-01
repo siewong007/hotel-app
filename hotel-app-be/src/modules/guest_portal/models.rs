@@ -306,7 +306,7 @@ pub struct GuestPortalMeResponse {
 }
 
 /// One booking row in the guest's booking history.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GuestPortalBookingSummary {
     pub id: i64,
     pub booking_number: String,
@@ -314,6 +314,8 @@ pub struct GuestPortalBookingSummary {
     pub check_out_date: NaiveDate,
     pub status: String,
     pub total_amount: rust_decimal::Decimal,
+    /// Room charge plus tourism tax and extra beds: the amount one payment collects.
+    pub amount_due: rust_decimal::Decimal,
     /// The completed booking payment, when one exists. These fields let the
     /// guest portal render a receipt without exposing staff-only payment data.
     pub completed_payment_id: Option<i64>,

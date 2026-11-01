@@ -446,15 +446,15 @@ mod add_room {
         }
     }
 
-    // Point 3: added to a part-paid group, the new room is unpaid, takes no
-    // voucher share, and the group payment covers only unpaid rooms.
+    // Point 3, as the owner amended it on 2026-11-01 (a group is never left
+    // part-paid, so rooms can only be added while nothing is paid): the new
+    // room is unpaid, at list price, takes no voucher share, and the next
+    // group payment covers it together with the other rooms.
     #[tokio::test]
-    async fn added_room_takes_no_share_and_pays_alone() {
+    async fn added_room_takes_no_share_and_joins_the_group_payment() {
         let Some(pool) = pool().await else { return };
         let f = fixture(&pool, &["30.00", "30.00"]).await;
         scenario!(pool, f, {
-            mark_paid(&pool, f.rooms[0]).await;
-            mark_paid(&pool, f.rooms[1]).await;
             let hub = AvailabilityHub::default();
             let req = request(&pool, &f, 1).await;
             let expected = req.expected_total;
@@ -481,7 +481,7 @@ mod add_room {
                     .await
                     .unwrap();
             assert_eq!(payment_status, "unpaid");
-            // Paid rooms untouched.
+            // The existing rooms keep their shares.
             for id in &f.rooms {
                 assert_eq!(
                     share_and_total(&pool, *id).await,
@@ -501,20 +501,78 @@ mod add_room {
             .await
             .expect("replay");
             assert_eq!(again.room_count, 3);
-            // The group payment now claims only the new room.
+            // One group payment covers all three rooms: 2 × 170.00 plus the
+            // new room's quoted total.
             let claim = hotel_app_be::modules::payments::service::create_group_bank_transfer_claim(
                 &pool, f.guest_id, f.group_id,
             )
             .await
             .expect("claim");
-            assert_eq!(claim.payment_ids.len(), 1);
-            assert_eq!(claim.amount, expected);
-            let claimed: i64 = sqlx::query_scalar("SELECT booking_id FROM payments WHERE id = $1")
-                .bind(claim.payment_ids[0])
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-            assert_eq!(claimed, added);
+            assert_eq!(claim.payment_ids.len(), 3);
+            assert_eq!(claim.amount, d("340.00") + expected);
+        });
+    }
+
+    // "Once paid, it's locked in": a transfer claim under review, or a
+    // completed payment on any room, refuses the add and writes nothing.
+    #[tokio::test]
+    async fn adding_is_refused_once_money_has_moved() {
+        let Some(pool) = pool().await else { return };
+        let hub = AvailabilityHub::default();
+
+        let f = fixture(&pool, &["30.00", "30.00"]).await;
+        scenario!(pool, f, {
+            hotel_app_be::modules::payments::service::create_group_bank_transfer_claim(
+                &pool, f.guest_id, f.group_id,
+            )
+            .await
+            .expect("claim");
+            let under_review = group::add_room_for_guest(
+                &pool,
+                &hub,
+                f.guest_id,
+                f.group_id,
+                request(&pool, &f, 1).await,
+                None,
+                None,
+            )
+            .await
+            .expect_err("claim under review");
+            assert!(
+                matches!(under_review, ApiError::GroupPaid),
+                "{under_review:?}"
+            );
+            let rooms: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1")
+                    .bind(f.group_id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(rooms, 2, "nothing added");
+        });
+
+        let f = fixture(&pool, &["30.00", "30.00"]).await;
+        scenario!(pool, f, {
+            mark_paid(&pool, f.rooms[0]).await;
+            let paid = group::add_room_for_guest(
+                &pool,
+                &hub,
+                f.guest_id,
+                f.group_id,
+                request(&pool, &f, 2).await,
+                None,
+                None,
+            )
+            .await
+            .expect_err("paid");
+            assert!(matches!(paid, ApiError::GroupPaid), "{paid:?}");
+            let rooms: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE booking_group_id = $1")
+                    .bind(f.group_id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(rooms, 2, "nothing added");
         });
     }
 

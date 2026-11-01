@@ -253,6 +253,7 @@ pub async fn create_payment(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+    refuse_single_room_of_group_tx(&mut tx, request.booking_id).await?;
     super::settlement_lock::enforce_payment(
         &mut *tx,
         request.booking_id,
@@ -348,6 +349,9 @@ pub async fn record_payment(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+    if payment_type == "booking" {
+        refuse_single_room_of_group_tx(&mut tx, request.booking_id).await?;
+    }
 
     if let Some(transaction_reference) = request
         .transaction_reference
@@ -1434,6 +1438,7 @@ async fn create_bank_transfer_claim_inner(
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
+    refuse_single_room_of_group_tx(&mut tx, booking.id).await?;
     let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
     ensure_booking_awaiting_payment(&status)?;
     ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
@@ -1579,6 +1584,7 @@ async fn create_paypal_order_inner(
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
+    refuse_single_room_of_group_tx(&mut tx, booking.id).await?;
     let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
     ensure_booking_awaiting_payment(&status)?;
     ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
@@ -2844,11 +2850,24 @@ pub async fn reject_payment(
     payment_id: i64,
     reason: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
+    reject_claim_by(pool, Some(actor_user_id), payment_id, reason).await
+}
+
+/// Reject a pending claim. A row of a group claim takes the whole claim with
+/// it, so a multi-room booking never ends up with some rooms claimed (and
+/// later paid) while the others are back to unpaid. `actor_user_id` is `None`
+/// for the automated expiry sweep.
+async fn reject_claim_by(
+    pool: &DbPool,
+    actor_user_id: Option<i64>,
+    payment_id: i64,
+    reason: &str,
+) -> Result<PaymentActionResponse, ApiError> {
     match group_payment_ref(pool, payment_id).await? {
         Some(reference) => {
             reject_group_payment(pool, actor_user_id, payment_id, &reference, reason).await
         }
-        None => reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await,
+        None => reject_payment_by(pool, actor_user_id, payment_id, reason).await,
     }
 }
 
@@ -2856,7 +2875,7 @@ pub async fn reject_payment(
 /// return to `pending_payment` or none do.
 async fn reject_group_payment(
     pool: &DbPool,
-    actor_user_id: i64,
+    actor_user_id: Option<i64>,
     payment_id: i64,
     reference: &str,
     reason: &str,
@@ -2882,7 +2901,7 @@ async fn reject_group_payment(
     claim.sort_by_key(|(_, booking_id)| *booking_id);
     let mut reset_primary = false;
     for (id, booking_id) in claim {
-        let reset = reject_payment_tx(&mut tx, booking_id, Some(actor_user_id), id, reason).await?;
+        let reset = reject_payment_tx(&mut tx, booking_id, actor_user_id, id, reason).await?;
         if id == payment_id {
             reset_primary = reset;
         }
@@ -2949,12 +2968,13 @@ async fn pending_group_siblings_tx(
 }
 
 /// Reject overdue receipt requests without attributing the automated decision
-/// to a staff account.
+/// to a staff account. A request on one room of a group claim rejects the
+/// whole claim, as a staff rejection would.
 pub async fn reject_expired_receipt_requests(pool: &DbPool) -> Result<usize, ApiError> {
     let ids = PaymentRepository::expired_receipt_request_payment_ids(pool).await?;
     let mut rejected = 0;
     for payment_id in ids {
-        if reject_payment_by(
+        if reject_claim_by(
             pool,
             None,
             payment_id,
@@ -3435,13 +3455,68 @@ async fn group_payment_ref(pool: &DbPool, payment_id: i64) -> Result<Option<Stri
     .map_err(ApiError::from)
 }
 
+/// A room one group payment covers: (booking id, booking number, status,
+/// amount due, currency).
+type UnpaidGroupRoom = (i64, String, String, Decimal, Option<String>);
+
+const GROUP_ONE_PAYMENT: &str =
+    "This room is part of a group booking. Pay the whole group in one payment.";
+
+/// A room charge on one room of a group is refused. The group is paid once,
+/// for every room that still owes money.
+async fn refuse_single_room_of_group_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    let grouped: Option<bool> =
+        sqlx::query_scalar("SELECT booking_group_id IS NOT NULL FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+    if grouped == Some(true) {
+        return Err(ApiError::Conflict(GROUP_ONE_PAYMENT.to_string()));
+    }
+    Ok(())
+}
+
+/// Every live room of the group that still owes money, each with the balance
+/// of its full billable total: room charge + tourism tax + extra beds, minus
+/// room charges already completed. That is the total the guest was shown and
+/// the amount `recompute_booking_payment_status_tx` settles a room against, so
+/// one group payment leaves every room `paid`, never `partial`.
+async fn unpaid_group_rooms_tx(
+    tx: &mut DbTransaction<'_>,
+    group_id: i64,
+) -> Result<Vec<UnpaidGroupRoom>, ApiError> {
+    let rooms: Vec<UnpaidGroupRoom> = sqlx::query_as(
+        "SELECT b.id, b.booking_number, COALESCE(b.status, 'pending'), \
+         (b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0)) \
+         - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id \
+             AND p.status = 'completed' \
+             AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0), \
+         b.currency \
+         FROM bookings b WHERE b.booking_group_id = $1 AND b.status <> 'voided' \
+         AND COALESCE(b.payment_status, 'unpaid') IN ('unpaid', 'unpaid_deposit', 'partial') \
+         ORDER BY b.id",
+    )
+    .bind(group_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(ApiError::from)?;
+    Ok(rooms
+        .into_iter()
+        .filter(|(_, _, _, due, _)| *due > Decimal::ZERO)
+        .collect())
+}
+
 /// Guest action: one bank-transfer claim for every unpaid room of a group.
 ///
-/// Only rooms still unpaid are claimed: a room added to a part-paid group is
-/// paid on its own and paid rooms are never charged twice.
+/// Only rooms still unpaid are claimed, so a paid room is never charged twice,
+/// and each is claimed for its full billable total ([`unpaid_group_rooms_tx`]).
 /// All rooms move to `pending_confirmation` together in one transaction; each
-/// gets its own pending payment for its own payable amount (so ledgers and a
-/// later single-room refund stay per booking), and staff review the claim once.
+/// gets its own pending payment for its own amount (so ledgers and a later
+/// single-room refund stay per booking), and staff review the claim once.
 pub async fn create_group_bank_transfer_claim(
     pool: &DbPool,
     guest_id: i64,
@@ -3454,19 +3529,7 @@ pub async fn create_group_bank_transfer_claim(
     if group.guest_id != guest_id {
         return Err(ApiError::NotFound("Booking not found".to_string()));
     }
-    let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
-        "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
-         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' \
-         AND COALESCE(payment_status, 'unpaid') IN ('unpaid', 'unpaid_deposit') ORDER BY id",
-    )
-    .bind(group_id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(ApiError::from)?;
-    let payable: Vec<_> = members
-        .into_iter()
-        .filter(|(_, _, _, total, _)| *total > Decimal::ZERO)
-        .collect();
+    let payable = unpaid_group_rooms_tx(&mut tx, group_id).await?;
     if payable.is_empty() {
         return Err(ApiError::BadRequest(
             "This booking has nothing left to pay.".to_string(),
@@ -3477,7 +3540,7 @@ pub async fn create_group_bank_transfer_claim(
     let method = PaymentMethod::BankTransfer.to_string();
     let mut payment_ids = Vec::new();
     let mut amount = Decimal::ZERO;
-    for (booking_id, booking_number, status, total, currency) in &payable {
+    for (booking_id, booking_number, status, due, currency) in &payable {
         PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
         ensure_booking_awaiting_payment(status).map_err(|_| {
             ApiError::Conflict(format!(
@@ -3495,7 +3558,7 @@ pub async fn create_group_bank_transfer_claim(
             PendingPaymentValues {
                 booking_id: *booking_id,
                 guest_id,
-                amount: *total,
+                amount: *due,
                 currency,
                 payment_method: &method,
                 payment_gateway: None,
@@ -3534,7 +3597,7 @@ pub async fn create_group_bank_transfer_claim(
             .await?;
         }
         payment_ids.push(payment_id);
-        amount += *total;
+        amount += *due;
     }
 
     AuditLog::log_event_tx(
@@ -3565,6 +3628,122 @@ pub async fn create_group_bank_transfer_claim(
         payment_ids,
         amount,
         status: "pending".to_string(),
+    })
+}
+
+/// Staff action: one completed payment for every room of the group that still
+/// owes money. The amount is the balance of each room's billable total. A
+/// caller cannot pay one room, or pay less than that balance.
+pub async fn record_group_desk_payment(
+    pool: &DbPool,
+    user_id: i64,
+    group_id: i64,
+    payment_method: &str,
+    transaction_reference: Option<&str>,
+    notes: Option<&str>,
+) -> Result<GroupPaymentActionResponse, ApiError> {
+    use crate::modules::booking_groups::repository::BookingGroupRepository;
+
+    let method = payment_method.trim();
+    if method.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A payment method is required.".to_string(),
+        ));
+    }
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let group = BookingGroupRepository::lock_tx(&mut tx, group_id).await?;
+    let payable = unpaid_group_rooms_tx(&mut tx, group_id).await?;
+    if payable.is_empty() {
+        return Err(ApiError::BadRequest(
+            "This booking has nothing left to pay.".to_string(),
+        ));
+    }
+    let reference = uuid::Uuid::new_v4().to_string();
+    let mut payment_ids = Vec::new();
+    let mut amount = Decimal::ZERO;
+    let mut confirmed_rooms = Vec::new();
+    for (booking_id, booking_number, status, due, _) in &payable {
+        PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
+        ensure_no_active_booking_payment_tx(&mut tx, *booking_id).await?;
+        super::settlement_lock::enforce_payment(&mut *tx, *booking_id, "booking", method).await?;
+        let request = RecordPaymentRequest {
+            booking_id: *booking_id,
+            amount: 0.0,
+            payment_method: method.to_string(),
+            payment_type: Some("booking".to_string()),
+            transaction_reference: transaction_reference.map(str::to_string),
+            notes: notes.map(str::to_string),
+            payment_date: None,
+            idempotency_key: format!("group-desk-{reference}-{booking_id}"),
+        };
+        let row =
+            PaymentRepository::insert_payment(&mut *tx, user_id, &request, *due, "booking", None)
+                .await?;
+        sqlx::query(
+            "UPDATE payments SET metadata = COALESCE(metadata, '{}'::jsonb) || \
+             jsonb_build_object('booking_group_id', $2::bigint, 'group_payment_ref', $3::text, \
+             'group_number', $4::text, 'source', 'staff_group') WHERE id = $1",
+        )
+        .bind(row.id)
+        .bind(group_id)
+        .bind(&reference)
+        .bind(&group.group_number)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        recompute_payment_status_tx(&mut tx, *booking_id).await?;
+        let confirmed = crate::modules::bookings::confirm_booking_tx(&mut tx, *booking_id).await?;
+        if confirmed {
+            crate::modules::bookings::record_booking_history_tx(
+                &mut tx,
+                *booking_id,
+                Some(status),
+                "confirmed",
+                Some(user_id),
+                Some("Group paid in full at the desk"),
+                serde_json::json!({ "payment_id": row.id, "booking_group_id": group_id }),
+            )
+            .await?;
+            confirmed_rooms.push((*booking_id, row.id));
+        }
+        payment_ids.push(row.id);
+        amount += *due;
+        let _ = booking_number;
+    }
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_recorded",
+            resource_type: "booking_group",
+            resource_id: Some(group_id),
+            details: Some(serde_json::json!({
+                "payment_ids": payment_ids,
+                "amount": amount.to_string(),
+                "method": method,
+                "source": "staff_group",
+                "group_payment_ref": reference,
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+    BookingGroupRepository::refresh_totals_tx(&mut tx, group_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    for (booking_id, payment_id) in confirmed_rooms {
+        crate::modules::bookings::emails::try_queue_payment_confirmation_email(
+            pool, booking_id, payment_id,
+        )
+        .await;
+    }
+
+    Ok(GroupPaymentActionResponse {
+        booking_group_id: group_id,
+        group_payment_ref: reference,
+        payment_ids,
+        amount,
+        status: "completed".to_string(),
     })
 }
 
@@ -3684,19 +3863,7 @@ pub async fn create_group_paypal_order(
     if group.guest_id != guest_id {
         return Err(ApiError::NotFound("Booking not found".to_string()));
     }
-    let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
-        "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
-         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' \
-         AND COALESCE(payment_status, 'unpaid') IN ('unpaid', 'unpaid_deposit') ORDER BY id",
-    )
-    .bind(group_id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(ApiError::from)?;
-    let payable: Vec<_> = members
-        .into_iter()
-        .filter(|(_, _, _, total, _)| *total > Decimal::ZERO)
-        .collect();
+    let payable = unpaid_group_rooms_tx(&mut tx, group_id).await?;
     if payable.is_empty() {
         return Err(ApiError::BadRequest(
             "This booking has nothing left to pay.".to_string(),
@@ -3720,7 +3887,7 @@ pub async fn create_group_paypal_order(
     let method = PaymentMethod::Paypal.to_string();
     let mut rows: Vec<(i64, i64)> = Vec::new();
     let mut amount = Decimal::ZERO;
-    for (booking_id, booking_number, status, total, _) in &payable {
+    for (booking_id, booking_number, status, due, _) in &payable {
         PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
         ensure_booking_awaiting_payment(status).map_err(|_| {
             ApiError::Conflict(format!(
@@ -3734,7 +3901,7 @@ pub async fn create_group_paypal_order(
             PendingPaymentValues {
                 booking_id: *booking_id,
                 guest_id,
-                amount: *total,
+                amount: *due,
                 currency: &currency,
                 payment_method: &method,
                 payment_gateway: Some("paypal"),
@@ -3757,7 +3924,7 @@ pub async fn create_group_paypal_order(
         .await
         .map_err(ApiError::from)?;
         rows.push((payment_id, *booking_id));
-        amount += *total;
+        amount += *due;
     }
     let (lead_payment, lead_booking) = rows[0];
     AuditLog::log_event_tx(

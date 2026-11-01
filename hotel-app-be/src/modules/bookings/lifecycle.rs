@@ -2832,6 +2832,55 @@ pub async fn void_booking_payments_tx(
     Ok(())
 }
 
+/// Turn completed room charges into refund rows, then mark the originals
+/// refunded. Deposits stay completed so the deposit-refund screen still owns
+/// them. Unfinished attempts are left for the caller to void.
+pub async fn refund_completed_booking_payments_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        r#"
+        INSERT INTO payments (
+            uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by
+        )
+        SELECT gen_uuidv7(), booking_id, amount, COALESCE(payment_method, 'cash'),
+               'refund', 'refunded',
+               'Room charge refunded when the group was cancelled', $2
+        FROM payments
+        WHERE booking_id = $1
+          AND status = 'completed'
+          AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
+        "#,
+    )
+    .bind(booking_id)
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        UPDATE payments
+        SET status = 'refunded'
+        WHERE booking_id = $1
+          AND status = 'completed'
+          AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
+        "#,
+    )
+    .bind(booking_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(
+        tx, booking_id,
+    )
+    .await?;
+    Ok(())
+}
+
 /// Void every open receivable the booking posted to the city ledger.
 ///
 /// `auto_post_company_ledger` (and any manual ledger entry linked to the
@@ -2901,7 +2950,9 @@ pub async fn void_uncompleted_booking_payments_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<(), ApiError> {
-    let void_payments_query = "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status NOT IN ('void', 'completed')";
+    // `refunded` is a finished room-charge refund written just above. Only an
+    // attempt that never collected money is voided.
+    let void_payments_query = "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status IN ('pending', 'processing')";
 
     sqlx::query(void_payments_query)
         .bind(booking_id)

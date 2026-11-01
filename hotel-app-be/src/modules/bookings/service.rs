@@ -140,6 +140,12 @@ async fn void_booking_by_guest_tx(
     user_id: i64,
     reason: Option<&str>,
 ) -> Result<(), ApiError> {
+    // Last live room of an unpaid group: the voucher goes back before its
+    // share is moved anywhere. Other rooms still in the group keep the voucher.
+    crate::modules::booking_groups::voucher_resplit::return_voucher_if_final_room_tx(
+        tx, booking.id,
+    )
+    .await?;
     // Before the room's payments change: the frozen check reads them.
     crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
         tx,
@@ -206,6 +212,12 @@ pub async fn cancel_pending_group_by_guest(
             "This booking has already been cancelled.".to_string(),
         ));
     }
+    // The whole unpaid group is going. Put the voucher back, and put each
+    // room's price back, before any share is moved onto a room we then void.
+    crate::modules::booking_groups::voucher_resplit::return_unpaid_group_voucher_tx(
+        &mut tx, group_id,
+    )
+    .await?;
     let mut bookings = Vec::with_capacity(ids.len());
     for id in &ids {
         let booking = booking_service::fetch_booking_by_id(pool, *id).await?;
@@ -340,6 +352,10 @@ async fn perform_release(
         )
         .await?;
     }
+    crate::modules::booking_groups::voucher_resplit::return_voucher_if_final_room_tx(
+        &mut tx, booking_id,
+    )
+    .await?;
     crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
         &mut tx, booking_id, actor,
     )
@@ -615,7 +631,14 @@ pub async fn void_booking(
         .await?;
     }
     let (nights_credited, ledger_entries_voided, ledger_entries_with_payments) =
-        void_booking_in_tx(&mut tx, user_id, &booking, reason.as_deref()).await?;
+        void_booking_in_tx(
+            &mut tx,
+            user_id,
+            &booking,
+            reason.as_deref(),
+            CompletedPaymentDisposition::Void,
+        )
+        .await?;
     tx.commit().await.map_err(ApiError::from)?;
 
     if let Err(err) = crate::modules::loyalty::service::reverse_booking_points(
@@ -644,6 +667,16 @@ pub async fn void_booking(
     }))
 }
 
+/// What happens to completed room charges when a booking is voided.
+///
+/// A single staff void still voids the payment rows. Group "cancel all"
+/// refunds them instead, so collected money stays on the books as a refund.
+#[derive(Clone, Copy)]
+pub(crate) enum CompletedPaymentDisposition {
+    Void,
+    Refund,
+}
+
 /// The transactional core of a staff void: the booking, its room, payments,
 /// ledgers, complimentary credits, history and audit. Shared by the single
 /// void and the group "cancel all" so both apply exactly the same writes.
@@ -653,9 +686,14 @@ pub(crate) async fn void_booking_in_tx(
     user_id: i64,
     booking: &Booking,
     reason: Option<&str>,
+    payments: CompletedPaymentDisposition,
 ) -> Result<(i32, u64, u64), ApiError> {
     let booking_id = booking.id;
-    // Before `void_booking_payments_tx`: the frozen check reads the payments.
+    crate::modules::booking_groups::voucher_resplit::return_voucher_if_final_room_tx(
+        tx, booking_id,
+    )
+    .await?;
+    // Before the payments change: the frozen check reads them.
     crate::modules::booking_groups::voucher_resplit::release_room_share_tx(
         tx,
         booking_id,
@@ -664,7 +702,15 @@ pub(crate) async fn void_booking_in_tx(
     .await?;
     booking_repo::void_booking_tx(tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(tx, booking.room_id).await?;
-    booking_repo::void_booking_payments_tx(tx, booking_id).await?;
+    match payments {
+        CompletedPaymentDisposition::Void => {
+            booking_repo::void_booking_payments_tx(tx, booking_id).await?;
+        }
+        CompletedPaymentDisposition::Refund => {
+            booking_repo::refund_completed_booking_payments_tx(tx, booking_id, user_id).await?;
+            booking_repo::void_uncompleted_booking_payments_tx(tx, booking_id).await?;
+        }
+    }
     let change_reason = reason.unwrap_or("Booking voided");
     let (ledger_entries_voided, ledger_entries_with_payments) =
         booking_repo::void_booking_ledgers_tx(tx, booking_id, Some(user_id), change_reason).await?;
@@ -1012,6 +1058,14 @@ pub async fn reactivate_booking(
             "Cannot reactivate booking with status: {}. Only voided bookings can be reactivated.",
             existing.status
         )));
+    }
+    if booking_repo::booking_group_id(pool, booking_id)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(
+            "This room belongs to a group. Reactivate the whole group, not one room.".to_string(),
+        ));
     }
 
     let has_booking_update = AuthService::check_permission(pool, user_id, "bookings:update")

@@ -19,7 +19,8 @@
     "two_factor_enrollment_required": "Your role requires two-factor authentication. Please set it up to continue.",
     "guest_name_taken": "That nickname is already taken. Please choose another.",
     "group_room_checked_in": "A room in this booking is already checked in, so rooms can't be added or removed online. Please contact the hotel.",
-    "group_busy": "This booking is being updated right now. Please try again in a moment."
+    "group_busy": "This booking is being updated right now. Please try again in a moment.",
+    "group_paid": "Payment has been made for this booking, so rooms can't be added online. Please contact the hotel."
   },
   "status": {
     "serverError": "A server error occurred. Please try again later.",

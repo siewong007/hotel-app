@@ -174,6 +174,7 @@ impl GuestPortalSessionRepository {
         let rejected_at_col = "processed_at";
         let sql = format!(
             "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
+                    b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0) AS amount_due, \
                     b.booking_group_id, \
                     (SELECT g.group_number FROM booking_groups g WHERE g.id = b.booking_group_id) AS group_number, \
                     (SELECT rt.name FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id WHERE r.id = b.room_id) AS room_type_name, \
@@ -244,6 +245,7 @@ impl GuestPortalSessionRepository {
                     .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
                 status: row.try_get("status").unwrap_or_default(),
                 total_amount: row_mappers::get_decimal(row, "total_amount"),
+                amount_due: row_mappers::get_decimal(row, "amount_due"),
                 completed_payment_id: row
                     .try_get::<Option<i64>, _>("completed_payment_id")
                     .ok()

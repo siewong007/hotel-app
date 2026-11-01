@@ -165,7 +165,8 @@
           "body": "Setiap bilik yang belum daftar masuk dibatalkan dan biliknya dilepaskan, sama seperti membatalkan setiap bilik. Sama ada semua bilik dibatalkan atau tiada langsung.",
           "confirm": "Batalkan semua bilik",
           "done_one": "{{count}} bilik dibatalkan.",
-          "done_other": "{{count}} bilik dibatalkan."
+          "done_other": "{{count}} bilik dibatalkan.",
+          "refundWarning": "Bilik yang telah dibayar dipulangkan, bukan dipadam. Caj bilik melalui aliran bayaran balik. Deposit kad kunci kekal pada skrin bayaran balik deposit. Semua bilik dibatalkan atau tiada langsung."
         },
         "checkin": {
           "button": "Daftar masuk semua",
@@ -182,6 +183,30 @@
           "confirm": "Daftar keluar semua",
           "done_one": "{{count}} bilik didaftar keluar.",
           "done_other": "{{count}} bilik didaftar keluar."
+        },
+        "pay": {
+          "body": "Ini mengutip baki penuh setiap bilik yang belum dibayar, termasuk cukai pelancongan dan katil tambahan. Jumlah ditetapkan oleh sistem hotel.",
+          "button": "Terima bayaran",
+          "confirm": "Terima bayaran",
+          "done": "Bayaran direkodkan ({{amount}}).",
+          "method": "Kaedah bayaran",
+          "methods": {
+            "bank_transfer": "Pindahan bank",
+            "card": "Kad",
+            "cash": "Tunai",
+            "duitnow": "DuitNow",
+            "online_banking": "Perbankan dalam talian"
+          },
+          "notes": "Nota (pilihan)",
+          "reference": "Rujukan (pilihan)",
+          "title": "Terima satu bayaran untuk {{number}}?"
+        },
+        "reactivate": {
+          "body": "Setiap bilik yang dibatalkan dipulihkan bersama. Satu bilik dalam kumpulan tidak boleh diaktifkan semula secara berasingan.",
+          "button": "Aktifkan semula semua bilik",
+          "confirm": "Aktifkan semula semua bilik",
+          "done": "Tempahan kumpulan telah diaktifkan semula.",
+          "title": "Aktifkan semula setiap bilik dalam {{number}}?"
         }
       }
     }

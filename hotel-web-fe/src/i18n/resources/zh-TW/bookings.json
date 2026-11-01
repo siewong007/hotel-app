@@ -164,7 +164,8 @@
           "body": "所有尚未入住的客房都會被取消並釋出，與逐間取消完全相同。要麼全部取消，要麼都不取消。",
           "confirm": "取消全部客房",
           "done_one": "已取消 {{count}} 間客房。",
-          "done_other": "已取消 {{count}} 間客房。"
+          "done_other": "已取消 {{count}} 間客房。",
+          "refundWarning": "已付款的客房會進入退款流程，不會被直接抹掉。房費走退款流程。門卡押金仍留在押金退款頁面。要麼全部取消，要麼都不取消。"
         },
         "checkin": {
           "button": "全部入住",
@@ -181,6 +182,30 @@
           "confirm": "全部退房",
           "done_one": "已為 {{count}} 間客房辦理退房。",
           "done_other": "已為 {{count}} 間客房辦理退房。"
+        },
+        "pay": {
+          "body": "這將收取每間未付客房的全部餘額，包括旅遊稅和加床。金額由酒店系統確定。",
+          "button": "收款",
+          "confirm": "收款",
+          "done": "已記錄付款（{{amount}}）。",
+          "method": "付款方式",
+          "methods": {
+            "bank_transfer": "銀行轉帳",
+            "card": "銀行卡",
+            "cash": "現金",
+            "duitnow": "DuitNow",
+            "online_banking": "網上銀行"
+          },
+          "notes": "備註（選填）",
+          "reference": "參考號（選填）",
+          "title": "為 {{number}} 收取一筆付款？"
+        },
+        "reactivate": {
+          "body": "所有已取消的客房會一起恢復。團體中的單間客房不能單獨恢復。",
+          "button": "恢復全部客房",
+          "confirm": "恢復全部客房",
+          "done": "團體預訂已恢復。",
+          "title": "恢復 {{number}} 中的所有客房？"
         }
       }
     }

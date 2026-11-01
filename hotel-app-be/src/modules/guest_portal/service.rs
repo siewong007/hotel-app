@@ -756,7 +756,11 @@ pub async fn cancel_my_booking(
     let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0, None)
         .await
         .map(|page| (page.items, page.total))?;
-    let Some(booking) = items.into_iter().find(|booking| booking.id == booking_id) else {
+    let Some(booking) = items
+        .iter()
+        .find(|booking| booking.id == booking_id)
+        .cloned()
+    else {
         // Same contract as the other portal mutations: a booking that exists
         // but belongs to another guest is Forbidden, a nonexistent one is
         // NotFound — resolve_owned_booking maps both.
@@ -813,6 +817,25 @@ pub async fn cancel_my_booking(
             "message": "Cancellation request submitted. Our team will review it and email you the outcome."
         }));
     }
+    // A bank-transfer claim on a group is still under review. Voiding one room
+    // would split the claim, so the guest asks to cancel the whole group instead.
+    if let Some(group_id) = booking.booking_group_id {
+        let claim_open = items.iter().any(|room| {
+            room.booking_group_id == Some(group_id)
+                && room.status != "voided"
+                && room.status == "pending_confirmation"
+        });
+        if claim_open {
+            let rooms: Vec<_> = items
+                .into_iter()
+                .filter(|room| room.booking_group_id == Some(group_id) && room.status != "voided")
+                .collect();
+            return request_group_cancellation_review(
+                pool, hub, guest_id, &rooms, reason, ip_address, user_agent,
+            )
+            .await;
+        }
+    }
     let user_id = GuestPortalSessionRepository::find_guest_user_id(pool, guest_id)
         .await?
         .ok_or_else(|| {
@@ -826,13 +849,15 @@ pub async fn cancel_my_booking(
 
 /// Cancel a whole multi-room booking.
 ///
-/// Unpaid: every active room must be cancellable online on its own (same rules
-/// as the per-room button) and the rooms are voided together.
+/// Unpaid, and no bank-transfer claim under review: every active room must be
+/// cancellable online on its own (same rules as the per-room button) and the
+/// rooms are voided together.
 ///
-/// Any room paid: nothing is voided. Every active room is routed into the same
+/// Any room paid, or any room still `pending_confirmation` from a transfer
+/// claim: nothing is voided. Every active room is routed into the same
 /// per-room staff review a paid single room uses (one cancellation request per
-/// room, filed in one call, each naming the group), so staff decide refunds
-/// for the rooms together. Rooms that already have a request keep it.
+/// room, filed in one call, each naming the group). Rooms that already have a
+/// request keep it. A single room with no group still cancels immediately.
 pub async fn cancel_my_booking_group(
     pool: &DbPool,
     hub: &crate::modules::support::hub::SupportHub,
@@ -863,7 +888,10 @@ pub async fn cancel_my_booking_group(
     if rooms.is_empty() {
         return Err(ApiError::NotFound("Booking not found".to_string()));
     }
-    if rooms.iter().any(|room| room.completed_payment_id.is_some()) {
+    let claim_open = rooms
+        .iter()
+        .any(|room| room.status == "pending_confirmation");
+    if rooms.iter().any(|room| room.completed_payment_id.is_some()) || claim_open {
         return request_group_cancellation_review(
             pool, hub, guest_id, &rooms, reason, ip_address, user_agent,
         )

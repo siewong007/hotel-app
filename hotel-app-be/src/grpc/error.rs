@@ -98,6 +98,11 @@ pub fn to_status(err: ApiError) -> Status {
             crate::core::error::GROUP_BUSY_MESSAGE,
             info("GROUP_BUSY"),
         ),
+        ApiError::GroupPaid => Status::with_error_details(
+            Code::FailedPrecondition,
+            crate::core::error::GROUP_PAID_MESSAGE,
+            info("GROUP_PAID"),
+        ),
         ApiError::AutoCheckinBlocked {
             block_code,
             message,

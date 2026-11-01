@@ -476,6 +476,7 @@
       "cancelDialog": {
         "cancelTitle": "取消預訂 {{number}}？",
         "charactersRemaining_other": "剩餘 {{count}} 字元",
+        "claimNotice": "此預訂的銀行轉帳仍在審核中，因此無法立即取消。請提交取消申請，由我們的團隊審核。在此之前預訂保持有效。",
         "customReasonLabel": "自訂取消原因",
         "keepBooking": "保留預訂",
         "paidNotice": "此預訂已付款，取消需由我們團隊審核 — 期間您的預訂保持有效。抵達前至少 3 天提出的申請全額退款；之後的申請可能收取首晚住宿費。",

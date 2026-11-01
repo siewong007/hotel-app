@@ -275,3 +275,105 @@ async fn paid_group_cancel_is_refused_whole_when_a_room_has_arrived() {
     })
     .await;
 }
+
+/// Unpaid group whose bank-transfer claim is still under review. No completed
+/// payment, so the old path would have voided the rooms immediately.
+async fn claim_fixture(pool: &PgPool) -> Fixture {
+    let tag = uuid::Uuid::new_v4().simple().to_string()[..12].to_string();
+    let guest_id: i64 = sqlx::query_scalar(
+        "INSERT INTO guests (nick_name, email, ic_number) VALUES ($1, $2, 'A1234567') RETURNING id",
+    )
+    .bind(format!("Group Claim {tag}"))
+    .bind(format!("group-claim-{tag}@example.com"))
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let room_type_id: i64 = sqlx::query_scalar(
+        "INSERT INTO room_types (code, name, base_price, max_occupancy) \
+         VALUES ($1, $2, 100.00, 2) RETURNING id",
+    )
+    .bind(format!("GK{tag}"))
+    .bind(format!("Claim Type {tag}"))
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let group_id: i64 = sqlx::query_scalar(
+        "INSERT INTO booking_groups (group_number, guest_id, check_in_date, check_out_date) \
+         VALUES ($1, $2, CURRENT_DATE + 10, CURRENT_DATE + 12) RETURNING id",
+    )
+    .bind(format!("GGK{tag}"))
+    .bind(guest_id)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let mut bookings = Vec::new();
+    for i in 0..2 {
+        let room_id: i64 = sqlx::query_scalar(
+            "INSERT INTO rooms (room_number, room_type_id, status, is_active) \
+             VALUES ($1, $2, 'available', true) RETURNING id",
+        )
+        .bind(format!("GK{i}{tag}"))
+        .bind(room_type_id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        let id: i64 = sqlx::query_scalar(
+            "INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, \
+                 room_rate, subtotal, total_amount, status, payment_status, currency, booking_group_id) \
+             VALUES ($1, $2, $3, CURRENT_DATE + 10, CURRENT_DATE + 12, 100.00, 200.00, 200.00, \
+                 'pending_confirmation', 'unpaid', 'MYR', $4) RETURNING id",
+        )
+        .bind(format!("BGK{i}{tag}"))
+        .bind(guest_id)
+        .bind(room_id)
+        .bind(group_id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        bookings.push(id);
+    }
+    Fixture {
+        guest_id,
+        group_id,
+        bookings,
+        room_type_id,
+    }
+}
+
+#[tokio::test]
+async fn claim_under_review_requests_cancellation_instead_of_voiding() {
+    let Some(pool) = test_pool().await else {
+        return;
+    };
+    let f = claim_fixture(&pool).await;
+    run_guarded(&pool, &f, move |pool, f| async move {
+        let hub = SupportHub::default();
+        let result = cancel_my_booking_group(
+            &pool,
+            &hub,
+            f.guest_id,
+            f.group_id,
+            Some("Changed plans".to_string()),
+            None,
+            None,
+        )
+        .await
+        .expect("a claim under review goes to staff");
+        assert_eq!(result["cancellation_requested"], true);
+        let statuses: Vec<String> =
+            sqlx::query_scalar("SELECT status FROM bookings WHERE id = ANY($1) ORDER BY id")
+                .bind(&f.bookings)
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            statuses,
+            vec![
+                "pending_confirmation".to_string(),
+                "pending_confirmation".to_string()
+            ],
+            "the claim stays open and no room is voided"
+        );
+    })
+    .await;
+}

@@ -166,7 +166,8 @@
           "body": "Every room that hasn't checked in is cancelled and its room released, exactly as cancelling each room. Either all rooms are cancelled or none are.",
           "confirm": "Cancel all rooms",
           "done_one": "{{count}} room cancelled.",
-          "done_other": "{{count}} rooms cancelled."
+          "done_other": "{{count}} rooms cancelled.",
+          "refundWarning": "Paid rooms are refunded, not erased. Room charges go through the refund flow. Keycard deposits stay on the deposit refund screen. Every room is cancelled or none are."
         },
         "checkin": {
           "button": "Check in all",
@@ -183,6 +184,30 @@
           "confirm": "Check out all",
           "done_one": "{{count}} room checked out.",
           "done_other": "{{count}} rooms checked out."
+        },
+        "pay": {
+          "body": "This collects the full balance of every unpaid room, including tourism tax and extra beds. The amount is set by the hotel system.",
+          "button": "Take payment",
+          "confirm": "Take payment",
+          "done": "Payment recorded ({{amount}}).",
+          "method": "Payment method",
+          "methods": {
+            "bank_transfer": "Bank transfer",
+            "card": "Card",
+            "cash": "Cash",
+            "duitnow": "DuitNow",
+            "online_banking": "Online banking"
+          },
+          "notes": "Notes (optional)",
+          "reference": "Reference (optional)",
+          "title": "Take one payment for {{number}}?"
+        },
+        "reactivate": {
+          "body": "Every cancelled room is restored together. One room of a group cannot be reactivated on its own.",
+          "button": "Reactivate all rooms",
+          "confirm": "Reactivate all rooms",
+          "done": "The group booking was reactivated.",
+          "title": "Reactivate every room in {{number}}?"
         }
       }
     }

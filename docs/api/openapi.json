@@ -413,6 +413,12 @@
     "/api/bookings/{id}/group/checkout": {
       "POST": {}
     },
+    "/api/bookings/{id}/group/pay": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/group/reactivate": {
+      "POST": {}
+    },
     "/api/bookings/{id}/posted": {
       "GET": {}
     },

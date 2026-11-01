@@ -481,6 +481,7 @@
         "cancelTitle": "要取消预订 {{number}} 吗？",
         "charactersRemaining_one": "还可输入 {{count}} 个字符",
         "charactersRemaining_other": "还可输入 {{count}} 个字符",
+        "claimNotice": "此预订的银行转账仍在审核中，因此不能立即取消。请提交取消申请，由我们的团队审核。在此之前预订保持有效。",
         "customReasonLabel": "自定义取消原因",
         "keepBooking": "保留预订",
         "paidNotice": "此预订已付款，取消需经我们团队审核——审核期间预订保持有效。在抵达前至少 3 天提出的申请将全额退款；更晚提出的申请可能会收取首晚房费。",

@@ -153,6 +153,8 @@ export interface GuestPortalBookingSummary {
   check_out_date: string;
   status: string;
   total_amount: string | number;
+  /** Room charge plus tourism tax and extra beds, when the API sends it. */
+  amount_due?: string | number;
   /** Present only after a booking payment is completed. */
   completed_payment_id?: number | null;
   completed_payment_method?: string | null;

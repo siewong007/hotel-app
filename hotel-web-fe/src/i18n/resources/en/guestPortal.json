@@ -481,6 +481,7 @@
         "cancelTitle": "Cancel booking for {{number}}?",
         "charactersRemaining_one": "{{count}} character remaining",
         "charactersRemaining_other": "{{count}} characters remaining",
+        "claimNotice": "A bank transfer for this booking is still being reviewed, so it cannot be cancelled immediately. Submit a cancellation request and our team will review it. Your booking stays active until then.",
         "customReasonLabel": "Custom cancellation reason",
         "keepBooking": "Keep booking",
         "paidNotice": "This booking is paid, so cancellation is reviewed by our team — your booking stays active in the meantime. Requests made at least 3 days before arrival are refunded in full; later requests may be charged the first night's stay.",

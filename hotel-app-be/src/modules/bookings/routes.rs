@@ -64,6 +64,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/{id}/group/cancel", post(group_cancel_all))
         .route("/bookings/{id}/group/checkin", post(group_checkin_all))
         .route("/bookings/{id}/group/checkout", post(group_checkout_all))
+        .route("/bookings/{id}/group/reactivate", post(group_reactivate))
+        .route("/bookings/{id}/group/pay", post(group_pay))
         // Generic parameterized routes come AFTER specific ones
         .route("/bookings/{id}", get(get_booking))
         .route("/bookings/{id}", patch(update_booking))
@@ -122,6 +124,48 @@ async fn group_cancel_all(
         reason,
     )
     .await
+}
+
+async fn group_reactivate(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+) -> Result<Json<crate::modules::bookings::group_actions::GroupActionResult>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    crate::modules::bookings::group_actions::reactivate_group(&pool, user_id, booking_id)
+        .await
+        .map(Json)
+}
+
+#[derive(serde::Deserialize)]
+struct GroupPayRequest {
+    payment_method: String,
+    transaction_reference: Option<String>,
+    notes: Option<String>,
+}
+
+/// One desk payment for every unpaid room of the group. `payments:create`,
+/// the same permission as recording a payment on a single booking.
+async fn group_pay(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+    Json(body): Json<GroupPayRequest>,
+) -> Result<Json<crate::modules::payments::service::GroupPaymentActionResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "payments:create").await?;
+    let group_id = crate::modules::bookings::booking_group_id(&pool, booking_id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("Booking is not part of a group".to_string()))?;
+    crate::modules::payments::service::record_group_desk_payment(
+        &pool,
+        user_id,
+        group_id,
+        &body.payment_method,
+        body.transaction_reference.as_deref(),
+        body.notes.as_deref(),
+    )
+    .await
+    .map(Json)
 }
 
 async fn group_checkin_all(

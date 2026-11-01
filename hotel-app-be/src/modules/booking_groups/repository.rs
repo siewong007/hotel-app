@@ -327,6 +327,39 @@ impl BookingGroupRepository {
         Ok(())
     }
 
+    /// Refuse a room change once money has moved on the group: a completed
+    /// or in-flight payment on any of its rooms, or a transfer claim under
+    /// review (the same test the unpaid-hold sweep uses). A multi-room booking
+    /// is paid as one unit and never left part-paid, so once paid its rooms
+    /// are locked in.
+    pub async fn ensure_unpaid_tx(
+        tx: &mut DbTransaction<'_>,
+        group_id: i64,
+    ) -> Result<(), ApiError> {
+        let paid: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM bookings m
+                WHERE m.booking_group_id = $1
+                  AND (m.status = 'pending_confirmation' OR EXISTS (
+                      SELECT 1 FROM payments p
+                      WHERE p.booking_id = m.id
+                        AND p.status IN ('completed', 'pending', 'processing')
+                        AND COALESCE(p.payment_type, 'booking') != 'refund'
+                  ))
+            )
+            "#,
+        )
+        .bind(group_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        if paid {
+            return Err(ApiError::GroupPaid);
+        }
+        Ok(())
+    }
+
     /// Member rooms in booking order, including voided ones (callers filter).
     pub async fn members(
         pool: &DbPool,

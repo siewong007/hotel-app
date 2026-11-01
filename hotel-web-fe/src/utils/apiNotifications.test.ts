@@ -60,6 +60,10 @@ describe('getApiNotificationMessage', () => {
       ['ms', 'group_busy', 'cuba lagi'],
       ['zh', 'group_busy', '请稍后再试'],
       ['zh-TW', 'group_busy', '請稍後再試'],
+      ['en', 'group_paid', 'Payment has been made'],
+      ['ms', 'group_paid', 'Bayaran telah dibuat'],
+      ['zh', 'group_paid', '此预订已付款'],
+      ['zh-TW', 'group_paid', '此預訂已付款'],
     ];
     for (const [locale, code, expected] of cases) {
       setActiveLocale(locale);

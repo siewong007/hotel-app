@@ -89,6 +89,40 @@ describe('BookingGroupSection', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
+  it('warns that paid rooms are refunded when the whole group is cancelled', async () => {
+    get.mockReturnValue({ json: () => Promise.resolve(groupOf([room(10, 'confirmed'), room(11, 'pending')])) });
+    render(<BookingGroupSection bookingId={10} canManage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel all rooms' }));
+    expect(await screen.findByText(/Paid rooms are refunded/)).toBeTruthy();
+  });
+
+  it('takes one payment for every unpaid room', async () => {
+    get.mockReturnValue({ json: () => Promise.resolve(groupOf([
+      { ...room(10, 'pending'), payment_status: 'unpaid' },
+      { ...room(11, 'pending'), payment_status: 'unpaid' },
+    ])) });
+    post.mockReturnValue({ json: () => Promise.resolve({ amount: '200.00' }) });
+    render(<BookingGroupSection bookingId={10} canManage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Take payment' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Take payment')!);
+    await waitFor(() => expect(post).toHaveBeenCalledWith('bookings/10/group/pay', {
+      json: { payment_method: 'cash', transaction_reference: null, notes: null },
+    }));
+    expect(await screen.findByText(/Payment recorded/)).toBeTruthy();
+  });
+
+  it('reactivates every voided room together', async () => {
+    get.mockReturnValue({ json: () => Promise.resolve(groupOf([room(10, 'voided'), room(11, 'voided')])) });
+    post.mockReturnValue({ json: () => Promise.resolve({ processed: [10, 11] }) });
+    render(<BookingGroupSection bookingId={10} canManage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reactivate all rooms' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Reactivate all rooms')!);
+    await waitFor(() => expect(post).toHaveBeenCalledWith('bookings/10/group/reactivate'));
+    expect(await screen.findByText('The group booking was reactivated.')).toBeTruthy();
+  });
+
   it('labels a list row with its group number', () => {
     render(<GroupChip groupNumber="GBK-3" />);
     expect(screen.getByTestId('booking-group-chip').textContent).toBe('Group GBK-3');

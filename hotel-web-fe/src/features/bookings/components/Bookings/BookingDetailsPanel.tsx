@@ -113,13 +113,16 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   // (confirmed/pending) that have no invoice yet. Once checked in, out, or
   // completed, payments are recorded inside the invoice (checkout preview /
   // receipt). Locked once fully settled.
-  const showPayment = !booking.is_complimentary
+  const [groupFor, setGroupFor] = React.useState<{ id: number | string; inGroup: boolean } | null>(null);
+  const inGroup = groupFor != null && String(groupFor.id) === String(booking.id) && groupFor.inGroup;
+  const showPayment = !inGroup
+    && !booking.is_complimentary
     && isPositiveMoney(getBookingBalance(booking))
     && !['checked_in', 'checked_out', 'completed'].includes(booking.status);
   const showInvoice = ['checked_out', 'completed'].includes(booking.status);
   const showRelease = canRelease(booking);
   const showVoid = canVoid(booking);
-  const showReactivate = canReactivate(booking);
+  const showReactivate = canReactivate(booking) && !inGroup;
 
   // Money already on the row and previously discarded. `balance_due` excludes
   // deposit payment types by design, so the deposit is shown as its own held
@@ -329,7 +332,12 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
             </Box>
           </Box>
 
-          <BookingGroupSection bookingId={booking.id} canManage={isAdmin} onChanged={onGroupChanged} />
+          <BookingGroupSection
+            bookingId={booking.id}
+            canManage={isAdmin}
+            onChanged={onGroupChanged}
+            onGroup={(grouped) => setGroupFor({ id: booking.id, inGroup: grouped })}
+          />
 
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.charges')}</Typography>
@@ -498,9 +506,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                   (confirmed/pending) that have no invoice yet. Once checked in,
                   out, or completed, payments are recorded inside the invoice
                   (checkout preview / receipt). Locked once fully settled. */}
-              {!booking.is_complimentary
-                && isPositiveMoney(getBookingBalance(booking))
-                && !['checked_in', 'checked_out', 'completed'].includes(booking.status) && (
+              {showPayment && (
                 <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => onPayment(booking)}>{t('details.payment')}</Button>
               )}
               <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => onWorkflow(booking)}>{t('details.workflow')}</Button>
@@ -514,7 +520,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               {canVoid(booking) && (
                 <Button variant="outlined" color="error" startIcon={<VoidIcon />} onClick={() => onVoid(booking)}>{t('details.void')}</Button>
               )}
-              {canReactivate(booking) && (
+              {showReactivate && (
                 <Button variant="outlined" color="success" startIcon={<RestoreIcon />} onClick={() => onReactivate(booking)}>{t('details.reactivate')}</Button>
               )}
             </Stack>

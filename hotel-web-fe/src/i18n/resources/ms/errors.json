@@ -19,7 +19,8 @@
     "two_factor_enrollment_required": "Peranan anda memerlukan pengesahan dua faktor. Sila sediakannya untuk meneruskan.",
     "guest_name_taken": "Nama samaran itu sudah digunakan. Sila pilih yang lain.",
     "group_room_checked_in": "Sebuah bilik dalam tempahan ini sudah didaftar masuk, jadi bilik tidak boleh ditambah atau dibuang dalam talian. Sila hubungi hotel.",
-    "group_busy": "Tempahan ini sedang dikemas kini sekarang. Sila cuba lagi sebentar nanti."
+    "group_busy": "Tempahan ini sedang dikemas kini sekarang. Sila cuba lagi sebentar nanti.",
+    "group_paid": "Bayaran telah dibuat untuk tempahan ini, jadi bilik tidak boleh ditambah dalam talian. Sila hubungi hotel."
   },
   "status": {
     "serverError": "Ralat pelayan berlaku. Sila cuba lagi kemudian.",
