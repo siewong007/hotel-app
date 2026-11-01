@@ -537,6 +537,12 @@
     "/api/guest-portal/booking/group-payments/bank-transfer": {
       "POST": {}
     },
+    "/api/guest-portal/booking/group-payments/paypal/capture": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/group-payments/paypal/create-order": {
+      "POST": {}
+    },
     "/api/guest-portal/booking/payments/bank-transfer": {
       "POST": {}
     },
@@ -592,6 +598,12 @@
       "POST": {}
     },
     "/api/guest-portal/me/booking-groups/{id}/payments/bank-transfer": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/booking-groups/{id}/payments/paypal/capture": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/booking-groups/{id}/payments/paypal/create-order": {
       "POST": {}
     },
     "/api/guest-portal/me/booking-options": {
@@ -1268,6 +1280,9 @@
     },
     {
       "name": "booking-channels"
+    },
+    {
+      "name": "booking-groups"
     },
     {
       "name": "bookings"
