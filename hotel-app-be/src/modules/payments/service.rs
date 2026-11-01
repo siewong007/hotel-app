@@ -3437,6 +3437,8 @@ async fn group_payment_ref(pool: &DbPool, payment_id: i64) -> Result<Option<Stri
 
 /// Guest action: one bank-transfer claim for every unpaid room of a group.
 ///
+/// Only rooms still unpaid are claimed: a room added to a part-paid group is
+/// paid on its own and paid rooms are never charged twice.
 /// All rooms move to `pending_confirmation` together in one transaction; each
 /// gets its own pending payment for its own payable amount (so ledgers and a
 /// later single-room refund stay per booking), and staff review the claim once.
@@ -3454,7 +3456,8 @@ pub async fn create_group_bank_transfer_claim(
     }
     let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
         "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
-         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' ORDER BY id",
+         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' \
+         AND COALESCE(payment_status, 'unpaid') IN ('unpaid', 'unpaid_deposit') ORDER BY id",
     )
     .bind(group_id)
     .fetch_all(&mut *tx)
@@ -3683,7 +3686,8 @@ pub async fn create_group_paypal_order(
     }
     let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
         "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
-         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' ORDER BY id",
+         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' \
+         AND COALESCE(payment_status, 'unpaid') IN ('unpaid', 'unpaid_deposit') ORDER BY id",
     )
     .bind(group_id)
     .fetch_all(&mut *tx)

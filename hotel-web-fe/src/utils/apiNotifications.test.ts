@@ -49,6 +49,24 @@ describe('getApiNotificationMessage', () => {
     ).toBe('您的角色要求启用双重身份验证，请完成设置后继续。');
   });
 
+  it('translates the multi-room change codes in every locale', async () => {
+    await Promise.all(['ms', 'zh-TW'].map((locale) => ensureLocaleLoaded(locale as 'ms')));
+    const cases: Array<[Parameters<typeof setActiveLocale>[0], string, string]> = [
+      ['en', 'group_room_checked_in', 'contact the hotel'],
+      ['ms', 'group_room_checked_in', 'hubungi hotel'],
+      ['zh', 'group_room_checked_in', '请联系酒店'],
+      ['zh-TW', 'group_room_checked_in', '請聯絡飯店'],
+      ['en', 'group_busy', 'try again'],
+      ['ms', 'group_busy', 'cuba lagi'],
+      ['zh', 'group_busy', '请稍后再试'],
+      ['zh-TW', 'group_busy', '請稍後再試'],
+    ];
+    for (const [locale, code, expected] of cases) {
+      setActiveLocale(locale);
+      expect(getApiNotificationMessage({ error: 'server text', code }, 409)).toContain(expected);
+    }
+  });
+
   it('keeps the server error text when the code is unknown to the bundle', () => {
     setActiveLocale('zh');
     const payload = { error: 'Upstream rejected the booking window', code: 'some_future_code' };

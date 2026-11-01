@@ -17,7 +17,9 @@
     "rate_limited": "請求過於頻繁，請稍後重試。",
     "profile_incomplete": "請先完成個人資料再繼續。",
     "two_factor_enrollment_required": "您的角色需要兩步驟驗證，請先完成設定再繼續。",
-    "guest_name_taken": "此暱稱已被使用，請選擇其他暱稱。"
+    "guest_name_taken": "此暱稱已被使用，請選擇其他暱稱。",
+    "group_room_checked_in": "此預訂中已有房間辦理入住，因此無法線上新增或移除房間。請聯絡飯店。",
+    "group_busy": "此預訂正在更新中，請稍後再試。"
   },
   "status": {
     "serverError": "發生伺服器錯誤，請稍後重試。",

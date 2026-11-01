@@ -283,6 +283,50 @@ impl BookingGroupRepository {
         group_from_row(&row)
     }
 
+    /// Lock the group row like [`Self::lock_tx`], but refuse instead of
+    /// waiting when another change already holds it, so two guest changes to
+    /// the same group never both apply. Maps a busy lock to
+    /// [`ApiError::GroupBusy`] ("try again").
+    pub async fn lock_tx_nowait(
+        tx: &mut DbTransaction<'_>,
+        group_id: i64,
+    ) -> Result<BookingGroup, ApiError> {
+        let sql =
+            format!("SELECT {GROUP_COLUMNS} FROM booking_groups WHERE id = $1 FOR UPDATE NOWAIT");
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
+            .bind(group_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|error| match &error {
+                sqlx::Error::Database(db) if db.code().as_deref() == Some("55P03") => {
+                    ApiError::GroupBusy
+                }
+                _ => ApiError::from(error),
+            })?
+            .ok_or_else(|| ApiError::NotFound("Booking group not found".to_string()))?;
+        group_from_row(&row)
+    }
+
+    /// Refuse a room change while any live room of the group has arrived.
+    pub async fn ensure_no_room_arrived_tx(
+        tx: &mut DbTransaction<'_>,
+        group_id: i64,
+    ) -> Result<(), ApiError> {
+        let arrived: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM bookings WHERE booking_group_id = $1 \
+             AND status = ANY($2))",
+        )
+        .bind(group_id)
+        .bind(super::voucher_resplit::ARRIVED_STATUSES)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        if arrived {
+            return Err(ApiError::GroupRoomCheckedIn);
+        }
+        Ok(())
+    }
+
     /// Member rooms in booking order, including voided ones (callers filter).
     pub async fn members(
         pool: &DbPool,

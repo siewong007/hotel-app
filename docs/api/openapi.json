@@ -615,6 +615,9 @@
     "/api/guest-portal/me/booking-groups/{id}/payments/paypal/create-order": {
       "POST": {}
     },
+    "/api/guest-portal/me/booking-groups/{id}/rooms": {
+      "POST": {}
+    },
     "/api/guest-portal/me/booking-options": {
       "GET": {}
     },

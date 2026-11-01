@@ -439,6 +439,43 @@ pub async fn create_group_booking_handler(
     ))
 }
 
+/// `POST /guest-portal/me/booking-groups/{id}/rooms` — add one room to the
+/// guest's own multi-room booking (unpaid, list price, no voucher share).
+pub async fn add_group_room_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<AvailabilityHub>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    axum::extract::Path(group_id): axum::extract::Path<i64>,
+    Json(request): Json<super::group::AddGroupRoomRequest>,
+) -> Result<Json<GroupBookingConfirmation>, ApiError> {
+    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let (allowed, retry_after) = limiters
+        .guest_portal_booking_create
+        .check_with_retry(format!("guest:{guest_id}"))
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many booking attempts. Please try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    Ok(Json(
+        super::group::add_room_for_guest(
+            &pool,
+            &hub,
+            guest_id,
+            group_id,
+            request,
+            Some(ip.to_string()),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
+}
+
 /// `GET /guest-portal/me/booking-groups/{id}` — one of the guest's own groups.
 pub async fn get_group_booking_handler(
     State(pool): State<DbPool>,
