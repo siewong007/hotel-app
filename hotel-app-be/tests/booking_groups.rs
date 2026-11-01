@@ -797,6 +797,263 @@ mod postgres_tests {
                 .is_err()
         );
     }
+
+    async fn new_group(tx: &mut Transaction<'_, Postgres>, guest_id: i64, tag: String) -> i64 {
+        BookingGroupRepository::create_tx(
+            tx,
+            &NewBookingGroup {
+                guest_id,
+                check_in_date: day(10),
+                check_out_date: day(12),
+                source: "website".to_string(),
+                currency: "MYR".to_string(),
+                voucher_id: None,
+                hold_expires_at: None,
+                portal_request_id: Some(tag),
+                created_by: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    /// Patch 0026 must land every group exactly where `refresh_totals_tx`
+    /// would, and a second run must change nothing.
+    #[tokio::test]
+    async fn backfill_patch_matches_refresh_totals() {
+        const PATCH: &str =
+            include_str!("../database/postgres/patches/0026_booking_group_totals_backfill.sql");
+        let Some(pool) = pool().await else { return };
+        let suffix = unique_suffix();
+        let mut tx = pool.begin().await.unwrap();
+        let cases: [(&[(&str, &str)], &str, &str); 6] = [
+            (
+                &[("confirmed", "paid"), ("confirmed", "paid")],
+                "paid",
+                "active",
+            ),
+            (
+                &[("confirmed", "paid"), ("pending_payment", "unpaid")],
+                "partial",
+                "active",
+            ),
+            (
+                &[
+                    ("pending_payment", "unpaid"),
+                    ("pending_payment", "unpaid_deposit"),
+                ],
+                "unpaid",
+                "active",
+            ),
+            (
+                &[("confirmed", "refunded"), ("confirmed", "paid")],
+                "partial",
+                "active",
+            ),
+            (
+                &[("voided", "void"), ("confirmed", "paid")],
+                "paid",
+                "active",
+            ),
+            (&[("voided", "void"), ("voided", "void")], "void", "voided"),
+        ];
+        let mut groups = Vec::new();
+        for (case, (members, _, _)) in cases.iter().enumerate() {
+            let seed = seed(&mut tx, suffix + 1_000 * (case as u64 + 1)).await;
+            let group_id = new_group(&mut tx, seed.guest_id, format!("bf{case}-{suffix}")).await;
+            let mut ids = Vec::new();
+            for (n, (status, payment)) in members.iter().enumerate() {
+                let id = insert_booking(
+                    &mut tx,
+                    seed.guest_id,
+                    seed.room_ids[n],
+                    format!("BF{case}{n}-{suffix:x}"),
+                    "200.00",
+                    "210.00",
+                    payment,
+                )
+                .await;
+                sqlx::query("UPDATE bookings SET status = $1 WHERE id = $2")
+                    .bind(status)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
+                ids.push(id);
+            }
+            BookingGroupRepository::attach_tx(&mut tx, group_id, &ids)
+                .await
+                .unwrap();
+            groups.push(group_id);
+        }
+
+        // What the application would compute.
+        let mut expected = Vec::new();
+        for (group_id, (_, payment, status)) in groups.iter().zip(cases.iter()) {
+            let group = BookingGroupRepository::refresh_totals_tx(&mut tx, *group_id)
+                .await
+                .unwrap();
+            assert_eq!(group.payment_status, *payment, "group {group_id}");
+            assert_eq!(group.status, *status, "group {group_id}");
+            expected.push(group);
+        }
+
+        // Stale rows, as prod holds them, then the patch.
+        sqlx::query(
+            "UPDATE booking_groups SET payment_status = 'unpaid', status = 'active', \
+                 room_count = 9, total_amount = 0, subtotal = 0 WHERE id = ANY($1)",
+        )
+        .bind(&groups)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::raw_sql(PATCH).execute(&mut *tx).await.unwrap();
+        for want in &expected {
+            #[allow(clippy::type_complexity)]
+            let got: (
+                i32,
+                Decimal,
+                Decimal,
+                Decimal,
+                Decimal,
+                Decimal,
+                String,
+                String,
+            ) = sqlx::query_as(
+                "SELECT room_count, subtotal, discount_amount, tax_amount, \
+                         tourism_tax_amount, total_amount, payment_status, status \
+                     FROM booking_groups WHERE id = $1",
+            )
+            .bind(want.id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+            assert_eq!(
+                (
+                    got.0,
+                    got.1,
+                    got.2,
+                    got.3,
+                    got.4,
+                    got.5,
+                    got.6.as_str(),
+                    got.7.as_str(),
+                ),
+                (
+                    want.room_count,
+                    want.subtotal,
+                    want.discount_amount,
+                    want.tax_amount,
+                    want.tourism_tax_amount,
+                    want.total_amount,
+                    want.payment_status.as_str(),
+                    want.status.as_str(),
+                ),
+                "group {}",
+                want.id
+            );
+        }
+
+        // Idempotent: nothing of ours changes on a re-run.
+        let before: Vec<chrono::DateTime<Utc>> = sqlx::query_scalar(
+            "SELECT updated_at FROM booking_groups WHERE id = ANY($1) ORDER BY id",
+        )
+        .bind(&groups)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::raw_sql(PATCH).execute(&mut *tx).await.unwrap();
+        let after: Vec<chrono::DateTime<Utc>> = sqlx::query_scalar(
+            "SELECT updated_at FROM booking_groups WHERE id = ANY($1) ORDER BY id",
+        )
+        .bind(&groups)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(before, after);
+
+        tx.rollback().await.unwrap();
+    }
+
+    /// A guest cancelling an unpaid group gets back the credit nights the
+    /// rooms spent — only the nights spent, not the whole stay.
+    #[tokio::test]
+    async fn postgres_guest_group_cancel_restores_credit_nights() {
+        use hotel_app_be::modules::bookings::service::cancel_pending_group_by_guest;
+        let Some(pool) = pool().await else { return };
+        let suffix = unique_suffix();
+        let mut tx = pool.begin().await.unwrap();
+        let seed = seed(&mut tx, suffix).await;
+        let user_id: i64 = sqlx::query_scalar(
+            "INSERT INTO users (username, email, password_hash, full_name, user_type, guest_id, \
+                 is_active, is_verified) \
+             VALUES ($1, $2, 'x', 'Group Guest', 'guest', $3, true, true) RETURNING id",
+        )
+        .bind(format!("grpcredit{suffix}"))
+        .bind(format!("grpcredit-{suffix}@hotel.test"))
+        .bind(seed.guest_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        for room_type_id in &seed.room_type_ids {
+            sqlx::query(
+                "INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available) \
+                 VALUES ($1, $2, 0)",
+            )
+            .bind(seed.guest_id)
+            .bind(room_type_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+        let group_id = new_group(&mut tx, seed.guest_id, format!("gcr-{suffix}")).await;
+        let mut ids = Vec::new();
+        for (n, room_id) in seed.room_ids.iter().enumerate() {
+            ids.push(
+                insert_booking(
+                    &mut tx,
+                    seed.guest_id,
+                    *room_id,
+                    format!("GR{n}-{suffix:x}"),
+                    "200.00",
+                    "110.00",
+                    "unpaid",
+                )
+                .await,
+            );
+        }
+        // Room X: one of its two nights came from a credit. Room Y: none.
+        sqlx::query(
+            "UPDATE bookings SET is_complimentary = true, complimentary_nights = 1, \
+                 complimentary_reason = 'test' WHERE id = $1",
+        )
+        .bind(ids[0])
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        BookingGroupRepository::attach_tx(&mut tx, group_id, &ids)
+            .await
+            .unwrap();
+        BookingGroupRepository::refresh_totals_tx(&mut tx, group_id)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        cancel_pending_group_by_guest(&pool, user_id, group_id, None)
+            .await
+            .expect("group cancel");
+
+        let balances: Vec<i32> = sqlx::query_scalar(
+            "SELECT nights_available FROM guest_complimentary_credits \
+             WHERE guest_id = $1 ORDER BY room_type_id",
+        )
+        .bind(seed.guest_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(balances, vec![1, 0]);
+    }
 }
 
 /// Staff `POST /bookings/group`: every room and the group commit together or

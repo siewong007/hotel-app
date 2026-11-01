@@ -144,6 +144,8 @@ async fn void_booking_by_guest_tx(
     booking_repo::void_uncompleted_booking_payments_tx(tx, booking.id).await?;
     let change_reason = reason.unwrap_or("Booking cancelled by guest");
     booking_repo::void_booking_ledgers_tx(tx, booking.id, Some(user_id), change_reason).await?;
+    // Credits spent on this room go back to the guest, as on a staff void.
+    booking_repo::restore_complimentary_credits_tx(tx, booking).await?;
     payments::recompute_payment_status_tx(tx, booking.id).await?;
 
     booking_repo::record_booking_history_tx(

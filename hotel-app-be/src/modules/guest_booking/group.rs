@@ -907,6 +907,7 @@ async fn create_group_inner(
             booking_channel_id,
             nightly_rates: daily_rates,
             complimentary_reason: complimentary_reason(quote),
+            complimentary_nights: quote.complimentary_nights,
             settled_by_credits: room_settled_by_credits(room),
             is_tourist: quote.tax_amount > Decimal::ZERO,
             tourism_tax_amount: quote.tax_amount,

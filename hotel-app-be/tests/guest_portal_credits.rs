@@ -288,6 +288,7 @@ mod postgres_tests {
             booking_channel_id: None,
             nightly_rates: serde_json::json!({ "2031-03-10": "150.00", "2031-03-11": "150.00" }),
             complimentary_reason: Some("Guest portal: credits".to_string()),
+            complimentary_nights: 2,
             settled_by_credits,
             is_tourist: false,
             tourism_tax_amount: Decimal::ZERO,

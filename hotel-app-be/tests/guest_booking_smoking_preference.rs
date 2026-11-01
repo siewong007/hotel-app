@@ -319,6 +319,7 @@ mod postgres_tests {
             nightly_rates: serde_json::json!({}),
             complimentary_reason: None,
             settled_by_credits: false,
+            complimentary_nights: 0,
             is_tourist: false,
             tourism_tax_amount: Decimal::ZERO,
             commission_amount: None,
