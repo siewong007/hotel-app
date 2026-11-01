@@ -135,6 +135,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         smoking_preference: row.try_get("smoking_preference").ok().flatten(),
         room_is_smoking: row.try_get("room_is_smoking").ok().flatten(),
         created_by_name: row.try_get("created_by_name").ok().flatten(),
+        group_number: row.try_get("group_number").ok().flatten(),
         ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
     }
 }

@@ -899,7 +899,7 @@ pub(crate) async fn completed_booking_payment_total(
 /// forfeited, or waived. Both checks read pre-update state at the call site,
 /// so resolution has to be a prior call: a payment or a waive folded into the
 /// checkout request itself does not satisfy either guard.
-async fn ensure_checkout_balance_resolved(
+pub(crate) async fn ensure_checkout_balance_resolved(
     pool: &DbPool,
     booking_id: i64,
     existing_booking: &Booking,

@@ -86,12 +86,15 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
             WHEN creator.user_type::text = 'staff' THEN NULLIF(BTRIM(creator.full_name), '')
             ELSE NULL
         END AS created_by_name,
-        COALESCE(bk_inv.invoice_number, bk_cli.invoice_number) AS invoice_number
+        COALESCE(bk_inv.invoice_number, bk_cli.invoice_number) AS invoice_number,
+        -- Multi-room booking this room belongs to (NULL for single-room bookings).
+        bgrp.group_number AS group_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
     LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
+    LEFT JOIN booking_groups bgrp ON bgrp.id = b.booking_group_id
     LEFT JOIN users creator ON creator.id = b.created_by AND creator.deleted_at IS NULL
     LEFT JOIN LATERAL (
         SELECT cl.amount, cl.paid_amount

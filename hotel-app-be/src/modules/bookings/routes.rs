@@ -61,6 +61,9 @@ pub fn routes() -> Router<DbPool> {
             post(convert_complimentary_to_credits),
         )
         .route("/bookings/{id}/group", get(get_booking_group))
+        .route("/bookings/{id}/group/cancel", post(group_cancel_all))
+        .route("/bookings/{id}/group/checkin", post(group_checkin_all))
+        .route("/bookings/{id}/group/checkout", post(group_checkout_all))
         // Generic parameterized routes come AFTER specific ones
         .route("/bookings/{id}", get(get_booking))
         .route("/bookings/{id}", patch(update_booking))
@@ -85,6 +88,70 @@ async fn get_booking_group(
     let group = BookingGroupRepository::find_by_id(&pool, group_id).await?;
     let rooms = BookingGroupRepository::members(&pool, group_id).await?;
     Ok(Json(serde_json::json!({ "group": group, "rooms": rooms })))
+}
+
+/// Staff group actions. Same permission as the per-room void, check-in and
+/// checkout routes (`bookings:update`). `{id}` is any room in the group.
+async fn group_action(
+    pool: DbPool,
+    headers: HeaderMap,
+    booking_id: i64,
+    action: crate::modules::bookings::group_actions::GroupAction,
+    reason: Option<String>,
+) -> Result<Json<crate::modules::bookings::group_actions::GroupActionResult>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    crate::modules::bookings::group_actions::run_group_action(
+        &pool, user_id, booking_id, action, reason,
+    )
+    .await
+    .map(Json)
+}
+
+async fn group_cancel_all(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+    body: Option<Json<crate::modules::bookings::group_actions::GroupActionRequest>>,
+) -> Result<Json<crate::modules::bookings::group_actions::GroupActionResult>, ApiError> {
+    let reason = body.and_then(|Json(b)| b.reason);
+    group_action(
+        pool,
+        headers,
+        booking_id,
+        crate::modules::bookings::group_actions::GroupAction::Cancel,
+        reason,
+    )
+    .await
+}
+
+async fn group_checkin_all(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+) -> Result<Json<crate::modules::bookings::group_actions::GroupActionResult>, ApiError> {
+    group_action(
+        pool,
+        headers,
+        booking_id,
+        crate::modules::bookings::group_actions::GroupAction::CheckIn,
+        None,
+    )
+    .await
+}
+
+async fn group_checkout_all(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Path(booking_id): axum::extract::Path<i64>,
+) -> Result<Json<crate::modules::bookings::group_actions::GroupActionResult>, ApiError> {
+    group_action(
+        pool,
+        headers,
+        booking_id,
+        crate::modules::bookings::group_actions::GroupAction::CheckOut,
+        None,
+    )
+    .await
 }
 
 async fn get_bookings(

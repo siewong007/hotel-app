@@ -94,7 +94,9 @@
       "company": "Company Billing",
       "nonMember": "Non-member",
       "member": "Member"
-    }
+    },
+    "groupChip": "Group {{number}}",
+    "groupTooltip": "Part of multi-room booking {{number}}. Search the group number to list every room."
   },
   "details": {
     "closeAria": "Close details",
@@ -153,7 +155,36 @@
       "summary_other": "{{count}} rooms · {{total}}",
       "guests": "{{adults}} adults, {{children}} children",
       "extraBeds_one": "{{count}} extra bed",
-      "extraBeds_other": "{{count}} extra beds"
+      "extraBeds_other": "{{count}} extra beds",
+      "actions": {
+        "failed": "The group action failed.",
+        "back": "Back",
+        "reason": "Reason (optional)",
+        "cancel": {
+          "button": "Cancel all rooms",
+          "title": "Cancel every room in {{number}}?",
+          "body": "Every room that hasn't checked in is cancelled and its room released, exactly as cancelling each room. Either all rooms are cancelled or none are.",
+          "confirm": "Cancel all rooms",
+          "done_one": "{{count}} room cancelled.",
+          "done_other": "{{count}} rooms cancelled."
+        },
+        "checkin": {
+          "button": "Check in all",
+          "title": "Check in every room in {{number}}?",
+          "body": "Every room waiting to arrive is checked in with the same checks as a single check-in. If any room can't be checked in, no room is changed.",
+          "confirm": "Check in all",
+          "done_one": "{{count}} room checked in.",
+          "done_other": "{{count}} rooms checked in."
+        },
+        "checkout": {
+          "button": "Check out all",
+          "title": "Check out every room in {{number}}?",
+          "body": "Every checked-in room is checked out. If any room still has a balance or an unresolved deposit, no room is checked out.",
+          "confirm": "Check out all",
+          "done_one": "{{count}} room checked out.",
+          "done_other": "{{count}} rooms checked out."
+        }
+      }
     }
   },
   "labels": {

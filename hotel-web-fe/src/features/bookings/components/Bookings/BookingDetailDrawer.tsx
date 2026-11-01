@@ -87,6 +87,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
           isAdmin={isAdmin}
           onClose={onClose}
           onOpenFullDetails={onOpenFullDetails}
+          onGroupChanged={onCompleted}
           quickEdit={
             isAdmin ? (
               <BookingQuickEditSection

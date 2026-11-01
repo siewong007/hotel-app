@@ -108,6 +108,9 @@ const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
             booking={booking}
             isAdmin={isAdmin}
             onClose={backToList}
+            onGroupChanged={async () => {
+              await bookingQuery.refetch();
+            }}
             quickEdit={
               isAdmin ? (
                 <BookingQuickEditSection

@@ -93,7 +93,9 @@
       "company": "Bil Syarikat",
       "nonMember": "Bukan ahli",
       "member": "Ahli"
-    }
+    },
+    "groupChip": "Kumpulan {{number}}",
+    "groupTooltip": "Sebahagian daripada tempahan berbilang bilik {{number}}. Cari nombor kumpulan untuk menyenaraikan setiap bilik."
   },
   "details": {
     "closeAria": "Tutup butiran",
@@ -152,7 +154,36 @@
       "summary_other": "{{count}} bilik · {{total}}",
       "guests": "{{adults}} dewasa, {{children}} kanak-kanak",
       "extraBeds_one": "{{count}} katil tambahan",
-      "extraBeds_other": "{{count}} katil tambahan"
+      "extraBeds_other": "{{count}} katil tambahan",
+      "actions": {
+        "failed": "Tindakan kumpulan gagal.",
+        "back": "Kembali",
+        "reason": "Sebab (pilihan)",
+        "cancel": {
+          "button": "Batalkan semua bilik",
+          "title": "Batalkan setiap bilik dalam {{number}}?",
+          "body": "Setiap bilik yang belum daftar masuk dibatalkan dan biliknya dilepaskan, sama seperti membatalkan setiap bilik. Sama ada semua bilik dibatalkan atau tiada langsung.",
+          "confirm": "Batalkan semua bilik",
+          "done_one": "{{count}} bilik dibatalkan.",
+          "done_other": "{{count}} bilik dibatalkan."
+        },
+        "checkin": {
+          "button": "Daftar masuk semua",
+          "title": "Daftar masuk setiap bilik dalam {{number}}?",
+          "body": "Setiap bilik yang menunggu ketibaan didaftar masuk dengan semakan yang sama seperti daftar masuk tunggal. Jika mana-mana bilik tidak boleh didaftar masuk, tiada bilik diubah.",
+          "confirm": "Daftar masuk semua",
+          "done_one": "{{count}} bilik didaftar masuk.",
+          "done_other": "{{count}} bilik didaftar masuk."
+        },
+        "checkout": {
+          "button": "Daftar keluar semua",
+          "title": "Daftar keluar setiap bilik dalam {{number}}?",
+          "body": "Setiap bilik yang telah daftar masuk didaftar keluar. Jika mana-mana bilik masih mempunyai baki atau deposit yang belum diselesaikan, tiada bilik didaftar keluar.",
+          "confirm": "Daftar keluar semua",
+          "done_one": "{{count}} bilik didaftar keluar.",
+          "done_other": "{{count}} bilik didaftar keluar."
+        }
+      }
     }
   },
   "labels": {

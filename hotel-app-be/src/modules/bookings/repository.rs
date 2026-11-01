@@ -139,7 +139,10 @@ impl BookingRepository {
     }
 
     /// Find booking by ID using the compatibility row mapper.
-    pub async fn find_mapped_by_id(pool: &DbPool, id: i64) -> Result<Option<Booking>, ApiError> {
+    pub async fn find_mapped_by_id<'e, E>(pool: E, id: i64) -> Result<Option<Booking>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         let query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
             room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, \
             payment_method, adults, children, special_requests, remarks, source, market_code, \

@@ -93,7 +93,9 @@
       "company": "公司账单",
       "nonMember": "非会员",
       "member": "会员"
-    }
+    },
+    "groupChip": "团体 {{number}}",
+    "groupTooltip": "属于多房间预订 {{number}}。搜索团体编号可列出所有客房。"
   },
   "details": {
     "closeAria": "关闭详情",
@@ -152,7 +154,36 @@
       "summary_other": "{{count}} 间客房 · {{total}}",
       "guests": "{{adults}} 位成人，{{children}} 位儿童",
       "extraBeds_one": "{{count}} 张加床",
-      "extraBeds_other": "{{count}} 张加床"
+      "extraBeds_other": "{{count}} 张加床",
+      "actions": {
+        "failed": "团体操作失败。",
+        "back": "返回",
+        "reason": "原因（可选）",
+        "cancel": {
+          "button": "取消全部客房",
+          "title": "取消 {{number}} 中的所有客房？",
+          "body": "所有尚未入住的客房都会被取消并释放，与逐间取消完全相同。要么全部取消，要么都不取消。",
+          "confirm": "取消全部客房",
+          "done_one": "已取消 {{count}} 间客房。",
+          "done_other": "已取消 {{count}} 间客房。"
+        },
+        "checkin": {
+          "button": "全部入住",
+          "title": "为 {{number}} 中的所有客房办理入住？",
+          "body": "所有待到达的客房将按与单间入住相同的检查办理入住。如有任何客房无法入住，则不会更改任何客房。",
+          "confirm": "全部入住",
+          "done_one": "已为 {{count}} 间客房办理入住。",
+          "done_other": "已为 {{count}} 间客房办理入住。"
+        },
+        "checkout": {
+          "button": "全部退房",
+          "title": "为 {{number}} 中的所有客房办理退房？",
+          "body": "所有已入住的客房将办理退房。如有任何客房仍有余额或未处理的押金，则不会为任何客房退房。",
+          "confirm": "全部退房",
+          "done_one": "已为 {{count}} 间客房办理退房。",
+          "done_other": "已为 {{count}} 间客房办理退房。"
+        }
+      }
     }
   },
   "labels": {

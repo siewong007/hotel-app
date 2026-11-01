@@ -69,6 +69,8 @@ interface BookingDetailsPanelProps {
   onRelease: (booking: BookingWithDetails) => void;
   onVoid: (booking: BookingWithDetails) => void;
   onReactivate: (booking: BookingWithDetails) => void;
+  /** Refresh hook after a staff group action (cancel / check in / check out all). */
+  onGroupChanged?: () => void | Promise<void>;
   /** Drawer mode only — jumps to /bookings/$bookingId. Absent on the detail page. */
   onOpenFullDetails?: (booking: BookingWithDetails) => void;
   /** Drawer mode only — inline quick-edit section rendered between Charges and Actions. */
@@ -93,6 +95,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   onRelease,
   onVoid,
   onReactivate,
+  onGroupChanged,
   onOpenFullDetails,
   quickEdit,
   scrollWithinParent = false,
@@ -326,7 +329,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
             </Box>
           </Box>
 
-          <BookingGroupSection bookingId={booking.id} />
+          <BookingGroupSection bookingId={booking.id} canManage={isAdmin} onChanged={onGroupChanged} />
 
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.charges')}</Typography>

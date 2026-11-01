@@ -12,7 +12,7 @@ import {
   SwapVert as SwapVertIcon,
   Bed as BedIcon,
 } from '@mui/icons-material';
-import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
+import { BookingChannelChip, BillingChip, GroupChip, NightAuditChip } from './BookingMetaChips';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -105,7 +105,7 @@ const PhoneBookingRow: React.FC<PhoneBookingRowProps> = ({
         </Typography>
       </Box>
       <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
-        {t('list.roomNumber', { number: booking.room_number || '-' })} · {booking.room_type || t('list.roomFallback')} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {t('list.nightsAbbrev', { count: getNights(booking) })}
+        {t('list.roomNumber', { number: booking.room_number || '-' })} · {booking.room_type || t('list.roomFallback')} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {t('list.nightsAbbrev', { count: getNights(booking) })}{booking.group_number ? ` · ${t('list.groupChip', { number: booking.group_number })}` : ''}
       </Typography>
     </Box>
     <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
@@ -253,6 +253,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.15 }}>{booking.guest_name}</Typography>
                     {channelInfo && <BookingChannelChip channel={channelInfo} />}
                     {billingChipLabel && <BillingChip label={billingChipLabel} />}
+                    {booking.group_number && <GroupChip groupNumber={booking.group_number} />}
                     <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
                       • {statusLabel(t, 'booking', booking.status)}
                     </Typography>
