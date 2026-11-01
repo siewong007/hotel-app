@@ -251,9 +251,13 @@ pub async fn queue_booking_confirmation_email(
     .await
 }
 
-/// One confirmation for a whole multi-room group: the lead room's guest
-/// context with the group number, every room, and the summed total.
-pub async fn queue_group_confirmation_email(pool: &DbPool, group_id: i64) -> Result<(), ApiError> {
+/// The email source for a whole multi-room group: the lead room's guest
+/// context with the group number, every live room, and the summed charges.
+/// Returns the source, recipient, lead booking id and every live member id.
+async fn group_source(
+    pool: &DbPool,
+    group_id: i64,
+) -> Result<Option<(BookingEmailSource, String, i64, Vec<i64>)>, ApiError> {
     #[derive(sqlx::FromRow)]
     struct Member {
         id: i64,
@@ -277,10 +281,10 @@ pub async fn queue_group_confirmation_email(pool: &DbPool, group_id: i64) -> Res
     .await
     .map_err(ApiError::from)?;
     let Some(lead) = members.first() else {
-        return Ok(());
+        return Ok(None);
     };
     let Some((mut source, recipient)) = load_source(pool, lead.id).await? else {
-        return Ok(());
+        return Ok(None);
     };
     let group_number: Option<String> =
         sqlx::query_scalar("SELECT group_number FROM booking_groups WHERE id = $1")
@@ -314,6 +318,17 @@ pub async fn queue_group_confirmation_email(pool: &DbPool, group_id: i64) -> Res
             .join(", "),
     );
     source.total_amount = members.iter().map(|m| m.total_amount).sum();
+    let lead_id = lead.id;
+    let ids = members.iter().map(|m| m.id).collect();
+    Ok(Some((source, recipient, lead_id, ids)))
+}
+
+/// One confirmation for a whole multi-room group: the lead room's guest
+/// context with the group number, every room, and the summed total.
+pub async fn queue_group_confirmation_email(pool: &DbPool, group_id: i64) -> Result<(), ApiError> {
+    let Some((source, recipient, _, _)) = group_source(pool, group_id).await? else {
+        return Ok(());
+    };
     queue_confirmation_for(
         pool,
         &source,
@@ -473,10 +488,36 @@ pub async fn queue_payment_confirmation_email(
     .await
     .map_err(ApiError::from)?;
 
+    queue_payment_confirmed(
+        pool,
+        &source,
+        &recipient,
+        booking_id,
+        payment.amount,
+        &payment.payment_method,
+        paid,
+        &format!("payment-confirmed:{payment_id}"),
+    )
+    .await
+}
+
+/// Render and queue the "payment confirmed" email. Shared by the single-room
+/// and the whole-group confirmations so both use the same template.
+#[allow(clippy::too_many_arguments)]
+async fn queue_payment_confirmed(
+    pool: &DbPool,
+    source: &BookingEmailSource,
+    recipient: &str,
+    token_booking_id: i64,
+    amount: rust_decimal::Decimal,
+    payment_method: &str,
+    paid: rust_decimal::Decimal,
+    idempotency_key: &str,
+) -> Result<(), ApiError> {
     let billable_total = source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
     let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
-    let method = payment.payment_method.replace('_', " ");
-    let locale = resolve_locale(pool, &source).await;
+    let method = payment_method.replace('_', " ");
+    let locale = resolve_locale(pool, source).await;
     let closing = if balance.is_zero() {
         locale.message("email.paymentConfirmed.settled")
     } else {
@@ -496,12 +537,12 @@ pub async fn queue_payment_confirmation_email(
     let access_token = if guest_portal::guest_has_portal_account(pool, source.guest_id).await {
         None
     } else {
-        guest_portal::issue_booking_access_token(pool, booking_id, source.check_in_date).await
+        guest_portal::issue_booking_access_token(pool, token_booking_id, source.check_in_date).await
     };
     let (cta_url, cta_label) = payment_confirmation_cta(locale, access_token.as_deref());
     let paid_label = source.money(paid);
     let balance_label = source.money(balance);
-    let amount_label = source.money(payment.amount);
+    let amount_label = source.money(amount);
     let extra = email_layout::details_table(&[
         (locale.message("email.labels.payment"), &amount_label),
         (locale.message("email.labels.method"), &method),
@@ -563,13 +604,91 @@ pub async fn queue_payment_confirmation_email(
     queue(
         pool,
         source.guest_id,
-        &recipient,
+        recipient,
         &subject,
         &rendered.html,
         &rendered.text,
-        &format!("payment-confirmed:{payment_id}"),
+        idempotency_key,
     )
     .await
+}
+
+/// One "payment confirmed" email for a whole group claim, instead of one per
+/// room: the amount is every completed payment of the claim
+/// (`group_payment_ref`), the running position is across every live room.
+pub async fn queue_group_payment_confirmation_email(
+    pool: &DbPool,
+    group_id: i64,
+    group_payment_ref: &str,
+) -> Result<(), ApiError> {
+    let Some((mut source, recipient, lead_id, member_ids)) = group_source(pool, group_id).await?
+    else {
+        return Ok(());
+    };
+    // Billable position across every live room, not just the lead's extras.
+    let (tourism_tax, extra_bed): (rust_decimal::Decimal, rust_decimal::Decimal) = sqlx::query_as(
+        "SELECT COALESCE(SUM(tourism_tax_amount), 0), COALESCE(SUM(extra_bed_charge), 0) \
+         FROM bookings WHERE id = ANY($1)",
+    )
+    .bind(&member_ids)
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?;
+    source.tourism_tax_amount = tourism_tax;
+    source.extra_bed_charge = extra_bed;
+    let (amount, method): (Option<rust_decimal::Decimal>, Option<String>) = sqlx::query_as(
+        "SELECT SUM(amount), MIN(payment_method::text) FROM payments \
+         WHERE metadata->>'group_payment_ref' = $1 AND status = 'completed' \
+           AND booking_id = ANY($2)",
+    )
+    .bind(group_payment_ref)
+    .bind(&member_ids)
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?;
+    let (Some(amount), Some(method)) = (amount, method) else {
+        return Ok(());
+    };
+    let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
+        r#"
+        SELECT COALESCE(SUM(amount) FILTER (
+            WHERE status = 'completed'
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
+        ), 0)
+        FROM payments
+        WHERE booking_id = ANY($1)
+        "#,
+    )
+    .bind(&member_ids)
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?;
+    queue_payment_confirmed(
+        pool,
+        &source,
+        &recipient,
+        lead_id,
+        amount,
+        &method,
+        paid,
+        &format!("group-payment-confirmed:{group_payment_ref}"),
+    )
+    .await
+}
+
+/// Best-effort wrapper for the group payment confirmation.
+pub async fn try_queue_group_payment_confirmation_email(
+    pool: &DbPool,
+    group_id: i64,
+    group_payment_ref: &str,
+) {
+    if let Err(error) =
+        queue_group_payment_confirmation_email(pool, group_id, group_payment_ref).await
+    {
+        log::error!(
+            "Failed to queue group payment confirmation email for group {group_id}: {error}"
+        );
+    }
 }
 
 /// Best-effort wrapper: a notification failure must never undo a staff payment
