@@ -219,6 +219,46 @@ describe('PortalBookingPage multi-room cart', () => {
     await waitFor(() => expect(window.sessionStorage.getItem(CART_STORAGE_KEY)).toBeNull());
   });
 
+  it('lets the guest move a complimentary night to another room and books that placement', async () => {
+    type Req = { rooms: unknown[]; use_credits?: boolean; complimentary?: { room_index: number; date: string }[] };
+    mocks.groupQuote.mockImplementation((request: Req) => {
+      const base = groupQuoteFor(request.rooms.length);
+      const placed = request.complimentary ?? (request.use_credits ? [{ room_index: 0, date: '2026-07-17' }] : []);
+      return Promise.resolve({
+        ...base,
+        credits_available: [{ room_type_id: 7, nights_available: 1 }],
+        rooms: base.rooms.map((room) => ({ ...room, quote: { ...room.quote, complimentary_dates: placed.filter((n) => n.room_index === room.index).map((n) => n.date) } })),
+      });
+    });
+    render(<PortalBookingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    const add = await screen.findByRole('button', { name: 'Add a Deluxe Room room' });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Use my 1 complimentary night/ }));
+
+    const room1 = await screen.findByRole('checkbox', { name: 'Use a complimentary night for Room 1 · Deluxe Room on 2026-07-17' });
+    await waitFor(() => expect((room1 as HTMLInputElement).checked).toBe(true));
+    const room2 = screen.getByRole('checkbox', { name: 'Use a complimentary night for Room 2 · Deluxe Room on 2026-07-17' });
+    expect(room2.hasAttribute('disabled')).toBe(true);
+
+    fireEvent.click(room1);
+    await waitFor(() => expect(mocks.groupQuote).toHaveBeenLastCalledWith(expect.objectContaining({ use_credits: false }), 'guest-token'));
+    const room2Again = await screen.findByRole('checkbox', { name: 'Use a complimentary night for Room 2 · Deluxe Room on 2026-07-17' });
+    await waitFor(() => expect(room2Again.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(room2Again);
+    await waitFor(() => expect(mocks.groupQuote).toHaveBeenLastCalledWith(
+      expect.objectContaining({ use_credits: true, complimentary: [{ room_index: 1, date: '2026-07-17' }] }), 'guest-token'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continue to payment' }).hasAttribute('disabled')).toBe(false));
+
+    mocks.groupCreate.mockRejectedValue(new Error('stop'));
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+    await waitFor(() => expect(mocks.groupCreate).toHaveBeenCalledTimes(1));
+    expect(mocks.groupCreate.mock.calls[0][0]).toEqual(expect.objectContaining({ use_credits: true, complimentary: [{ room_index: 1, date: '2026-07-17' }] }));
+  });
+
   it('keeps the cart and shows the server error when a room is taken mid-checkout', async () => {
     render(<PortalBookingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));

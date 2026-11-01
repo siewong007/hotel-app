@@ -20,11 +20,12 @@ import {
 
 import { useTranslation } from '../../../i18n';
 import { numberFormatter } from '../../../i18n/format';
+import { placementFromQuote, toggleCreditNight } from './creditPlacement';
 import type { Voucher } from '../../promotions/types';
 import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import type { PaymentActionResponse } from '../../../types';
 import { type Cart, type CartRoom, MAX_CART_ROOMS } from './cart';
-import type { GroupBookingConfirmation, GroupQuote } from './types';
+import type { GroupBookingConfirmation, GroupQuote, GroupCreditNight } from './types';
 
 /** WCAG 2.5.5 / Apple HIG minimum touch target. */
 export const TOUCH_TARGET = 44;
@@ -233,6 +234,47 @@ function Line({ label, value, strong = false, color }: { label: string; value: s
   );
 }
 
+/**
+ * Per-room choice of which nights the complimentary credits cover. The quote
+ * starts on the cheapest nights; the guest can move a credit to another room
+ * of the same type (credits are per room type).
+ */
+export function CreditNightsPicker({ quote, disabled, onChange }: { quote: GroupQuote; disabled: boolean; onChange: (placement: GroupCreditNight[]) => void }) {
+  const { t } = useTranslation('guestPortal');
+  const current = placementFromQuote(quote);
+  const balanceOf = (typeId: number) => Math.max(0, quote.credits_available.find((entry) => entry.room_type_id === typeId)?.nights_available ?? 0);
+  const rooms = quote.rooms.filter((room) => balanceOf(room.quote.room_type_id) > 0);
+  if (rooms.length === 0) return null;
+  return (
+    <Box component="fieldset" data-testid="credit-nights-picker" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, m: 0, mt: 1 }}>
+      <Typography component="legend" variant="subtitle2" sx={{ px: 0.5 }}>{t('book.cart.creditNightsTitle')}</Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('book.cart.creditNightsHint')}</Typography>
+      {rooms.map((room) => {
+        const name = `${t('book.cart.roomN', { n: room.index + 1 })} · ${room.quote.room_type_name}`;
+        return (
+          <Box key={room.index} sx={{ mt: 1.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>{name}</Typography>
+            {room.quote.nightly_rates.map((rate) => {
+              const checked = current.some((night) => night.room_index === room.index && night.date === rate.date);
+              const next = toggleCreditNight(quote, current, room.index, rate.date);
+              return (
+                <FormControlLabel
+                  key={rate.date}
+                  sx={{ display: 'flex', ml: 0, justifyContent: 'space-between', minHeight: TOUCH_TARGET }}
+                  labelPlacement="start"
+                  control={<Checkbox checked={checked} disabled={disabled || next === null} onChange={() => { if (next) onChange(next); }}
+                    slotProps={{ input: { 'aria-label': t('book.cart.creditNightLabel', { room: name, date: rate.date }) } }} />}
+                  label={<Typography variant="body2" sx={{ textDecoration: checked ? 'line-through' : undefined }}>{rate.date} · {money(rate.amount, quote.currency)}</Typography>}
+                />
+              );
+            })}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 export function GroupSummary({ quote }: { quote: GroupQuote }) {
   const { t } = useTranslation('guestPortal');
   const credits = Number(quote.complimentary_discount) || 0;
@@ -264,7 +306,7 @@ export function GroupSummary({ quote }: { quote: GroupQuote }) {
 
 export function GroupCheckoutStage({
   cart, quote, isQuoting, isSubmitting, isAnonymous, capacity, partySize, vouchers, voucherId, useCredits,
-  onVoucher, onUseCredits, onChangeRoom, onRemoveRoom, onAddMore, details, consent, extras,
+  onVoucher, onUseCredits, onCreditPlacement, onChangeRoom, onRemoveRoom, onAddMore, details, consent, extras,
 }: {
   cart: Cart;
   quote: GroupQuote | null;
@@ -278,6 +320,8 @@ export function GroupCheckoutStage({
   useCredits: boolean;
   onVoucher: (value: number | '') => void;
   onUseCredits: (value: boolean) => void;
+  /** Move credits between room-nights (signed-in only). */
+  onCreditPlacement?: (placement: GroupCreditNight[]) => void;
   onChangeRoom: (lineId: string, patch: Partial<Pick<CartRoom, 'adults' | 'children' | 'extra_beds'>>) => void;
   onRemoveRoom: (lineId: string) => void;
   onAddMore: () => void;
@@ -326,6 +370,9 @@ export function GroupCheckoutStage({
                   control={<Checkbox checked={useCredits} disabled={busy} onChange={(event) => onUseCredits(event.target.checked)} />}
                   label={t('book.cart.useCredits', { count: creditTotal })}
                 />
+              ) : null}
+              {creditTotal > 0 && useCredits && quote && onCreditPlacement ? (
+                <CreditNightsPicker quote={quote} disabled={busy} onChange={onCreditPlacement} />
               ) : null}
               <FormControl fullWidth sx={{ mt: 1 }}>
                 <InputLabel id="group-voucher-label">{t('book.voucher')}</InputLabel>

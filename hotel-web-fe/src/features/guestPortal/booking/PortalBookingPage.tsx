@@ -22,12 +22,13 @@ import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service
 import { GroupBookingApi, GuestBookingApi, PublicBookingApi, PublicGroupBookingApi } from './api';
 import { addRoom, type Cart, cartCapacity, countOfType, emptyCart, estimatedTotal, loadCart, remainingForOffer, removeLine, removeOneOfType, sameStay, saveCart, withSearchParty, toGroupRooms, updateLine } from './cart';
 import { CartBar, GroupCheckoutStage, GroupConfirmationStage, OfferRoomStepper } from './GroupCheckout';
+import { groupCreditRequest } from './creditPlacement';
 import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { BOOKING_CONSENTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent, type ConsentState } from '../../legal/useConsent';
-import type { AnonymousGuestDetails, AvailabilityEvent, GroupBookingConfirmation, GroupQuote, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch, SmokingPreference } from './types';
+import type { AnonymousGuestDetails, AvailabilityEvent, GroupBookingConfirmation, GroupCreditNight, GroupQuote, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch, SmokingPreference } from './types';
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
@@ -128,6 +129,8 @@ const PortalBookingPage: React.FC = () => {
   const [groupQuoteNonce, setGroupQuoteNonce] = useState(0);
   const [groupVoucherId, setGroupVoucherId] = useState<number | ''>('');
   const [useGroupCredits, setUseGroupCredits] = useState(false);
+  /** The guest's own credit placement; null = the server's cheapest-first default. */
+  const [groupCreditPlacement, setGroupCreditPlacement] = useState<GroupCreditNight[] | null>(null);
   const [groupRequestId, setGroupRequestId] = useState(newRequestId);
   const [groupConfirmation, setGroupConfirmation] = useState<GroupBookingConfirmation | null>(null);
   // A one-room cart checks out through the single-booking flow (it keeps
@@ -462,7 +465,7 @@ const PortalBookingPage: React.FC = () => {
       setIsQuoting(true);
       const request = { check_in_date: cart.check_in_date, check_out_date: cart.check_out_date, rooms: toGroupRooms(cart) };
       const pending = token
-        ? GroupBookingApi.quote({ ...request, voucher_id: groupVoucherId === '' ? undefined : groupVoucherId, use_credits: useGroupCredits }, token)
+        ? GroupBookingApi.quote({ ...request, voucher_id: groupVoucherId === '' ? undefined : groupVoucherId, ...groupCreditRequest(useGroupCredits, groupCreditPlacement) }, token)
         : PublicGroupBookingApi.quote({ ...request, ...(groupTourism ? { tourism_type: groupTourism } : {}) });
       void pending
         .then((next) => { if (!cancelled) { setGroupQuote(next); setGroupRequestId(newRequestId()); } })
@@ -475,7 +478,12 @@ const PortalBookingPage: React.FC = () => {
         .finally(() => { if (!cancelled) setIsQuoting(false); });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [canQuery, cart, groupCheckout, groupQuoteNonce, groupTourism, groupVoucherId, setError, t, token, useGroupCredits]);
+  }, [canQuery, cart, groupCheckout, groupCreditPlacement, groupQuoteNonce, groupTourism, groupVoucherId, setError, t, token, useGroupCredits]);
+
+  // A placement names rooms by position and nights by date: any change to the
+  // cart's rooms or stay invalidates it, so fall back to the default.
+  const cartShapeKey = cart ? JSON.stringify([cart.check_in_date, cart.check_out_date, cart.rooms.map((room) => room.room_type_id)]) : '';
+  useEffect(() => { setGroupCreditPlacement(null); }, [cartShapeKey]);
 
   const openGroupCheckout = useCallback(() => {
     if (!cart || cart.rooms.length === 0) return;
@@ -550,7 +558,7 @@ const PortalBookingPage: React.FC = () => {
     setIsSubmitting(true); setError(null);
     try {
       const result = token
-        ? await GroupBookingApi.create({ ...common, voucher_id: groupQuote.voucher_id ?? undefined, use_credits: useGroupCredits }, token)
+        ? await GroupBookingApi.create({ ...common, voucher_id: groupQuote.voucher_id ?? undefined, ...groupCreditRequest(useGroupCredits, groupCreditPlacement) }, token)
         : await PublicGroupBookingApi.create({
           ...common,
           marketing_opt_in: consentPayload.marketing_opt_in,
@@ -570,7 +578,7 @@ const PortalBookingPage: React.FC = () => {
       setError(guestErrorMessage(createError, t('book.errors.createFailed')));
       setGroupQuoteNonce((value) => value + 1);
     } finally { setIsSubmitting(false); }
-  }, [cart, cleaningPreference, consent, groupQuote, groupRequestId, guestDetails, isAnonymous, isQuoting, isSubmitting, legalLocale, navigate, profileComplete, setError, smokingPreference, specialRequests, t, token, useGroupCredits]);
+  }, [cart, cleaningPreference, consent, groupQuote, groupRequestId, guestDetails, isAnonymous, isQuoting, isSubmitting, legalLocale, navigate, profileComplete, setError, smokingPreference, specialRequests, t, token, useGroupCredits, groupCreditPlacement]);
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
@@ -589,7 +597,7 @@ const PortalBookingPage: React.FC = () => {
   // Only gate when an account session is genuinely mid-flight or broken. A
   // visitor with no account at all falls through to the anonymous flow.
   if (!token && !isAnonymous) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
-  if (groupConfirmation) return <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 } }}><GroupConfirmationStage confirmation={groupConfirmation} token={token ?? groupConfirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setGroupConfirmation(null); setOffers([]); setGroupQuote(null); setGroupVoucherId(''); setUseGroupCredits(false); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); }} /></Container>;
+  if (groupConfirmation) return <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 } }}><GroupConfirmationStage confirmation={groupConfirmation} token={token ?? groupConfirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setGroupConfirmation(null); setOffers([]); setGroupQuote(null); setGroupVoucherId(''); setUseGroupCredits(false); setGroupCreditPlacement(null); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); }} /></Container>;
   if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); setRequestId(newRequestId()); }} />;
 
   return (
@@ -623,7 +631,8 @@ const PortalBookingPage: React.FC = () => {
             voucherId={groupVoucherId}
             useCredits={useGroupCredits}
             onVoucher={setGroupVoucherId}
-            onUseCredits={setUseGroupCredits}
+            onUseCredits={(value) => { setUseGroupCredits(value); setGroupCreditPlacement(null); }}
+            onCreditPlacement={setGroupCreditPlacement}
             onChangeRoom={(lineId, patch) => setCart((current) => (current ? updateLine(current, lineId, patch) : current))}
             onRemoveRoom={(lineId) => setCart((current) => (current ? removeLine(current, lineId) : current))}
             onAddMore={() => { setGroupCheckout(false); setError(null); if (offers.length === 0) void runSearch(); }}
