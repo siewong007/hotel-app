@@ -2910,9 +2910,19 @@ pub async fn restore_complimentary_credits_tx(
 ) -> Result<i32, ApiError> {
     let mut nights_credited = 0;
     if booking.is_complimentary == Some(true) {
-        let nights = (booking.check_out_date - booking.check_in_date)
+        let stay_nights = (booking.check_out_date - booking.check_in_date)
             .num_days()
             .max(0) as i32;
+        // Portal bookings record how many nights credits funded; restore
+        // exactly that. Older/staff rows without the count fall back to the
+        // whole stay, as before.
+        let nights = booking
+            .complimentary_nights
+            .filter(|count| *count > 0)
+            .map_or(stay_nights, |count| count.min(stay_nights));
+        if nights == 0 {
+            return Ok(0);
+        }
 
         let room_type_query = "SELECT room_type_id FROM rooms WHERE id = $1";
 

@@ -1345,6 +1345,7 @@ pub async fn create(
         booking_channel_id,
         nightly_rates: daily_rates,
         complimentary_reason,
+        complimentary_nights: quote.complimentary_nights,
         settled_by_credits,
         is_tourist: quote.tax_amount > Decimal::ZERO,
         tourism_tax_amount: quote.tax_amount,
@@ -1655,6 +1656,7 @@ pub async fn create_anonymous(
         nightly_rates: daily_rates,
         // No credits, so never a complimentary reason and never settled by them.
         complimentary_reason: None,
+        complimentary_nights: 0,
         settled_by_credits: false,
         is_tourist: is_foreign_tourist(&guest.tourism_type),
         tourism_tax_amount: quote.tax_amount,

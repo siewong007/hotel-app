@@ -458,6 +458,9 @@ pub struct BookingInsert {
     /// Set when credits funded at least one night; drives `is_complimentary`
     /// and the staff-visible `complimentary_reason` on the booking row.
     pub complimentary_reason: Option<String>,
+    /// Nights funded by credits (0 when none). Stored on the booking so a
+    /// later cancel restores exactly what was spent, not the whole stay.
+    pub complimentary_nights: i32,
     /// A stay fully covered by credits has nothing to pay, so it is booked
     /// straight to confirmed/paid instead of the normal pending-payment flow.
     pub settled_by_credits: bool,

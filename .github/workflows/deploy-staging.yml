@@ -227,6 +227,8 @@ jobs:
             "$bundle_dir/database/patches/0023_channel_settlement_methods.sql"
           cp hotel-app-be/database/postgres/patches/0024_runtime_capabilities.sql \
             "$bundle_dir/database/patches/0024_runtime_capabilities.sql"
+          cp hotel-app-be/database/postgres/patches/0026_booking_group_totals_backfill.sql \
+            "$bundle_dir/database/patches/0026_booking_group_totals_backfill.sql"
           cp hotel-app-be/database/postgres/patches/0025_booking_groups.sql \
             "$bundle_dir/database/patches/0025_booking_groups.sql"
           cp deploy/db-least-privilege.sql "$bundle_dir/database/db-least-privilege.sql"
@@ -269,6 +271,7 @@ jobs:
               database/patches/0023_channel_settlement_methods.sql \
               database/patches/0024_runtime_capabilities.sql \
               database/patches/0025_booking_groups.sql \
+              database/patches/0026_booking_group_totals_backfill.sql \
               database/db-least-privilege.sql \
               > SHA256SUMS
           )

@@ -768,13 +768,13 @@ impl GuestBookingRepository {
                     special_requests, cleaning_preference, daily_rates, created_by,
                     is_complimentary, complimentary_reason, is_tourist, tourism_tax_amount,
                     commission_amount, net_revenue, channel_pricing_snapshot,
-                    smoking_preference, internal_notes
+                    smoking_preference, internal_notes, complimentary_nights
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, 0, $11, $12, $13, $14, $15,
                     'website', $16, $17, $18, $19, $20,
                     $21, $22, $23, $24, $25, $26, $27,
-                    $28, $29
+                    $28, $29, $30
                 ) RETURNING id
             "#,
         )
@@ -807,6 +807,7 @@ impl GuestBookingRepository {
         .bind(&input.channel_pricing_snapshot)
         .bind(input.smoking_preference.map(SmokingPreference::as_str))
         .bind(input.internal_notes.as_deref())
+        .bind((input.complimentary_nights > 0).then_some(input.complimentary_nights))
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)
