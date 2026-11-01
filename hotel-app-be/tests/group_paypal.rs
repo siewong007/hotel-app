@@ -225,8 +225,11 @@ async fn group_paypal_order_capture_and_webhook() {
     assert_eq!(custom_id, format!("{}:{}", f.bookings[0], order.payment_id));
     let before = rows(&pool, &f).await;
     assert_eq!(before.len(), 2);
-    assert!(before.iter().all(|r| r.0 == "pending"
-        && r.2.as_deref() == Some(order.order_id.as_str())));
+    assert!(
+        before
+            .iter()
+            .all(|r| r.0 == "pending" && r.2.as_deref() == Some(order.order_id.as_str()))
+    );
     assert_eq!(before[0].1 + before[1].1, dec("400.50"));
 
     // A second attempt while one is open is refused.
