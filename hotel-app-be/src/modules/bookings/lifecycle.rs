@@ -860,6 +860,14 @@ pub async fn stale_unpaid_hold_ids(
                       AND COALESCE(mp.payment_type, 'booking') != 'refund'
                 ))
           ))
+          -- Never release a group room before the hold deadline the guest was
+          -- shown at checkout (`booking_groups.hold_expires_at`), even if the
+          -- hold setting has since been shortened.
+          AND (b.booking_group_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM booking_groups g
+              WHERE g.id = b.booking_group_id
+                AND g.hold_expires_at > CURRENT_TIMESTAMP
+          ))
         ORDER BY b.booking_group_id NULLS FIRST, b.created_at, b.id
         LIMIT $2
         "#,
@@ -3806,7 +3814,8 @@ pub async fn record_booking_reactivation_modification(
 
 /// True when the booking belongs to a group in which some room has a
 /// completed or in-flight payment, or a claim under review — the whole group
-/// then keeps its hold.
+/// then keeps its hold — or whose promised hold deadline
+/// (`booking_groups.hold_expires_at`) has not passed yet.
 pub async fn group_hold_is_engaged(pool: &DbPool, booking_id: i64) -> Result<bool, ApiError> {
     sqlx::query_scalar(
         r#"
@@ -3820,6 +3829,11 @@ pub async fn group_hold_is_engaged(pool: &DbPool, booking_id: i64) -> Result<boo
                     AND mp.status IN ('completed', 'pending', 'processing')
                     AND COALESCE(mp.payment_type, 'booking') != 'refund'
               ))
+        ) OR EXISTS (
+            -- The group's promised hold deadline has not passed yet.
+            SELECT 1 FROM bookings b
+            JOIN booking_groups g ON g.id = b.booking_group_id
+            WHERE b.id = $1 AND g.hold_expires_at > CURRENT_TIMESTAMP
         )
         "#,
     )
