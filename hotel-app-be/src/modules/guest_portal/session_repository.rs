@@ -150,8 +150,12 @@ impl GuestPortalSessionRepository {
                 .replace('_', r"\_");
             format!("%{escaped}%")
         });
+        // Pages count "units": a multi-room booking (all its rooms) or a single
+        // booking. A group is never split across pages, and when the search
+        // matches any of its rooms the whole group is returned.
         let count_sql = format!(
-            "SELECT COUNT(*) AS c FROM bookings b WHERE b.guest_id = {} AND {}",
+            "SELECT COUNT(DISTINCT COALESCE(b.booking_group_id, -b.id)) AS c \
+             FROM bookings b WHERE b.guest_id = {} AND {}",
             param!(1),
             BOOKING_SEARCH_PREDICATE
         );
@@ -199,9 +203,19 @@ impl GuestPortalSessionRepository {
                     EXISTS(SELECT 1 FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
                         WHERE p.booking_id = b.id AND p.status = 'pending' AND pr.uploaded_at IS NOT NULL) \
                         AS receipt_uploaded \
-             FROM bookings b WHERE b.guest_id = {} AND {} \
-             ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
+             FROM bookings b WHERE b.guest_id = {} \
+             AND COALESCE(b.booking_group_id, -b.id) IN ( \
+                 SELECT unit FROM ( \
+                     SELECT COALESCE(b.booking_group_id, -b.id) AS unit, \
+                            MAX(b.check_in_date) AS unit_date, MAX(b.id) AS unit_id \
+                     FROM bookings b WHERE b.guest_id = {} AND {} \
+                     GROUP BY COALESCE(b.booking_group_id, -b.id) \
+                     ORDER BY unit_date DESC, unit_id DESC LIMIT {} OFFSET {}) page_units) \
+             ORDER BY MAX(b.check_in_date) OVER (PARTITION BY COALESCE(b.booking_group_id, -b.id)) DESC, \
+                      MAX(b.id) OVER (PARTITION BY COALESCE(b.booking_group_id, -b.id)) DESC, \
+                      b.check_in_date DESC, b.id DESC",
             false,
+            param!(1),
             param!(1),
             param!(1),
             BOOKING_SEARCH_PREDICATE,
