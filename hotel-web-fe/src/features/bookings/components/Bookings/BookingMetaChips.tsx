@@ -49,3 +49,20 @@ export const NightAuditChip = () => {
     <Chip size="small" label={t('list.nightAudit')} variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
   );
 };
+
+/** Marks a room that belongs to a multi-room booking (group number). */
+export const GroupChip = ({ groupNumber }: { groupNumber: string }) => {
+  const { t } = useTranslation('bookings');
+  return (
+    <Tooltip title={t('list.groupTooltip', { number: groupNumber })} arrow>
+      <Chip
+        size="small"
+        variant="outlined"
+        color="primary"
+        label={t('list.groupChip', { number: groupNumber })}
+        data-testid="booking-group-chip"
+        sx={{ height: 22, fontWeight: 800 }}
+      />
+    </Tooltip>
+  );
+};

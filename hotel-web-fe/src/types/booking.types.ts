@@ -93,6 +93,8 @@ export interface Booking {
   // Staff creator's users.full_name. Absent/null for website and guest-created
   // bookings (created_by null, or the creator is not user_type staff).
   created_by_name?: string | null;
+  /** Multi-room booking this room belongs to (bookings list only). */
+  group_number?: string | null;
 }
 
 export interface BookingWithDetails extends Booking {

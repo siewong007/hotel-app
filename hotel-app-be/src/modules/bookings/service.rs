@@ -56,7 +56,7 @@ pub async fn can_book_with_credits_for_guest(
 }
 
 impl CheckinSourceContext {
-    fn manual() -> Self {
+    pub(crate) fn manual() -> Self {
         Self {
             source: "manual_checkin",
             history_reason: "Guest checked in",
@@ -586,35 +586,8 @@ pub async fn void_booking(
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
-    booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
-    booking_repo::void_booking_payments_tx(&mut tx, booking_id).await?;
-    let change_reason = reason.as_deref().unwrap_or("Booking voided");
-    let (ledger_entries_voided, ledger_entries_with_payments) =
-        booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason)
-            .await?;
-    let nights_credited = booking_repo::restore_complimentary_credits_tx(&mut tx, &booking).await?;
-    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
-
-    booking_repo::record_booking_history_tx(
-        &mut tx,
-        booking_id,
-        Some(&booking.status),
-        "voided",
-        Some(user_id),
-        Some(change_reason),
-        serde_json::json!({
-            "room_id": booking.room_id,
-            "guest_id": booking.guest_id,
-            "check_in_date": booking.check_in_date.to_string(),
-            "check_out_date": booking.check_out_date.to_string(),
-        }),
-    )
-    .await?;
-
-    booking_repo::record_booking_void_modification_tx(&mut tx, &booking, user_id).await?;
-    AuditLog::log_booking_voided_tx(&mut tx, user_id, booking_id).await?;
-
+    let (nights_credited, ledger_entries_voided, ledger_entries_with_payments) =
+        void_booking_in_tx(&mut tx, user_id, &booking, reason.as_deref()).await?;
     tx.commit().await.map_err(ApiError::from)?;
 
     if let Err(err) = crate::modules::loyalty::service::reverse_booking_points(
@@ -641,6 +614,51 @@ pub async fn void_booking(
         "affected_night_audit_dates": affected_night_audit_dates,
         "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     }))
+}
+
+/// The transactional core of a staff void: the booking, its room, payments,
+/// ledgers, complimentary credits, history and audit. Shared by the single
+/// void and the group "cancel all" so both apply exactly the same writes.
+/// Returns (nights credited, ledger entries voided, ledger entries with payments).
+pub(crate) async fn void_booking_in_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    user_id: i64,
+    booking: &Booking,
+    reason: Option<&str>,
+) -> Result<(i32, u64, u64), ApiError> {
+    let booking_id = booking.id;
+    booking_repo::void_booking_tx(tx, booking_id, Some(user_id)).await?;
+    booking_repo::release_room_tx(tx, booking.room_id).await?;
+    booking_repo::void_booking_payments_tx(tx, booking_id).await?;
+    let change_reason = reason.unwrap_or("Booking voided");
+    let (ledger_entries_voided, ledger_entries_with_payments) =
+        booking_repo::void_booking_ledgers_tx(tx, booking_id, Some(user_id), change_reason).await?;
+    let nights_credited = booking_repo::restore_complimentary_credits_tx(tx, booking).await?;
+    payments::recompute_payment_status_tx(tx, booking_id).await?;
+
+    booking_repo::record_booking_history_tx(
+        tx,
+        booking_id,
+        Some(&booking.status),
+        "voided",
+        Some(user_id),
+        Some(change_reason),
+        serde_json::json!({
+            "room_id": booking.room_id,
+            "guest_id": booking.guest_id,
+            "check_in_date": booking.check_in_date.to_string(),
+            "check_out_date": booking.check_out_date.to_string(),
+        }),
+    )
+    .await?;
+
+    booking_repo::record_booking_void_modification_tx(tx, booking, user_id).await?;
+    AuditLog::log_booking_voided_tx(tx, user_id, booking_id).await?;
+    Ok((
+        nights_credited,
+        ledger_entries_voided,
+        ledger_entries_with_payments,
+    ))
 }
 
 /// Manually check a guest into their room.
@@ -703,8 +721,13 @@ pub async fn checkin_booking_flow(
     checkin_booking_flow_for_booking(pool, user_id, booking, checkin_data, context).await
 }
 
-async fn checkin_booking_flow_for_booking(
-    pool: &DbPool,
+/// The transactional core of a check-in: state validation, room readiness,
+/// identity requirement, optional edits/payment, the transition, history and
+/// audit. Shared by the single check-in flow and the group "check in all" so
+/// both apply exactly the same rules. Post-commit work (night-audit backfill)
+/// stays with the caller.
+pub(crate) async fn checkin_booking_in_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
     user_id: i64,
     booking: Booking,
     checkin_data: Option<CheckInRequest>,
@@ -729,11 +752,9 @@ async fn checkin_booking_flow_for_booking(
         )));
     }
 
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
     // Room readiness: a reservation can be made on a dirty room, but the room
     // must be cleaned before anyone can check in.
-    if let Some(room_status) = booking_repo::fetch_room_status_tx(&mut tx, booking.room_id).await?
+    if let Some(room_status) = booking_repo::fetch_room_status_tx(&mut *tx, booking.room_id).await?
         && matches!(
             room_status.as_str(),
             "maintenance" | "out_of_order" | "dirty" | "cleaning" | "reserved_dirty"
@@ -763,7 +784,7 @@ async fn checkin_booking_flow_for_booking(
         .and_then(|guest_update| guest_update.ic_number.as_ref());
     let has_identity_document = match ic_in_patch {
         Some(value) => !value.trim().is_empty(),
-        None => booking_repo::fetch_guest_ic_number_tx(&mut tx, booking.guest_id)
+        None => booking_repo::fetch_guest_ic_number_tx(&mut *tx, booking.guest_id)
             .await?
             .is_some_and(|value| !value.trim().is_empty()),
     };
@@ -776,27 +797,27 @@ async fn checkin_booking_flow_for_booking(
     // Optional guest/booking edits supplied with the check-in payload.
     if let Some(ref checkin) = checkin_data {
         if let Some(ref guest_update) = checkin.guest_update {
-            booking_repo::apply_guest_update_tx(&mut tx, booking.guest_id, guest_update).await?;
+            booking_repo::apply_guest_update_tx(&mut *tx, booking.guest_id, guest_update).await?;
         }
         if let Some(ref booking_update) = checkin.booking_update {
             // Returns true when a deposit assertion inserted a real deposit
             // payment row — the stored payment_status must then recompute so
             // it reflects the collected money.
             let deposit_payment_recorded = booking_repo::apply_booking_field_update_tx(
-                &mut tx,
+                &mut *tx,
                 booking_id,
                 booking_update,
                 user_id,
             )
             .await?;
             if deposit_payment_recorded {
-                payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+                payments::recompute_payment_status_tx(&mut *tx, booking_id).await?;
             }
         }
     }
 
     // Core transition (atomic guard requiring exactly one affected row).
-    let updated_booking = booking_repo::checkin_booking_tx(&mut tx, booking_id).await?;
+    let updated_booking = booking_repo::checkin_booking_tx(&mut *tx, booking_id).await?;
 
     // Optional payment captured at check-in; recompute the stored status after.
     let explicit_payment_captured = checkin_data
@@ -808,8 +829,8 @@ async fn checkin_booking_flow_for_booking(
         && let Some(ref payment) = checkin.payment_record
         && payment.amount > 0.0
     {
-        booking_repo::record_checkin_payment_tx(&mut tx, booking_id, payment, user_id).await?;
-        payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+        booking_repo::record_checkin_payment_tx(&mut *tx, booking_id, payment, user_id).await?;
+        payments::recompute_payment_status_tx(&mut *tx, booking_id).await?;
     }
 
     // Online reservations are prepaid: when staff didn't capture a payment at
@@ -819,9 +840,9 @@ async fn checkin_booking_flow_for_booking(
     let auto_online_payment_recorded =
         if !explicit_payment_captured && is_online_source(booking.source.as_deref()) {
             let recorded =
-                booking_repo::record_online_checkin_payment_tx(&mut tx, &booking, user_id).await?;
+                booking_repo::record_online_checkin_payment_tx(&mut *tx, &booking, user_id).await?;
             if recorded {
-                payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+                payments::recompute_payment_status_tx(&mut *tx, booking_id).await?;
             }
             recorded
         } else {
@@ -829,9 +850,9 @@ async fn checkin_booking_flow_for_booking(
         };
 
     // Only occupy the room for current/future stays (skip back-dated check-ins).
-    let today = hotel_today(&mut *tx).await?;
+    let today = hotel_today(&mut **tx).await?;
     if booking.check_out_date >= today {
-        booking_repo::set_room_occupied_tx(&mut tx, booking.room_id).await?;
+        booking_repo::set_room_occupied_tx(&mut *tx, booking.room_id).await?;
     }
 
     let payment_recorded = checkin_data
@@ -841,7 +862,7 @@ async fn checkin_booking_flow_for_booking(
         .unwrap_or(0.0);
 
     booking_repo::record_booking_history_tx(
-        &mut tx,
+        &mut *tx,
         booking_id,
         Some(&booking.status),
         "checked_in",
@@ -859,7 +880,7 @@ async fn checkin_booking_flow_for_booking(
     .await?;
 
     AuditLog::log_event_tx(
-        &mut tx,
+        &mut *tx,
         AuditEvent {
             user_id: Some(user_id),
             action: if context.self_checkin_event.is_some() {
@@ -881,12 +902,12 @@ async fn checkin_booking_flow_for_booking(
     )
     .await?;
 
-    booking_repo::record_checkin_modification_tx(&mut tx, &booking, user_id).await?;
+    booking_repo::record_checkin_modification_tx(&mut *tx, &booking, user_id).await?;
 
     let self_checkin_at = if let Some(event) = context.self_checkin_event {
         Some(
             booking_repo::record_self_checkin_event_tx(
-                &mut tx,
+                &mut *tx,
                 booking_repo::SelfCheckinEventValues {
                     booking_id,
                     guest_id: event.guest_id,
@@ -903,6 +924,20 @@ async fn checkin_booking_flow_for_booking(
         None
     };
 
+    Ok((updated_booking, self_checkin_at))
+}
+
+async fn checkin_booking_flow_for_booking(
+    pool: &DbPool,
+    user_id: i64,
+    booking: Booking,
+    checkin_data: Option<CheckInRequest>,
+    context: CheckinSourceContext,
+) -> Result<(Booking, Option<DateTime<Utc>>), ApiError> {
+    let booking_id = booking.id;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let (updated_booking, self_checkin_at) =
+        checkin_booking_in_tx(&mut tx, user_id, booking, checkin_data, context).await?;
     tx.commit().await.map_err(ApiError::from)?;
 
     // Night-audit back-fill is AUXILIARY, not transaction-critical: it tops up

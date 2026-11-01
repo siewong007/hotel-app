@@ -86,6 +86,7 @@ pub fn build_booking_list_query(
               OR ('rm ' || r.room_number) {like_op} {p} \
               OR EXISTS (SELECT 1 FROM invoices inv WHERE inv.booking_id = b.id AND inv.invoice_number {like_op} {p}) \
               OR EXISTS (SELECT 1 FROM booking_channels bc WHERE bc.id = b.booking_channel_id AND bc.name {like_op} {p}) \
+              OR EXISTS (SELECT 1 FROM booking_groups bgs WHERE bgs.id = b.booking_group_id AND bgs.group_number {like_op} {p}) \
               OR EXISTS ( \
                   SELECT 1 FROM customer_ledgers cl \
                   WHERE cl.booking_id = b.id \

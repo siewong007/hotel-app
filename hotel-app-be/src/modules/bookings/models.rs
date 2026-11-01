@@ -457,6 +457,10 @@ pub struct BookingWithDetails {
     /// signal for the receptionist/staff badge — no per-card lookup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_by_name: Option<String>,
+    /// Group number of the multi-room booking this room belongs to. Tolerant:
+    /// only the bookings list selects it; NULL for single-room bookings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_number: Option<String>,
     /// Computed from the booking guest's latest eKYC verification and booking eligibility.
     #[serde(default)]
     pub ekyc_summary: GuestEkycStatusSummary,
@@ -625,6 +629,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             smoking_preference: row.try_get("smoking_preference").ok().flatten(),
             room_is_smoking: row.try_get("room_is_smoking").ok().flatten(),
             created_by_name: row.try_get("created_by_name").ok().flatten(),
+            group_number: row.try_get("group_number").ok().flatten(),
             ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
         })
     }

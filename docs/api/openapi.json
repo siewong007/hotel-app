@@ -404,6 +404,15 @@
     "/api/bookings/{id}/group": {
       "GET": {}
     },
+    "/api/bookings/{id}/group/cancel": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/group/checkin": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/group/checkout": {
+      "POST": {}
+    },
     "/api/bookings/{id}/posted": {
       "GET": {}
     },
