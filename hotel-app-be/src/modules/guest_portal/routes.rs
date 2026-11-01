@@ -143,6 +143,22 @@ pub fn routes() -> Router<DbPool> {
             post(handlers::session_group_bank_transfer),
         )
         .route(
+            "/guest-portal/booking/group-payments/paypal/create-order",
+            post(token_group_paypal_create_order_header),
+        )
+        .route(
+            "/guest-portal/booking/group-payments/paypal/capture",
+            post(token_group_paypal_capture_header),
+        )
+        .route(
+            "/guest-portal/me/booking-groups/{id}/payments/paypal/create-order",
+            post(handlers::session_group_paypal_create_order),
+        )
+        .route(
+            "/guest-portal/me/booking-groups/{id}/payments/paypal/capture",
+            post(handlers::session_group_paypal_capture),
+        )
+        .route(
             "/guest-portal/booking/{token}/payments/{payment_id}/receipt",
             post(token_upload_payment_receipt).layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
@@ -779,4 +795,32 @@ mod portal_token_shape_tests {
             super::PaymentConfigCredential::BookingAccessToken(token)
         );
     }
+}
+
+async fn token_group_paypal_create_order_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Json<models::TokenPaymentRequest>,
+) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
+    handlers::token_group_paypal_create_order(
+        State(pool),
+        ConnectInfo(peer_addr),
+        headers,
+        Path(token),
+        body,
+    )
+    .await
+}
+
+async fn token_group_paypal_capture_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    body: Json<models::PaypalCaptureRequest>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
+    handlers::token_group_paypal_capture(State(pool), Path(token), body).await
 }

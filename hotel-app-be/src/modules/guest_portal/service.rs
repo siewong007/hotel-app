@@ -1040,6 +1040,89 @@ pub async fn token_group_bank_transfer(
     .await
 }
 
+/// One PayPal order covering every unpaid room of the guest's group.
+pub async fn session_group_paypal_order(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
+) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
+    let lead = group_lead_booking(pool, group_id, guest_id).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(guest_id).with_booking(lead),
+        consents,
+        context,
+    )
+    .await?;
+    crate::modules::payments::service::create_group_paypal_order(pool, guest_id, group_id).await
+}
+
+pub async fn session_group_paypal_capture(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    crate::modules::payments::service::capture_group_paypal_payment(
+        pool, guest_id, group_id, order_id, payment_id,
+    )
+    .await
+}
+
+/// Resolve the group a booking token's booking belongs to.
+async fn token_group(pool: &DbPool, token: &str) -> Result<(Booking, i64), ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    let group_id: Option<i64> =
+        sqlx::query_scalar("SELECT booking_group_id FROM bookings WHERE id = $1")
+            .bind(booking.id)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+    let group_id = group_id.ok_or_else(|| {
+        ApiError::BadRequest("This booking is not part of a multi-room booking.".to_string())
+    })?;
+    Ok((booking, group_id))
+}
+
+/// Token variant: any room's booking token pays for its whole group.
+pub async fn token_group_paypal_order(
+    pool: &DbPool,
+    token: &str,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
+) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
+    let (booking, group_id) = token_group(pool, token).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(booking.guest_id).with_booking(booking.id),
+        consents,
+        context,
+    )
+    .await?;
+    crate::modules::payments::service::create_group_paypal_order(pool, booking.guest_id, group_id)
+        .await
+}
+
+pub async fn token_group_paypal_capture(
+    pool: &DbPool,
+    token: &str,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let (booking, group_id) = token_group(pool, token).await?;
+    crate::modules::payments::service::capture_group_paypal_payment(
+        pool,
+        booking.guest_id,
+        group_id,
+        order_id,
+        payment_id,
+    )
+    .await
+}
+
 async fn group_lead_booking(pool: &DbPool, group_id: i64, guest_id: i64) -> Result<i64, ApiError> {
     sqlx::query_scalar::<_, i64>(
         "SELECT b.id FROM bookings b JOIN booking_groups g ON g.id = b.booking_group_id \

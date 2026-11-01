@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   dashboardUploadReceipt: vi.fn(),
   dashboardCreatePaypalOrder: vi.fn(),
   dashboardCapturePaypalOrder: vi.fn(),
+  portalCreateGroupPaypalOrder: vi.fn(),
+  portalCaptureGroupPaypalOrder: vi.fn(),
+  dashboardCreateGroupPaypalOrder: vi.fn(),
+  dashboardCaptureGroupPaypalOrder: vi.fn(),
   paypalButtons: vi.fn(),
 }));
 
@@ -24,6 +28,8 @@ vi.mock('../../../api/guestPortal.service', () => ({
     uploadPaymentReceipt: (...args: unknown[]) => mocks.portalUploadReceipt(...args),
     createPaypalOrder: (...args: unknown[]) => mocks.portalCreatePaypalOrder(...args),
     capturePaypalOrder: (...args: unknown[]) => mocks.portalCapturePaypalOrder(...args),
+    createGroupPaypalOrder: (...args: unknown[]) => mocks.portalCreateGroupPaypalOrder(...args),
+    captureGroupPaypalOrder: (...args: unknown[]) => mocks.portalCaptureGroupPaypalOrder(...args),
   },
 }));
 
@@ -34,6 +40,9 @@ vi.mock('../api/guestPortalDashboard.service', () => ({
     uploadPaymentReceipt: (...args: unknown[]) => mocks.dashboardUploadReceipt(...args),
     createPaypalOrder: (...args: unknown[]) => mocks.dashboardCreatePaypalOrder(...args),
     capturePaypalOrder: (...args: unknown[]) => mocks.dashboardCapturePaypalOrder(...args),
+    createGroupPaypalOrder: (...args: unknown[]) => mocks.dashboardCreateGroupPaypalOrder(...args),
+    captureGroupPaypalOrder: (...args: unknown[]) =>
+      mocks.dashboardCaptureGroupPaypalOrder(...args),
   },
 }));
 
@@ -306,5 +315,46 @@ describe('GuestPaymentPanel', () => {
     );
     expect(mocks.dashboardCapturePaypalOrder).toHaveBeenCalledWith(7, 'ORDER-1', 60, 'portal-token');
     expect(onPaid).toHaveBeenCalledWith({ payment_id: 60, status: 'completed' });
+  }, 15000);
+
+  it('pays a whole group with one PayPal order on the session flow', async () => {
+    mocks.dashboardPaymentConfig.mockResolvedValue(
+      configWith({ paypal_enabled: true, paypal_client_id: 'test-client-id' }),
+    );
+    mocks.dashboardCreateGroupPaypalOrder.mockResolvedValue({ order_id: 'GRP-1', payment_id: 81 });
+    mocks.dashboardCaptureGroupPaypalOrder.mockResolvedValue({ payment_id: 81, status: 'completed' });
+
+    render(<GuestPaymentPanel mode="session" groupId={12} token="portal-token" />);
+
+    fireEvent.click(await screen.findByText('PayPal or debit / credit card'));
+    acceptPaymentTerms();
+    fireEvent.click(screen.getByTestId('paypal-pay'));
+
+    await screen.findByText('Payment received — your booking is confirmed.');
+    expect(mocks.dashboardCreateGroupPaypalOrder).toHaveBeenCalledWith(
+      12,
+      [{ document: 'payment_terms', version: '2026-09-09', granted: true, locale: 'en' }],
+      'portal-token',
+    );
+    expect(mocks.dashboardCaptureGroupPaypalOrder).toHaveBeenCalledWith(12, 'GRP-1', 81, 'portal-token');
+    expect(mocks.dashboardCreatePaypalOrder).not.toHaveBeenCalled();
+  }, 15000);
+
+  it('pays a whole group with one PayPal order on the token flow', async () => {
+    mocks.paymentConfig.mockResolvedValue(
+      configWith({ paypal_enabled: true, paypal_client_id: 'test-client-id' }),
+    );
+    mocks.portalCreateGroupPaypalOrder.mockResolvedValue({ order_id: 'GRP-2', payment_id: 82 });
+    mocks.portalCaptureGroupPaypalOrder.mockResolvedValue({ payment_id: 82, status: 'completed' });
+
+    render(<GuestPaymentPanel mode="token" groupId={13} token="booking-token" />);
+
+    fireEvent.click(await screen.findByText('PayPal or debit / credit card'));
+    acceptPaymentTerms();
+    fireEvent.click(screen.getByTestId('paypal-pay'));
+
+    await screen.findByText('Payment received — your booking is confirmed.');
+    expect(mocks.portalCaptureGroupPaypalOrder).toHaveBeenCalledWith('booking-token', 'GRP-2', 82);
+    expect(mocks.portalCreatePaypalOrder).not.toHaveBeenCalled();
   }, 15000);
 });

@@ -137,6 +137,32 @@ export class GuestPortalService {
       .json();
   }
 
+  /** One PayPal order for every unpaid room of the token booking's group. */
+  static async createGroupPaypalOrder(
+    token: string,
+    consents: ConsentAcceptance[]
+  ): Promise<PaypalCreateOrderResponse> {
+    return await api
+      .post('guest-portal/booking/group-payments/paypal/create-order', {
+        headers: bookingTokenHeaders(token),
+        json: { consents },
+      })
+      .json();
+  }
+
+  static async captureGroupPaypalOrder(
+    token: string,
+    orderId: string,
+    paymentId: number
+  ): Promise<PaymentActionResponse> {
+    return await api
+      .post('guest-portal/booking/group-payments/paypal/capture', {
+        json: { order_id: orderId, payment_id: paymentId },
+        headers: bookingTokenHeaders(token),
+      })
+      .json();
+  }
+
   static async uploadPaymentReceipt(token: string, paymentId: number, file: File): Promise<void> {
     const form = new FormData();
     form.append('file', file);

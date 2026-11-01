@@ -62,8 +62,8 @@ export interface GuestPaymentPanelProps {
   showBankTransfer?: boolean;
   /** Keeps payment choices independent when multiple panels appear on one page. */
   paymentMethodName?: string;
-  /** A multi-room booking group: the bank-transfer claim covers every room
-   *  at once. PayPal is not offered for a group yet. */
+  /** A multi-room booking group: the bank-transfer claim or the PayPal
+   *  order covers every unpaid room at once. */
   groupId?: number;
   /** Called with the server-confirmed outcome after a payment action succeeds. */
   onPaid?: (result: PaymentActionResponse) => void;
@@ -208,8 +208,11 @@ export function GuestPaymentPanel({
     setPaypalError(null);
     try {
       const consents = consent.buildPayload(legalLocale).consents;
-      const response =
-        mode === 'session'
+      const response = isGroup
+        ? mode === 'session'
+          ? await GuestPortalDashboardService.createGroupPaypalOrder(groupId, consents, token)
+          : await GuestPortalService.createGroupPaypalOrder(token!, consents)
+        : mode === 'session'
           ? await GuestPortalDashboardService.createPaypalOrder(bookingId!, consents, token)
           : await GuestPortalService.createPaypalOrder(token!, consents);
       setPendingPaypalPaymentId(response.payment_id);
@@ -219,7 +222,7 @@ export function GuestPaymentPanel({
       paymentAttemptInFlight.current = false;
       throw error;
     }
-  }, [mode, bookingId, token, consent, legalLocale, t]);
+  }, [mode, bookingId, isGroup, groupId, token, consent, legalLocale, t]);
 
   const onApprove = useCallback(
     async (data: { orderID: string }): Promise<void> => {
@@ -228,8 +231,20 @@ export function GuestPaymentPanel({
         return;
       }
       try {
-        const response =
-          mode === 'session'
+        const response = isGroup
+          ? mode === 'session'
+            ? await GuestPortalDashboardService.captureGroupPaypalOrder(
+                groupId,
+                data.orderID,
+                pendingPaypalPaymentId,
+                token,
+              )
+            : await GuestPortalService.captureGroupPaypalOrder(
+                token!,
+                data.orderID,
+                pendingPaypalPaymentId,
+              )
+          : mode === 'session'
             ? await GuestPortalDashboardService.capturePaypalOrder(
                 bookingId!,
                 data.orderID,
@@ -249,7 +264,7 @@ export function GuestPaymentPanel({
         paymentAttemptInFlight.current = false;
       }
     },
-    [mode, bookingId, token, pendingPaypalPaymentId, onPaid, t],
+    [mode, bookingId, isGroup, groupId, token, pendingPaypalPaymentId, onPaid, t],
   );
 
   const onPaypalError = useCallback(() => {
@@ -301,7 +316,7 @@ export function GuestPaymentPanel({
   const hasBankDetails = Boolean(
     bankDetails.bank_name || bankDetails.account_name || bankDetails.account_number,
   );
-  const paypalReady = Boolean(!isGroup && config.paypal_enabled && config.paypal_client_id && canPay);
+  const paypalReady = Boolean(config.paypal_enabled && config.paypal_client_id && canPay);
 
   return (
     <Box>
