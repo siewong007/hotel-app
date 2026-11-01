@@ -45,6 +45,7 @@ import {
 } from '../hooks/useSupportQueries';
 import SupportConversationDetail from './SupportConversationDetail';
 import SupportConversationList from './SupportConversationList';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const INITIAL_PARAMS: SupportConversationListParams = {
   queue: 'waiting_for_staff',
@@ -90,11 +91,11 @@ export default function SupportManagementPage() {
   const conversations = useMemo(() => listData?.items ?? [], [listData]);
   const queryError = queueQuery.error || detailQuery.error || agentsQuery.error;
 
-  useEffect(() => {
+  useResetOnChange([conversations, selectedConversationId], () => {
     if (!selectedConversationId && conversations[0]) {
       setSelectedConversationId(conversations[0].id);
     }
-  }, [conversations, selectedConversationId]);
+  });
 
   const updateParams = (updates: Partial<SupportConversationListParams>) => {
     setParams(current => ({ ...current, ...updates, page: updates.page ?? 1 }));

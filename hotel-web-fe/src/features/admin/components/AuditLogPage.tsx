@@ -58,6 +58,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { Link, useSearchParams } from '../../../router';
 import { formatHotelDateTime, getHotelTimeZone, toHotelDateString, toHotelInstantIso } from '../../../utils/date';
 import { getHotelSetting } from '../../../utils/hotelSettings';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 /* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
@@ -441,9 +442,9 @@ const AuditLogPage: React.FC = () => {
     return () => clearTimeout(handle);
   }, [searchInput, query.search, patchParams]);
 
-  useEffect(() => {
+  useResetOnChange([activeCat], () => {
     setOpenIds({});
-  }, [activeCat]);
+  });
 
   const pageRows = logs;
 

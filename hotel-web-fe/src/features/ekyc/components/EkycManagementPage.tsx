@@ -86,6 +86,7 @@ import { formatStatusLabel } from '../../../utils/formatters';
 import { useTranslation, statusLabel } from '../../../i18n';
 import type { UseTranslationResult } from '../../../i18n/useTranslation';
 import { formatHotelDateTime } from '../../../utils/date';
+import { useResetOnChange } from '../../../hooks/useResetOnChange';
 
 const STATUS_OPTIONS = [
   'submitted',
@@ -369,12 +370,12 @@ const EkycManagementPage: React.FC = () => {
     storage.setItem('ekycAdminFilters', filters);
   }, [filters]);
 
-  useEffect(() => {
+  useResetOnChange([listQuery.error, detailQuery.error, reasonCodesQuery.error, t], () => {
     const queryError = listQuery.error || detailQuery.error || reasonCodesQuery.error;
     if (queryError) {
       setError((queryError as Error).message || t('errors.loadData'));
     }
-  }, [listQuery.error, detailQuery.error, reasonCodesQuery.error, t]);
+  });
 
   const selectedSummary = useMemo(() => {
     return listData?.data.find(item => item.id === selectedId) ?? detail?.summary;

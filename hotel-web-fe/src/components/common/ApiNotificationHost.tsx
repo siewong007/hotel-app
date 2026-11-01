@@ -6,6 +6,7 @@ import {
 } from '../../utils/apiNotifications';
 import { recordNotification } from '../../utils/notificationStore';
 import { useAuth } from '../../auth/AuthContext';
+import { useResetOnChange } from '../../hooks/useResetOnChange';
 
 interface QueuedNotification extends ApiNotificationDetail {
   id: number;
@@ -51,13 +52,13 @@ export function ApiNotificationHost() {
     return () => window.removeEventListener(API_NOTIFICATION_EVENT, handleNotification);
   }, [user?.id]);
 
-  useEffect(() => {
+  useResetOnChange([activeNotification, queue], () => {
     if (activeNotification || queue.length === 0) return;
 
     const [nextNotification, ...remainingNotifications] = queue;
     setActiveNotification(nextNotification);
     setQueue(remainingNotifications);
-  }, [activeNotification, queue]);
+  });
 
   const handleClose = () => {
     setActiveNotification(null);

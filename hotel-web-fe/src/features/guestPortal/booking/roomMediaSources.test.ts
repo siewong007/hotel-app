@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelCodeFor, offerPhotos } from './roomMedia';
+import { modelCodeFor, offerPhotos } from './roomMediaSources';
 
 describe('room media', () => {
   it('prefers uploaded photos and keeps their order', () => {

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomBuilder } from '../../../../salim-inn/src/interiors/RoomBuilder';
 import { Z_CORRIDOR, Z_FACADE, ROOM_HEIGHT } from '../../../../salim-inn/src/interiors/roomLayouts';
-import type { ModelCode } from './roomMedia';
+import type { ModelCode } from './roomMediaSources';
 
 interface Props { code: ModelCode; height: number; label: string; hint: string; unsupported: string }
 
