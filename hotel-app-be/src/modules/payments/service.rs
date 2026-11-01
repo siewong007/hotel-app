@@ -1999,11 +1999,34 @@ pub async fn apply_paypal_webhook_event(
         return Ok(PaypalWebhookApplyOutcome::Ignored);
     }
 
-    match event.kind {
-        PaypalWebhookKind::CaptureCompleted => {
+    // A group attempt: custom_id names the lead row, but the capture settles
+    // every room linked by its group_payment_ref.
+    let group_ref = group_payment_ref(pool, event.payment_id).await?;
+    match (event.kind, group_ref) {
+        (PaypalWebhookKind::CaptureCompleted, Some(reference)) => {
+            apply_webhook_group_capture_completed(pool, event, &reference).await
+        }
+        (PaypalWebhookKind::CaptureDenied, Some(reference))
+            if matches!(review.status.as_str(), "pending" | "processing") =>
+        {
+            for (id, _, status, _) in group_paypal_rows(pool, &reference).await? {
+                if status == "pending" || status == "processing" {
+                    release_failed_paypal_payment(pool, id, "PayPal denied the capture.").await?;
+                }
+            }
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_applied",
+                "Group capture denied; every room's payment marked failed.",
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::Applied)
+        }
+        (PaypalWebhookKind::CaptureCompleted, None) => {
             apply_webhook_capture_completed(pool, event, &review).await
         }
-        PaypalWebhookKind::CaptureDenied => {
+        (PaypalWebhookKind::CaptureDenied, _) => {
             apply_webhook_capture_denied(pool, event, &review).await
         }
     }
@@ -3597,4 +3620,403 @@ async fn reject_payment_tx(
     )
     .await?;
     Ok(reset_to_payment)
+}
+
+// ---------------------------------------------------------------------------
+// Group (multi-room) PayPal checkout
+// ---------------------------------------------------------------------------
+//
+// One PayPal order pays for every unpaid room of a group. Locally each room
+// still gets its own pending PayPal payment for its own payable amount (so
+// ledgers, receipts and a later single-room refund stay per booking), all
+// linked by one `group_payment_ref`. The order's `custom_id` names the LEAD
+// row ("<lead_booking_id>:<lead_payment_id>") so the existing webhook parser
+// still resolves it; the capture is then verified against the SUM of the
+// linked rows and every row is completed in one transaction.
+
+/// A row of a group PayPal attempt: (payment_id, booking_id, status, amount).
+type GroupPaypalRow = (i64, i64, String, Decimal);
+
+async fn group_paypal_rows<'e, E>(
+    executor: E,
+    reference: &str,
+) -> Result<Vec<GroupPaypalRow>, ApiError>
+where
+    E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+{
+    sqlx::query_as(
+        "SELECT id, booking_id, COALESCE(status::text, 'pending'), amount FROM payments \
+         WHERE metadata->>'group_payment_ref' = $1 AND payment_method = 'paypal' \
+         ORDER BY booking_id, id",
+    )
+    .bind(reference)
+    .fetch_all(executor)
+    .await
+    .map_err(ApiError::from)
+}
+
+/// Guest action: create ONE PayPal order for every unpaid room of a group.
+pub async fn create_group_paypal_order(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+) -> Result<PaypalCreateOrderResponse, ApiError> {
+    use crate::modules::booking_groups::repository::BookingGroupRepository;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let group = BookingGroupRepository::lock_tx(&mut tx, group_id).await?;
+    if group.guest_id != guest_id {
+        return Err(ApiError::NotFound("Booking not found".to_string()));
+    }
+    let members: Vec<(i64, String, String, Decimal, Option<String>)> = sqlx::query_as(
+        "SELECT id, booking_number, COALESCE(status, 'pending'), total_amount, currency \
+         FROM bookings WHERE booking_group_id = $1 AND status <> 'voided' ORDER BY id",
+    )
+    .bind(group_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(ApiError::from)?;
+    let payable: Vec<_> = members
+        .into_iter()
+        .filter(|(_, _, _, total, _)| *total > Decimal::ZERO)
+        .collect();
+    if payable.is_empty() {
+        return Err(ApiError::BadRequest(
+            "This booking has nothing left to pay.".to_string(),
+        ));
+    }
+    let currency_of = |c: &Option<String>| {
+        c.as_deref()
+            .filter(|c| !c.trim().is_empty())
+            .unwrap_or(DEFAULT_CURRENCY)
+            .to_string()
+    };
+    let currency = currency_of(&payable[0].4);
+    if payable.iter().any(|m| currency_of(&m.4) != currency) {
+        return Err(ApiError::BadRequest(
+            "Rooms in this booking use different currencies and cannot be paid together."
+                .to_string(),
+        ));
+    }
+
+    let reference = uuid::Uuid::new_v4().to_string();
+    let method = PaymentMethod::Paypal.to_string();
+    let mut rows: Vec<(i64, i64)> = Vec::new();
+    let mut amount = Decimal::ZERO;
+    for (booking_id, booking_number, status, total, _) in &payable {
+        PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
+        ensure_booking_awaiting_payment(status).map_err(|_| {
+            ApiError::Conflict(format!(
+                "Room booking {booking_number} is no longer awaiting payment."
+            ))
+        })?;
+        ensure_no_active_booking_payment_tx(&mut tx, *booking_id).await?;
+        super::settlement_lock::enforce_payment(&mut *tx, *booking_id, "booking", &method).await?;
+        let payment_id = PaymentRepository::insert_pending_payment_tx(
+            &mut tx,
+            PendingPaymentValues {
+                booking_id: *booking_id,
+                guest_id,
+                amount: *total,
+                currency: &currency,
+                payment_method: &method,
+                payment_gateway: Some("paypal"),
+                gateway_order_id: None,
+                description: Some("PayPal order for a multi-room booking (awaiting capture)"),
+                created_by: None,
+            },
+        )
+        .await?;
+        sqlx::query(
+            "UPDATE payments SET metadata = COALESCE(metadata, '{}'::jsonb) || \
+             jsonb_build_object('booking_group_id', $2::bigint, 'group_payment_ref', $3::text, \
+             'group_number', $4::text) WHERE id = $1",
+        )
+        .bind(payment_id)
+        .bind(group_id)
+        .bind(&reference)
+        .bind(&group.group_number)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        rows.push((payment_id, *booking_id));
+        amount += *total;
+    }
+    let (lead_payment, lead_booking) = rows[0];
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: None,
+            action: "payment_created",
+            resource_type: "booking_group",
+            resource_id: Some(group_id),
+            details: Some(serde_json::json!({
+                "payment_ids": rows.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
+                "amount": amount.to_string(),
+                "method": "paypal",
+                "source": "guest_portal",
+                "group_payment_ref": reference,
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let custom_id = format!("{lead_booking}:{lead_payment}");
+    let order_id = match super::paypal_client::create_order(amount, &currency, &custom_id).await {
+        Ok(order_id) => order_id,
+        Err(error) => {
+            for (payment_id, _) in &rows {
+                release_failed_paypal_payment(
+                    pool,
+                    *payment_id,
+                    "PayPal could not create an order. No payment was captured.",
+                )
+                .await?;
+            }
+            return Err(error);
+        }
+    };
+    for (payment_id, _) in &rows {
+        PaymentRepository::set_payment_gateway_order(pool, *payment_id, &order_id).await?;
+    }
+    Ok(PaypalCreateOrderResponse {
+        order_id,
+        payment_id: lead_payment,
+    })
+}
+
+/// Guest action: capture the group's PayPal order and, when PayPal confirms the
+/// full amount, complete every room's payment in one transaction.
+pub async fn capture_group_paypal_payment(
+    pool: &DbPool,
+    guest_id: i64,
+    group_id: i64,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<PaymentActionResponse, ApiError> {
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    let owner: Option<(Option<i64>, i64)> = sqlx::query_as(
+        "SELECT b.booking_group_id, g.guest_id FROM bookings b \
+         JOIN booking_groups g ON g.id = b.booking_group_id WHERE b.id = $1",
+    )
+    .bind(review.booking_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(ApiError::from)?;
+    if owner != Some((Some(group_id), guest_id))
+        || review.payment_method != PaymentMethod::Paypal.to_string()
+    {
+        return Err(ApiError::Forbidden(
+            "Payment does not belong to this booking.".to_string(),
+        ));
+    }
+    let reference = group_payment_ref(pool, payment_id).await?.ok_or_else(|| {
+        ApiError::BadRequest("This is not a multi-room PayPal payment.".to_string())
+    })?;
+    let rows = group_paypal_rows(pool, &reference).await?;
+    let done = || PaymentActionResponse {
+        payment_id,
+        status: "completed".to_string(),
+        booking_status: Some("confirmed".to_string()),
+    };
+    if rows.iter().all(|r| r.2 == "completed") {
+        return Ok(done());
+    }
+    if rows.iter().any(|r| r.2 != "pending" && r.2 != "processing") {
+        return Err(ApiError::BadRequest(
+            "This PayPal payment is no longer available for capture.".to_string(),
+        ));
+    }
+    for (id, _, status, _) in &rows {
+        if status == "pending" && !PaymentRepository::mark_payment_processing(pool, *id).await? {
+            return Err(ApiError::BadRequest(
+                "This PayPal payment is no longer available for capture.".to_string(),
+            ));
+        }
+    }
+    let release_all = |reason: String| {
+        let ids: Vec<i64> = rows.iter().map(|r| r.0).collect();
+        async move {
+            for id in ids {
+                release_failed_paypal_payment(pool, id, &reason).await?;
+            }
+            Ok::<(), ApiError>(())
+        }
+    };
+
+    let outcome = super::paypal_client::capture_order(order_id).await?;
+    if outcome.status != "COMPLETED" {
+        release_all(format!(
+            "PayPal returned {} before completing the payment.",
+            outcome.status
+        ))
+        .await?;
+        return Err(ApiError::BadRequest(format!(
+            "PayPal payment was not completed (status: {}).",
+            outcome.status
+        )));
+    }
+    let expected_custom_id = format!("{}:{}", review.booking_id, payment_id);
+    if outcome.custom_id.as_deref() != Some(expected_custom_id.as_str()) {
+        log::error!(
+            "Group PayPal capture custom_id mismatch: expected {expected_custom_id}, got {:?}",
+            outcome.custom_id
+        );
+        release_all("PayPal order did not match the booking payment.".to_string()).await?;
+        return Err(ApiError::BadRequest(
+            "PayPal order does not match this booking.".to_string(),
+        ));
+    }
+    let expected: Decimal = rows.iter().map(|r| r.3).sum();
+    let currency: String = sqlx::query_scalar(
+        "SELECT COALESCE(NULLIF(TRIM(currency), ''), $2) FROM bookings WHERE id = $1",
+    )
+    .bind(review.booking_id)
+    .bind(DEFAULT_CURRENCY)
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?;
+    if let Err(reason) = verify_captured_amount(&outcome, expected, &currency) {
+        log::error!("Group PayPal capture mismatch for ref {reference}: {reason}");
+        // Settled at PayPal: never mark failed (that reopens payment and
+        // invites a second charge). Leave the rows and flag for staff.
+        AuditLog::log_event(
+            pool,
+            AuditEvent {
+                user_id: None,
+                action: "paypal_capture_conflict",
+                resource_type: "booking_group",
+                resource_id: Some(group_id),
+                details: Some(serde_json::json!({
+                    "source": "paypal_capture",
+                    "order_id": order_id,
+                    "group_payment_ref": reference,
+                    "reason": reason,
+                })),
+                ..Default::default()
+            },
+        )
+        .await?;
+        return Err(ApiError::Conflict(
+            "The captured PayPal payment does not match this booking's payment record. It has been flagged for hotel staff to review — please do not pay again.".to_string(),
+        ));
+    }
+
+    match complete_group_paypal(pool, &reference).await {
+        Ok(()) => Ok(done()),
+        Err(ApiError::BadRequest(_)) => {
+            // The webhook may have completed the group first.
+            let now = group_paypal_rows(pool, &reference).await?;
+            if now.iter().all(|r| r.2 == "completed") {
+                Ok(done())
+            } else {
+                Err(ApiError::BadRequest(
+                    "This PayPal payment is no longer available for capture.".to_string(),
+                ))
+            }
+        }
+        Err(other) => Err(other),
+    }
+}
+
+/// Complete every row of a group PayPal attempt and confirm each room, in one
+/// transaction under the group lock.
+async fn complete_group_paypal(pool: &DbPool, reference: &str) -> Result<(), ApiError> {
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let rows = group_paypal_rows(&mut *tx, reference).await?;
+    let Some(first) = rows.first() else {
+        return Err(ApiError::BadRequest("Payment not found.".to_string()));
+    };
+    let group_id = lock_group_of_booking_tx(&mut tx, first.1).await?;
+    for (id, booking_id, _, _) in &rows {
+        complete_and_confirm_tx(&mut tx, *id, *booking_id, None, "payment_captured").await?;
+    }
+    if let Some(group_id) = group_id {
+        crate::modules::booking_groups::repository::BookingGroupRepository::refresh_totals_tx(
+            &mut tx, group_id,
+        )
+        .await?;
+    }
+    tx.commit().await.map_err(ApiError::from)
+}
+
+/// Webhook `PAYMENT.CAPTURE.COMPLETED` for a group attempt (custom_id names
+/// the lead row). Verifies against the sum of the linked rows.
+async fn apply_webhook_group_capture_completed(
+    pool: &DbPool,
+    event: &PaypalWebhookEvent,
+    reference: &str,
+) -> Result<PaypalWebhookApplyOutcome, ApiError> {
+    let rows = group_paypal_rows(pool, reference).await?;
+    if !rows.is_empty() && rows.iter().all(|r| r.2 == "completed") {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_duplicate",
+            "Group payment already completed.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::AlreadyApplied);
+    }
+    if rows.is_empty() || rows.iter().any(|r| r.2 != "pending" && r.2 != "processing") {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_conflict",
+            "Capture completed at PayPal but the group's local payments are not all pending.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
+    }
+    let expected: Decimal = rows.iter().map(|r| r.3).sum();
+    let booking = GuestPortalRepository::find_booking_by_id(pool, event.booking_id).await?;
+    let echoed = super::paypal_client::PaypalCaptureOutcome {
+        status: "COMPLETED".to_string(),
+        custom_id: None,
+        captured_amount: event.captured_amount.clone(),
+        captured_currency: event.captured_currency.clone(),
+    };
+    if let Err(reason) = verify_captured_amount(&echoed, expected, booking_currency(&booking)) {
+        audit_paypal_webhook(pool, event, "paypal_webhook_conflict", &reason).await?;
+        return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
+    }
+    match complete_group_paypal(pool, reference).await {
+        Ok(()) => {
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_applied",
+                "Group capture completed; every room's payment completed and booking confirmed.",
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::Applied)
+        }
+        Err(ApiError::BadRequest(_)) => {
+            let now = group_paypal_rows(pool, reference).await?;
+            let (action, reason, outcome) = if now.iter().all(|r| r.2 == "completed") {
+                (
+                    "paypal_webhook_duplicate",
+                    "Group payment was completed concurrently.",
+                    PaypalWebhookApplyOutcome::AlreadyApplied,
+                )
+            } else {
+                (
+                    "paypal_webhook_conflict",
+                    "Group payment changed state concurrently with a completed capture.",
+                    PaypalWebhookApplyOutcome::ConflictFlagged,
+                )
+            };
+            audit_paypal_webhook(pool, event, action, reason).await?;
+            Ok(outcome)
+        }
+        Err(ApiError::Conflict(reason)) => {
+            audit_paypal_webhook(pool, event, "paypal_webhook_conflict", &reason).await?;
+            Ok(PaypalWebhookApplyOutcome::ConflictFlagged)
+        }
+        Err(other) => Err(other),
+    }
 }

@@ -333,6 +333,84 @@ pub async fn token_group_bank_transfer(
     ))
 }
 
+/// POST /guest-portal/me/booking-groups/{id}/payments/paypal/create-order
+pub async fn session_group_paypal_create_order(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(group_id): Path<i64>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
+) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    let context = ConsentContext::from_request(&headers, peer_addr);
+    Ok(Json(
+        guest_portal_service::session_group_paypal_order(
+            &pool,
+            guest_id,
+            group_id,
+            &input.consents,
+            &context,
+        )
+        .await?,
+    ))
+}
+
+/// POST /guest-portal/me/booking-groups/{id}/payments/paypal/capture
+pub async fn session_group_paypal_capture(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Path(group_id): Path<i64>,
+    Json(input): Json<crate::models::PaypalCaptureRequest>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    Ok(Json(
+        guest_portal_service::session_group_paypal_capture(
+            &pool,
+            guest_id,
+            group_id,
+            &input.order_id,
+            input.payment_id,
+        )
+        .await?,
+    ))
+}
+
+/// POST /guest-portal/booking/group-payments/paypal/create-order (token in header)
+pub async fn token_group_paypal_create_order(
+    State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
+) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
+    let context = ConsentContext::from_request(&headers, peer_addr);
+    Ok(Json(
+        guest_portal_service::token_group_paypal_order(&pool, &token, &input.consents, &context)
+            .await?,
+    ))
+}
+
+/// POST /guest-portal/booking/group-payments/paypal/capture (token in header)
+pub async fn token_group_paypal_capture(
+    State(pool): State<DbPool>,
+    Path(token): Path<String>,
+    Json(input): Json<crate::models::PaypalCaptureRequest>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::token_group_paypal_capture(
+            &pool,
+            &token,
+            &input.order_id,
+            input.payment_id,
+        )
+        .await?,
+    ))
+}
+
 /// Pull the `file` field out of a receipt upload.
 ///
 /// Shared with the emailed recovery path so both routes agree on what counts
