@@ -184,6 +184,28 @@ async fn export_emits_the_v1_document() {
     );
     assert_eq!(document["applicationVersion"], env!("CARGO_PKG_VERSION"));
     assert_eq!(document["source"]["databaseProvider"], "postgresql");
+    // The patch-catalog position travels with the file so an importer on a
+    // different schema can tell (applicationVersion does not change per deploy).
+    let recorded_head: (i32, i32) = sqlx::query_as(
+        "SELECT generation, version FROM hotel_schema_revisions ORDER BY generation DESC, version DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the test database records its schema revisions");
+    assert_eq!(
+        document["source"]["schemaRevision"],
+        serde_json::json!(format!("{}.{}", recorded_head.0, recorded_head.1)),
+        "export must stamp the source database's highest applied revision"
+    );
+    // The upload sniff reads the first 4 KB and flags `"version":2…`/`3…` as a
+    // retired document — a real export, revision included, must still sniff as
+    // v1 (an object-shaped revision with `"version":27` once did not).
+    let prefix = &text.as_bytes()[..text.len().min(4096)];
+    assert_eq!(
+        hotel_app_be::modules::data_transfer::jobs::detect_backup_format(prefix),
+        "v1",
+        "a fresh export must not sniff as a retired format"
+    );
     let environment = document["source"]["environment"]
         .as_str()
         .unwrap_or_default();

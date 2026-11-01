@@ -11,7 +11,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupRelationship,
-    BackupSource, ExportPreview, ExportScope, TransferTablePreview,
+    BackupSchemaRevision, BackupSource, ExportPreview, ExportScope, TransferTablePreview,
 };
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
@@ -417,6 +417,46 @@ pub(crate) fn is_never_imported_key(key: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Transferable tables whose rows carry a stable `uuid` identity next to the
+/// local identity-column `id`. Two databases that both took writes hand out
+/// the same `id` to different records, and a merge keeps the file's ids —
+/// so a merge row whose `id` exists here with a different `uuid` is a
+/// different record, and skipping or overwriting it would lose it or attach
+/// its children (payments, ledgers) to the wrong booking/guest.
+///
+/// `teams` also has a `uuid` but is deliberately absent: `seed.sql` inserts
+/// the same three teams on every install with random uuids, so every
+/// cross-install merge would report them. `users`/`ekyc_verifications` are
+/// protected tables and never merged through this path's business tier.
+pub const IDENTITY_CHECKED_TABLES: &[&str] = &[
+    "booking_groups",
+    "bookings",
+    "guests",
+    "invoices",
+    "payments",
+];
+
+pub(crate) fn is_identity_checked(table: &QualifiedTable) -> bool {
+    table.schema == "public" && IDENTITY_CHECKED_TABLES.contains(&table.name.as_str())
+}
+
+/// The highest patch-catalog revision this database records — stamped on
+/// every export as `source.schemaRevision` and compared at import preview.
+pub(crate) async fn current_schema_revision(
+    pool: &DbPool,
+) -> Result<Option<BackupSchemaRevision>, ApiError> {
+    let recorded = crate::core::schema_catalog::recorded_revisions(pool)
+        .await
+        .map_err(ApiError::from)?;
+    Ok(recorded
+        .into_iter()
+        .map(|revision| BackupSchemaRevision {
+            generation: revision.generation,
+            version: revision.version,
+        })
+        .max())
+}
+
 /// User-FK columns that record *who caused* a row rather than *what the row
 /// belongs to*. On import, a missing user in one of these remaps to the
 /// importing admin instead of nulling or dropping the row — the attribution
@@ -652,6 +692,7 @@ fn build_export_header_inner(
         source: BackupSource {
             environment: backup_environment(),
             database_provider: "postgresql".to_string(),
+            schema_revision: None,
         },
         manifest: build_backup_manifest(tables, scope)?,
     })
@@ -663,6 +704,7 @@ async fn build_export_header(
     scope: ExportScope,
 ) -> Result<ExportHeader, ApiError> {
     let mut header = build_export_header_inner(tables, scope)?;
+    header.source.schema_revision = current_schema_revision(pool).await?;
     if scope == ExportScope::Backup {
         header.manifest.relationships = Some(backup_relationships(pool, tables).await?);
     }

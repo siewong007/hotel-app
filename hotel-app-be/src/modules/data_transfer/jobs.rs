@@ -33,8 +33,8 @@ use super::repository::{
 };
 use super::service::{
     AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, TransferTier, backup_environment,
-    expand_full_overwrite_tables, is_never_imported_key, is_transferable_key, protected_table_keys,
-    table_is_sensitive,
+    current_schema_revision, expand_full_overwrite_tables, is_identity_checked,
+    is_never_imported_key, is_transferable_key, protected_table_keys, table_is_sensitive,
 };
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -707,6 +707,88 @@ impl PkBinding {
 }
 
 // ---------------------------------------------------------------------------
+// Record identity (same id, different record)
+// ---------------------------------------------------------------------------
+
+/// How many conflicting ids an error message names before summarizing.
+const IDENTITY_IDS_SHOWN: usize = 5;
+
+/// Whether `table` gets the `uuid` identity check: allowlisted, a single
+/// primary-key column, and a `uuid` column in this database's schema.
+fn identity_check_applies(table: &TransferTable) -> bool {
+    is_identity_checked(&table.table)
+        && table.primary_key_columns.len() == 1
+        && table.columns.contains("uuid")
+}
+
+/// The raw primary-key text and parsed `uuid` of one row — `None` when either
+/// is absent or unparseable, since such a row cannot be compared.
+fn identity_pair(object: &Map<String, Value>, pk_column: &str) -> Option<(String, Uuid)> {
+    let key = object.get(pk_column).and_then(ref_value_raw)?;
+    let uuid = object
+        .get("uuid")
+        .and_then(Value::as_str)
+        .and_then(|value| Uuid::parse_str(value).ok())?;
+    Some((key, uuid))
+}
+
+/// The destination ids among `pairs` (raw key text, file uuid) that already
+/// name a different record. Batched like the preview's PK diff.
+async fn identity_mismatches(
+    connection: &mut sqlx::PgConnection,
+    table: &TransferTable,
+    pairs: &[(String, Uuid)],
+) -> Result<Vec<String>, ApiError> {
+    let Some(column) = table.primary_key_columns.first() else {
+        return Ok(Vec::new());
+    };
+    let binding = PkBinding::for_udt(
+        DataTransferRepository::column_udt_name(&mut *connection, &table.table, column)
+            .await?
+            .as_deref(),
+    );
+    // Canonical keys always re-parse under their binding, so `lookup` keeps
+    // the same length and order as `uuids`.
+    let canonical: Vec<(String, Uuid)> = pairs
+        .iter()
+        .filter_map(|(key, uuid)| binding.canonical(key).map(|key| (key, *uuid)))
+        .collect();
+    let mut mismatched = Vec::new();
+    for chunk in canonical.chunks(PK_LOOKUP_BATCH) {
+        let keys: Vec<String> = chunk.iter().map(|(key, _)| key.clone()).collect();
+        let uuids: Vec<Uuid> = chunk.iter().map(|(_, uuid)| *uuid).collect();
+        mismatched.extend(
+            DataTransferRepository::identity_mismatches(
+                &mut *connection,
+                table,
+                &binding.lookup(&keys),
+                &uuids,
+            )
+            .await?,
+        );
+    }
+    Ok(mismatched)
+}
+
+fn identity_conflict_summary(entity: &str, ids: &[String]) -> String {
+    let shown = ids
+        .iter()
+        .take(IDENTITY_IDS_SHOWN)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    let more = if ids.len() > IDENTITY_IDS_SHOWN {
+        format!(" and {} more", ids.len() - IDENTITY_IDS_SHOWN)
+    } else {
+        String::new()
+    };
+    format!(
+        "{entity}: {} row(s) reuse an id this database already gives to a different record (uuid differs; id {shown}{more})",
+        ids.len()
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Preview
 // ---------------------------------------------------------------------------
 
@@ -760,6 +842,7 @@ async fn preview_structured(
     let sensitive = file.includes_sensitive_data == Some(true)
         || file.tables.keys().any(|key| table_is_sensitive(key));
     let export_type = file.export_type.clone();
+    let file_revision = file.source.schema_revision;
     let mut preview = preview_table_map(
         pool,
         upload_id,
@@ -777,6 +860,27 @@ async fn preview_structured(
     )
     .await?;
     preview.warnings.extend(trailer_warnings);
+
+    // `applicationVersion` stays the same across many deploys, so it cannot
+    // tell a desktop install on an old patch level from the cloud on a newer
+    // one — the patch catalog position can.
+    let this_revision = current_schema_revision(pool).await?;
+    match (file_revision, this_revision) {
+        (Some(file_revision), Some(this_revision)) if file_revision > this_revision => {
+            preview.warnings.push(format!(
+                "the backup was exported from schema revision {file_revision}, newer than this database's {this_revision} — update this app before importing; columns this database lacks block the import"
+            ));
+        }
+        (Some(file_revision), Some(this_revision)) if file_revision < this_revision => {
+            preview.warnings.push(format!(
+                "the backup was exported from schema revision {file_revision}, older than this database's {this_revision} — columns added since then take their defaults"
+            ));
+        }
+        (None, _) => preview.warnings.push(
+            "the backup does not record its source schema revision (exported by an older build) — compare versions before importing".to_string(),
+        ),
+        _ => {}
+    }
 
     if file.format != "hotel-backup" {
         preview
@@ -820,6 +924,7 @@ struct PreviewAccum<'a> {
     /// References that would be rewritten (admin-remap or NULL).
     rewritten_refs: &'a mut u64,
     validation_errors: &'a mut Vec<String>,
+    warnings: &'a mut Vec<String>,
     /// Entity key -> file columns whose values feed the parent-key pool.
     parent_columns: &'a HashMap<String, HashSet<String>>,
     /// Entity key -> its foreign keys whose parents are transferable.
@@ -848,6 +953,12 @@ async fn diff_entity_rows(
     let pk_columns = &descriptor.primary_key_columns;
     let mut malformed = 0_u64;
     let mut skipped = 0_u64;
+    // Columns the destination schema lacks fail the execute at the first row
+    // that carries one (`insert_transfer_row`) — report them here instead, so
+    // a file from a newer schema is refused before anything is attempted.
+    let mut unknown_columns: std::collections::BTreeSet<String> = Default::default();
+    let check_identity = identity_check_applies(descriptor);
+    let mut identity_pairs: Vec<(String, Uuid)> = Vec::new();
 
     // One pass: assess the row and lift its primary-key value(s). Composite
     // keys keep per-row EXISTS lookups — the batched ANY() path only pays off
@@ -864,6 +975,15 @@ async fn diff_entity_rows(
                 continue;
             }
         };
+        unknown_columns.extend(
+            object
+                .keys()
+                .filter(|column| !descriptor.columns.contains(*column))
+                .cloned(),
+        );
+        if check_identity && let Some(pair) = identity_pair(&object, &pk_columns[0]) {
+            identity_pairs.push(pair);
+        }
         let (skip_reason, rewrites) = scan.assess(key, &object);
         *accum.rewritten_refs += rewrites;
         if let Some((column, parent)) = skip_reason {
@@ -930,6 +1050,22 @@ async fn diff_entity_rows(
         accum.validation_errors.push(format!(
             "{key}: {malformed} row(s) are not JSON objects and cannot be imported"
         ));
+    }
+    if !unknown_columns.is_empty() {
+        accum.validation_errors.push(format!(
+            "{key}: column(s) {} do not exist in this database's schema — the file was exported from a newer schema; update this app before importing it",
+            unknown_columns.into_iter().collect::<Vec<_>>().join(", ")
+        ));
+    }
+    if !identity_pairs.is_empty() {
+        let mut connection = pool.acquire().await.map_err(ApiError::from)?;
+        let mismatched = identity_mismatches(&mut connection, descriptor, &identity_pairs).await?;
+        if !mismatched.is_empty() {
+            accum.warnings.push(format!(
+                "{} — a merge would drop or overwrite them and is refused; use restore, or merge only into a copy of the file's source database",
+                identity_conflict_summary(key, &mismatched)
+            ));
+        }
     }
     entity.skipped = Some(skipped);
 
@@ -1097,6 +1233,7 @@ async fn preview_table_map(
             relationship_problems: &mut relationship_problems,
             rewritten_refs: &mut rewritten_refs,
             validation_errors: &mut validation_errors,
+            warnings: &mut warnings,
             parent_columns: &parent_columns,
             child_edges: &child_edges,
             file_parent_keys: &mut file_parent_keys,
@@ -1850,6 +1987,38 @@ async fn import_structured_backup(
     if request.mode == BackupImportMode::Restore {
         let clear_tables: Vec<_> = ordered_tables.iter().rev().cloned().collect();
         DataTransferRepository::clear_transfer_tables(&mut tx, &clear_tables).await?;
+    } else {
+        // A merge keeps the file's ids. Where an id already names a different
+        // record here, every conflict policy is wrong — skip drops the file's
+        // record and lets its children attach to ours, update overwrites ours
+        // — so refuse the whole file before writing anything.
+        let mut conflicts = Vec::new();
+        for table in ordered_tables
+            .iter()
+            .filter(|table| identity_check_applies(table))
+        {
+            let name = table.table.key();
+            let Some(rows) = importable.get(&name) else {
+                continue;
+            };
+            let pk_column = &table.primary_key_columns[0];
+            let pairs: Vec<(String, Uuid)> = rows
+                .iter()
+                .filter_map(|raw| serde_json::from_str::<Map<String, Value>>(raw.get()).ok())
+                .filter_map(|object| identity_pair(&object, pk_column))
+                .collect();
+            let mismatched = identity_mismatches(&mut tx, table, &pairs).await?;
+            if !mismatched.is_empty() {
+                conflicts.push(identity_conflict_summary(&name, &mismatched));
+            }
+        }
+        if !conflicts.is_empty() {
+            let _ = tx.rollback().await;
+            return Err(ApiError::BadRequest(format!(
+                "Merge refused: {}. Merging would drop or overwrite those records. Use restore, or merge only into a copy of the file's source database. No changes were saved.",
+                conflicts.join("; ")
+            )));
+        }
     }
 
     let mut report = ImportJobReport {

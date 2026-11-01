@@ -1112,3 +1112,291 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
         .await
         .expect("fixture cleanup must run");
 }
+
+/// A one-entity `hotel-backup` document with an explicit column list and
+/// optional `source.schemaRevision` — `v1_document` pins the amenities shape.
+fn v1_entity_document(
+    table: &str,
+    columns: &[&str],
+    rows: serde_json::Value,
+    schema_revision: Option<serde_json::Value>,
+) -> Vec<u8> {
+    let row_count = rows.as_array().map_or(0, Vec::len);
+    let mut source =
+        serde_json::json!({"environment": "development", "databaseProvider": "postgresql"});
+    if let Some(revision) = schema_revision {
+        source["schemaRevision"] = revision;
+    }
+    serde_json::to_vec(&serde_json::json!({
+        "format": "hotel-backup",
+        "version": 1,
+        "kind": "business-data",
+        "exportId": "11111111-2222-3333-4444-555555555556",
+        "exportedAt": "2026-11-01T12:00:00Z",
+        "applicationVersion": env!("CARGO_PKG_VERSION"),
+        "source": source,
+        "manifest": {
+            "entities": [{"name": table, "primaryKey": ["id"], "columns": columns}],
+            "exclusions": []
+        },
+        "tables": {table: rows},
+        "integrity": {
+            "entities": 1,
+            "rows": row_count,
+            "entityRows": {table: row_count},
+            "completedAt": "2026-11-01T12:00:01Z"
+        }
+    }))
+    .expect("fixture serializes")
+}
+
+const IDENTITY_GUEST_IDS: &str = "920999101, 920999102";
+const IDENTITY_GUEST_UUID: &str = "019a3f00-0000-7000-8000-000000000101";
+
+async fn reset_identity_guests(pool: &PgPool) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DELETE FROM guests WHERE id IN ({IDENTITY_GUEST_IDS})"
+    )))
+    .execute(pool)
+    .await
+    .expect("guest fixture cleanup must run");
+}
+
+async fn merge_guest_file(
+    pool: &PgPool,
+    rows: serde_json::Value,
+    on_conflict: hotel_app_be::models::ConflictPolicy,
+) -> hotel_app_be::models::ImportJobStatus {
+    use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest};
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
+
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(
+        v1_entity_document("public.guests", &["id", "uuid", "nick_name"], rows, None),
+    ))
+    .await
+    .expect("staging");
+    let job = data_transfer_jobs::start_import_job(
+        pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(on_conflict),
+            tables: vec![],
+            confirm: true,
+            passphrase: None,
+        },
+    )
+    .await
+    .expect("execute must return a job id");
+    wait_for_job(job.job_id).await
+}
+
+/// Two databases that both took writes hand out the same identity `id` to
+/// different guests. A merge keeps the file's ids, so under `skip` the file's
+/// guest used to vanish (and its children attach to ours), under `update` ours
+/// was overwritten. Both are now refused before anything is written, and the
+/// preview says why.
+#[tokio::test]
+async fn merge_refuses_rows_whose_id_names_a_different_record() {
+    let _fixture = FIXTURE_LOCK.lock().await;
+    use hotel_app_be::models::{ConflictPolicy, ImportJobState};
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    reset_identity_guests(&pool).await;
+    sqlx::query(
+        "INSERT INTO guests (id, uuid, nick_name) OVERRIDING SYSTEM VALUE \
+         VALUES (920999101, $1::uuid, 'dt-identity-ours')",
+    )
+    .bind(IDENTITY_GUEST_UUID)
+    .execute(&pool)
+    .await
+    .expect("destination guest must insert");
+
+    // Same id, different uuid: someone else's guest. Plus a genuinely new row,
+    // which must not land either — the file is refused as a whole.
+    let foreign_rows = serde_json::json!([
+        {"id": 920_999_101_i64, "uuid": "019a3f00-0000-7000-8000-00000000f101", "nick_name": "dt-identity-theirs"},
+        {"id": 920_999_102_i64, "uuid": "019a3f00-0000-7000-8000-00000000f102", "nick_name": "dt-identity-new"}
+    ]);
+
+    let upload =
+        data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v1_entity_document(
+            "public.guests",
+            &["id", "uuid", "nick_name"],
+            foreign_rows.clone(),
+            None,
+        )))
+        .await
+        .expect("staging");
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
+        .await
+        .expect("preview must answer");
+    data_transfer_jobs::delete_staged_upload(upload.upload_id)
+        .await
+        .expect("discarding the previewed upload");
+    assert!(
+        preview.warnings.iter().any(|warning| warning.contains(
+            "public.guests: 1 row(s) reuse an id this database already gives to a different record"
+        ) && warning.contains("920999101")),
+        "preview must warn about the id collision: {:?}",
+        preview.warnings
+    );
+
+    for policy in [ConflictPolicy::Skip, ConflictPolicy::Update] {
+        let status = merge_guest_file(&pool, foreign_rows.clone(), policy).await;
+        let error = status.error.clone().unwrap_or_default();
+        let ours: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT nick_name FROM guests WHERE id IN ({IDENTITY_GUEST_IDS}) ORDER BY id"
+        )))
+        .fetch_all(&pool)
+        .await
+        .expect("reading guest fixtures");
+        // Clean up before asserting, so a failure here cannot poison later runs
+        // with a committed 920999102.
+        if ours.len() != 1 {
+            reset_identity_guests(&pool).await;
+        }
+        assert_eq!(
+            status.status,
+            ImportJobState::Failed,
+            "{policy:?} merge must be refused, got result {:?}",
+            status.result
+        );
+        assert!(
+            error.contains("Merge refused")
+                && error.contains("public.guests")
+                && error.contains("920999101"),
+            "{policy:?} error must name the entity and the id: {error}"
+        );
+        assert_eq!(
+            ours,
+            vec!["dt-identity-ours".to_string()],
+            "{policy:?}: a refused merge must leave the destination untouched"
+        );
+    }
+
+    // Same id AND same uuid is the same record — merge still works.
+    let same_rows = serde_json::json!([
+        {"id": 920_999_101_i64, "uuid": IDENTITY_GUEST_UUID, "nick_name": "dt-identity-edited"}
+    ]);
+    let status = merge_guest_file(&pool, same_rows, ConflictPolicy::Update).await;
+    let edited: Option<String> =
+        sqlx::query_scalar("SELECT nick_name FROM guests WHERE id = 920999101")
+            .fetch_optional(&pool)
+            .await
+            .expect("reading guest fixture");
+    reset_identity_guests(&pool).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "a same-record merge must still succeed: {:?}",
+        status.error
+    );
+    assert_eq!(status.result.as_ref().map(|result| result.updated), Some(1));
+    assert_eq!(edited.as_deref(), Some("dt-identity-edited"));
+}
+
+/// A file from a newer schema carries columns this database lacks. That used
+/// to pass preview and fail at the first row of execute; preview now refuses it.
+/// The revision comparison names the direction of the drift.
+#[tokio::test]
+async fn preview_reports_unknown_columns_and_schema_revision_drift() {
+    let _fixture = FIXTURE_LOCK.lock().await;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let (generation, version): (i32, i32) = sqlx::query_as(
+        "SELECT generation, version FROM hotel_schema_revisions ORDER BY generation DESC, version DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the test database records its schema revisions");
+
+    let preview_of = |document: Vec<u8>| {
+        let pool = pool.clone();
+        async move {
+            let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(document))
+                .await
+                .expect("staging");
+            let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
+                .await
+                .expect("preview must answer");
+            data_transfer_jobs::delete_staged_upload(upload.upload_id)
+                .await
+                .expect("discarding the previewed upload");
+            preview
+        }
+    };
+
+    let newer = preview_of(v1_entity_document(
+        "public.amenities",
+        &["id", "name", "category", "added_in_a_later_patch"],
+        serde_json::json!([
+            {"id": 920_999_121_i64, "name": "dt-newer", "category": "x", "added_in_a_later_patch": true}
+        ]),
+        Some(serde_json::json!(format!("{generation}.{}", version + 1))),
+    ))
+    .await;
+    assert!(
+        newer.validation_errors.iter().any(|error| error.contains(
+            "public.amenities: column(s) added_in_a_later_patch do not exist in this database's schema"
+        )),
+        "an unknown column must be a validation error: {:?}",
+        newer.validation_errors
+    );
+    let newer_revision = format!(
+        "schema revision {generation}.{}, newer than this database's {generation}.{version}",
+        version + 1
+    );
+    assert!(
+        newer
+            .warnings
+            .iter()
+            .any(|warning| warning.contains(&newer_revision)),
+        "a newer source revision must warn: {:?}",
+        newer.warnings
+    );
+
+    let current = preview_of(v1_entity_document(
+        "public.amenities",
+        &["id", "name", "category"],
+        serde_json::json!([{"id": 920_999_122_i64, "name": "dt-current", "category": "x"}]),
+        Some(serde_json::json!(format!("{generation}.{version}"))),
+    ))
+    .await;
+    assert!(
+        current.validation_errors.is_empty(),
+        "a same-schema file must preview clean: {:?}",
+        current.validation_errors
+    );
+    assert!(
+        !current
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("schema revision")),
+        "matching revisions must not warn: {:?}",
+        current.warnings
+    );
+
+    let unstamped = preview_of(v1_entity_document(
+        "public.amenities",
+        &["id", "name", "category"],
+        serde_json::json!([{"id": 920_999_123_i64, "name": "dt-old", "category": "x"}]),
+        None,
+    ))
+    .await;
+    assert!(
+        unstamped
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("does not record its source schema revision")),
+        "a file without schemaRevision must still preview, with a warning: {:?}",
+        unstamped.warnings
+    );
+}
