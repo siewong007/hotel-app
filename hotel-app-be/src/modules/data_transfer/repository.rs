@@ -884,18 +884,21 @@ impl DataTransferRepository {
     /// preview picks its batched `PkLookup` binding type from this declared
     /// type, never from the file's value shapes (a `varchar` key column
     /// holding all-numeric ids must still bind `text[]`).
-    pub async fn column_udt_name(
-        pool: &DbPool,
+    pub async fn column_udt_name<'e, E>(
+        executor: E,
         table: &QualifiedTable,
         column: &str,
-    ) -> Result<Option<String>, ApiError> {
+    ) -> Result<Option<String>, ApiError>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
         sqlx::query_scalar::<_, String>(
             "SELECT udt_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3",
         )
         .bind(&table.schema)
         .bind(&table.name)
         .bind(column)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(ApiError::from)
     }
@@ -944,6 +947,51 @@ impl DataTransferRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(found.into_iter().collect())
+    }
+
+    /// Primary keys (canonical text) of destination rows that share a key
+    /// with the file but carry a different `uuid` — the same id naming a
+    /// different record. `lookup` and `uuids` are parallel: entry `i` of
+    /// one belongs to entry `i` of the other. Generic over the executor so
+    /// the execute path can probe inside its import transaction.
+    pub async fn identity_mismatches<'e, E>(
+        executor: E,
+        table: &TransferTable,
+        lookup: &PkLookup,
+        uuids: &[uuid::Uuid],
+    ) -> Result<Vec<String>, ApiError>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
+        let Some(column) = table.primary_key_columns.first() else {
+            return Ok(Vec::new());
+        };
+        if uuids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let quoted_column = quote_identifier(column);
+        let source = table.source();
+        let (pk_array, pk_join) = match lookup {
+            PkLookup::Int(_) => ("int8[]", format!("t.{quoted_column} = f.pk")),
+            PkLookup::Uuid(_) => ("uuid[]", format!("t.{quoted_column} = f.pk")),
+            PkLookup::Text(_) => ("text[]", format!("t.{quoted_column}::text = f.pk")),
+        };
+        let sql = format!(
+            "SELECT t.{quoted_column}::text FROM {source} t \
+             JOIN unnest($1::{pk_array}, $2::uuid[]) AS f(pk, uuid) ON {pk_join} \
+             WHERE t.\"uuid\" IS DISTINCT FROM f.uuid ORDER BY 1"
+        );
+        let query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql));
+        let query = match lookup {
+            PkLookup::Int(ids) => query.bind(ids),
+            PkLookup::Uuid(ids) => query.bind(ids),
+            PkLookup::Text(keys) => query.bind(keys),
+        };
+        query
+            .bind(uuids)
+            .fetch_all(executor)
+            .await
+            .map_err(ApiError::from)
     }
 
     /// Batched primary-key existence check for the import-preview diff.

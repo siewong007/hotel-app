@@ -170,7 +170,7 @@ One JSON object, emitted in a fixed key order. Downloaded as
   "exportId": "3f8a2c1e-7b9d-4e5f-9a1c-0d2e4f6a8b0c",
   "exportedAt": "2026-09-14T09:25:30.123456+00:00",
   "applicationVersion": "0.3.0",
-  "source": {"environment": "production", "databaseProvider": "postgresql"},
+  "source": {"environment": "production", "databaseProvider": "postgresql", "schemaRevision": "1.27"},
   "manifest": {
     "entities": [
       {"name": "public.amenities", "primaryKey": ["id"], "columns": ["id", "name", "created_at"]}
@@ -207,9 +207,10 @@ Field by field:
 | `includesSecrets` | `false` on business-data files; `true` on a `system` file, which really does carry credential material. A file declaring `true` **without** `kind: "full-system"` produces a preview warning, since no legitimate producer emits that combination. |
 | `exportId` | UUIDv4 identifying this exact file. Also recorded on the `data_export` audit row, so a download can be tied to its event. |
 | `exportedAt` | RFC 3339 export start timestamp (UTC). |
-| `applicationVersion` | The backend's `CARGO_PKG_VERSION`. Preview warns when it differs from the importing build. |
+| `applicationVersion` | The backend's `CARGO_PKG_VERSION`. Preview warns when it differs from the importing build. It does **not** change per deploy (the cloud and a months-old desktop release can both say `0.3.0`), so it is no evidence the two schemas match — `source.schemaRevision` is. |
 | `source.environment` | The exporter's `ENVIRONMENT`/`APP_ENV`, lowercased: `development`, `staging`, or `production`. Preview warns when it differs from the destination's. |
 | `source.databaseProvider` | Always `"postgresql"`. |
+| `source.schemaRevision` | The source database's highest applied patch, `"<generation>.<version>"` from `hotel_schema_revisions` (e.g. `"1.27"`). Preview warns when it differs from the destination's and says which side is newer; absent on files from older builds (preview warns that it cannot compare). Deliberately a string: the upload sniff — in every released build — reads `"version":2…`/`3…` in the first 4 KB as a retired document, so a nested `"version":27` would make new exports unimportable. Older importers ignore the key. |
 | `manifest.entities` | One entry per emitted entity, in the same alphabetical order `tables` uses: `name` (schema-qualified), `primaryKey` (column list; `[]` for keyless tables), `columns` (the exported columns, schema order). Carries **no** row counts — those land in `integrity`. |
 | `manifest.exclusions` | Every schema table **not** in the transferable set, with a reason code — nothing is silently omitted. See [Entity coverage](#entity-coverage). |
 | `manifest.omitted` | Standard scope only: the `SENSITIVE_TABLES` entity names left out of the file — names only, never rows. |
@@ -383,7 +384,16 @@ executes additionally require a fresh `X-Step-Up` token — see
   land in `validationErrors` instead, and excluded tables (e.g. a hand-edited
   file containing `public.users`) produce a warning and are never imported.
 - `validationErrors` makes a file unimportable (bad version/kind/format, rows
-  that are not JSON objects); `relationshipProblems` and `warnings` are advisory.
+  that are not JSON objects, row columns this database's schema lacks);
+  `relationshipProblems` and `warnings` are advisory. An unknown column means
+  the file came from a newer schema (typically a cloud export opened in an
+  older desktop release): update the importing app first. Before this check
+  such a file previewed clean and failed at the first row of execute.
+- `warnings` also reports **identity conflicts** on the uuid-checked tables
+  (see [Import semantics](#import-semantics)): `<entity>: N row(s) reuse an id
+  this database already gives to a different record`. It is a warning, not a
+  validation error, because `restore` is unaffected — but `merge` refuses the
+  file.
 - Preview also cross-checks the file against itself: entities present but absent
   from `manifest.entities`, and `integrity.entityRows` disagreeing with the
   actual row arrays, both warn — signs of a truncated or hand-edited file.
@@ -423,10 +433,31 @@ whole transaction back: **an import is all-or-nothing**, never partial.
 
 Modes:
 
-- `merge` — insert only; conflicts resolve per `onConflict`.
+- `merge` — insert only; conflicts resolve per `onConflict`. **Refused
+  outright** (any `onConflict`) when a row of an identity-checked table reuses
+  an `id` that already names a different record here — see below.
 - `restore` — clear selected transferable tables (plus expanded dependents),
   then insert. `onConflict` is irrelevant: cleared tables have nothing to
   conflict with.
+
+**Identity check (merge only).** Keys are local identity columns, and a merge
+keeps the file's ids. Two databases that both took writes since they last
+matched — the cloud and a desktop install, say — hand out the same `id` to
+different records. Under `skip` the file's record used to be silently dropped
+while its non-colliding children (payments, ledger rows) attached to *our*
+record with that id; under `update` our record was overwritten. Neither is
+detectable from the counts. So for the tables in `IDENTITY_CHECKED_TABLES`
+(`modules/data_transfer/service.rs`: `bookings`, `booking_groups`, `guests`,
+`invoices`, `payments` — each carries a `uuid` assigned once at insert and
+exported with the row), the job compares the file's `uuid` with the
+destination's for every `id` both sides have, inside the import transaction
+before any row is written. Any mismatch fails the job with `Merge refused:
+<entity>: N row(s) …`, naming the first ids, and nothing is saved. Same id and
+same uuid is the same record and merges normally. Rows without a uuid are not
+compared. `teams` also has a `uuid` but is left out: `seed.sql` creates the same
+three teams on every install with random uuids, so every cross-install merge
+would trip it. This is a guard, not a sync — two diverged databases cannot be
+merged by this feature at all; `restore` replaces one with the other.
 
 `onConflict` (merge only; defaults to `skip` when omitted):
 
@@ -611,6 +642,8 @@ recovery. Rehearse on staging first (`staging.saliminn.my`, database
 | `404 "import job not found or expired"` | Job id unknown, or finished >1 h ago | Finished results are also in the `data_import` audit event and `job_runs` |
 | `409 "an import job is already running for this upload"` | Second execute on the same upload while one runs | Poll the existing job instead |
 | `409 "a running import job is still reading this upload"` | `DELETE` on an upload mid-import | Wait for the job to finish; it deletes its own file |
+| Job `failed` with `Merge refused: public.<entity>: N row(s) reuse an id …` | The file and this database both created records after they last matched; the same ids name different records (uuid differs) | Do not force it. `restore` replaces this database's copy of those tables with the file's; otherwise merge only into a copy of the file's source database. Preview shows the same conflict as a warning |
+| Preview `validationErrors`: `column(s) … do not exist in this database's schema` | The file came from a newer schema (e.g. a cloud export into an older desktop release); preview also warns `schema revision X, newer than this database's Y` | Update the importing app to a build at least at the file's `schemaRevision`, then import |
 | Job `failed` with `row N` / constraint detail | Bad row or dangling reference; whole transaction rolled back | Fix the file (preview's `relationshipProblems` names the columns), or run `merge` with `skip` to absorb conflicts |
 | Job `failed` right after a backend restart | The job registry is process-local — a restart abandons running jobs | The transaction rolled back (uncommitted work never survives a restart); re-stage the file — the old one is deleted with the dead job or swept |
 | `upload-*.part` / old `upload-*.json` files under `private_uploads/data-transfer/` | Orphaned staging (crashed upload, never executed, dead job) | Harmless — swept after 24 h; or delete manually |

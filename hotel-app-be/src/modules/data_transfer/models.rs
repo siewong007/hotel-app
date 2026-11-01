@@ -32,11 +32,57 @@ pub struct TransferTablePreview {
 
 /// Where a backup file was produced. `environment` is the lowercased
 /// `config::Environment`; `database_provider` is always `"postgresql"`.
+/// `schema_revision` is the source database's highest applied patch — absent
+/// on files written before it existed, so it stays optional on parse (and
+/// importers that predate it ignore the unknown key).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupSource {
     pub environment: String,
     pub database_provider: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_revision: Option<BackupSchemaRevision>,
+}
+
+/// A `hotel_schema_revisions` position: patch `version` within catalog
+/// `generation`. Ordered generation-first, like the catalog itself.
+///
+/// On the wire it is the string `"<generation>.<version>"` (`"1.27"`), never
+/// an object: the upload sniff — in this build and in every released one —
+/// treats `"version":2…`/`"version":3…` anywhere in the first 4 KB as a
+/// retired document, so a nested `"version":27` would get every new export
+/// rejected as a legacy file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(into = "String", try_from = "String")]
+pub struct BackupSchemaRevision {
+    pub generation: i32,
+    pub version: i32,
+}
+
+impl std::fmt::Display for BackupSchemaRevision {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.generation, self.version)
+    }
+}
+
+impl From<BackupSchemaRevision> for String {
+    fn from(revision: BackupSchemaRevision) -> Self {
+        revision.to_string()
+    }
+}
+
+impl TryFrom<String> for BackupSchemaRevision {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let invalid =
+            || format!("invalid schemaRevision '{value}' (expected '<generation>.<version>')");
+        let (generation, version) = value.split_once('.').ok_or_else(invalid)?;
+        Ok(Self {
+            generation: generation.parse().map_err(|_| invalid())?,
+            version: version.parse().map_err(|_| invalid())?,
+        })
+    }
 }
 
 /// One transferable entity's identity in the backup manifest — name,
@@ -456,7 +502,10 @@ pub struct ImportJobStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackupFile, BackupImportMode, ConflictPolicy, ImportJobState, UploadResponse};
+    use super::{
+        BackupFile, BackupImportMode, BackupSchemaRevision, BackupSource, ConflictPolicy,
+        ImportJobState, UploadResponse,
+    };
     use serde_json::{Value, json};
     use uuid::Uuid;
 
@@ -542,6 +591,10 @@ mod tests {
         assert_eq!(file.kind, "business-data");
         assert_eq!(file.export_id, export_id);
         assert_eq!(file.source.database_provider, "postgresql");
+        assert_eq!(
+            file.source.schema_revision, None,
+            "a file from before schemaRevision existed must still parse"
+        );
         assert_eq!(file.manifest.entities[0].primary_key, vec!["id"]);
         assert_eq!(
             file.manifest.exclusions[0].reason,
@@ -554,6 +607,52 @@ mod tests {
         assert_eq!(raw_rows.len(), 1);
         let row: Value = serde_json::from_str(raw_rows[0].get()).expect("raw row should parse");
         assert_eq!(row["name"], "Wi-Fi");
+    }
+
+    #[test]
+    fn backup_source_round_trips_schema_revision_in_catalog_order() {
+        let source: BackupSource = serde_json::from_value(json!({
+            "environment": "production",
+            "databaseProvider": "postgresql",
+            "schemaRevision": "1.27"
+        }))
+        .expect("source with schemaRevision should deserialize");
+        let revision = source.schema_revision.expect("revision must parse");
+        assert_eq!(revision.to_string(), "1.27");
+        assert_eq!(
+            serde_json::to_value(&source).unwrap()["schemaRevision"],
+            json!("1.27")
+        );
+        for bad in ["27", "1.x", "", "1.27.3"] {
+            assert!(
+                serde_json::from_value::<BackupSchemaRevision>(json!(bad)).is_err(),
+                "'{bad}' must not parse as a revision"
+            );
+        }
+        // Generation first, then version — 2.1 is newer than 1.27.
+        assert!(
+            BackupSchemaRevision {
+                generation: 2,
+                version: 1
+            } > revision
+        );
+        assert!(
+            BackupSchemaRevision {
+                generation: 1,
+                version: 8
+            } < revision
+        );
+        // Absent stays absent on the wire.
+        let without = BackupSource {
+            schema_revision: None,
+            ..source
+        };
+        assert!(
+            serde_json::to_value(&without)
+                .unwrap()
+                .get("schemaRevision")
+                .is_none()
+        );
     }
 
     #[test]
