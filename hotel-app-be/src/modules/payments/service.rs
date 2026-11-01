@@ -2254,9 +2254,11 @@ pub async fn approve_payment(
     // A group claim is approved once, atomically: every room of the claim is
     // completed and confirmed in one transaction, so a group is never left
     // partly confirmed.
+    let mut group_claim: Option<(i64, String)> = None;
     let response = if let Some(reference) = group_payment_ref(pool, payment_id).await? {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         let group_id = lock_group_of_booking_tx(&mut tx, review.booking_id).await?;
+        group_claim = group_id.map(|id| (id, reference.clone()));
         let mut claim = vec![(payment_id, review.booking_id)];
         claim.extend(pending_group_siblings_tx(&mut tx, &reference, payment_id).await?);
         claim.sort_by_key(|(_, booking_id)| *booking_id);
@@ -2299,12 +2301,23 @@ pub async fn approve_payment(
     // card/DuitNow paths keep their own room-assignment mail
     // (`queue_paid_online_booking_room_assignment`), which this staff-review
     // path never reaches.
-    crate::modules::bookings::emails::try_queue_payment_confirmation_email(
-        pool,
-        review.booking_id,
-        payment_id,
-    )
-    .await;
+    // A group claim gets ONE confirmation covering every room of the claim.
+    match &group_claim {
+        Some((group_id, reference)) => {
+            crate::modules::bookings::emails::try_queue_group_payment_confirmation_email(
+                pool, *group_id, reference,
+            )
+            .await;
+        }
+        None => {
+            crate::modules::bookings::emails::try_queue_payment_confirmation_email(
+                pool,
+                review.booking_id,
+                payment_id,
+            )
+            .await;
+        }
+    }
 
     Ok(response)
 }
