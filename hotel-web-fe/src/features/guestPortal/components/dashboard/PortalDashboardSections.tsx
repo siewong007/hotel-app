@@ -152,9 +152,18 @@ interface PortalBookingGroupInfo {
   firstBookingId: number;
   rooms: GuestPortalBookingSummary[];
   total: number;
-  /** Every live room can be cancelled online and none is paid. */
+  /**
+   * The whole group can be cancelled from one button: unpaid groups need every
+   * live room cancellable online; a group with a paid room is sent to staff
+   * review as one batch (one request per room), so every live room only needs
+   * to be upcoming and not all of them may already be under review.
+   */
   canCancelAll: boolean;
+  /** A live room's completed payment, if any — a paid group's cancel is a review request. */
+  paidPaymentId: number | null;
 }
+
+const PORTAL_UPCOMING_STATUSES = ["pending", "pending_payment", "pending_confirmation", "confirmed"];
 
 /** Group the rooms of each multi-room booking on this page of results. */
 export function groupPortalBookings(items: GuestPortalBookingSummary[]): Map<number, PortalBookingGroupInfo> {
@@ -162,18 +171,26 @@ export function groupPortalBookings(items: GuestPortalBookingSummary[]): Map<num
   for (const booking of items) {
     const id = booking.booking_group_id;
     if (id == null) continue;
-    const group = groups.get(id) ?? { id, number: booking.group_number ?? "", firstBookingId: booking.id, rooms: [], total: 0, canCancelAll: true };
+    const group = groups.get(id) ?? { id, number: booking.group_number ?? "", firstBookingId: booking.id, rooms: [], total: 0, canCancelAll: true, paidPaymentId: null };
     group.rooms.push(booking);
     const live = !["voided", "cancelled"].includes(booking.status.toLowerCase());
     if (live) {
       group.total += Number(booking.total_amount) || 0;
-      if (!booking.can_cancel || booking.completed_payment_id) group.canCancelAll = false;
+      if (booking.completed_payment_id != null && group.paidPaymentId == null) group.paidPaymentId = booking.completed_payment_id;
     }
     groups.set(id, group);
   }
   for (const group of groups.values()) {
     const live = group.rooms.filter((room) => !["voided", "cancelled"].includes(room.status.toLowerCase()));
-    if (live.length < 2) group.canCancelAll = false;
+    if (live.length < 2) {
+      group.canCancelAll = false;
+    } else if (group.paidPaymentId != null) {
+      group.canCancelAll =
+        live.every((room) => room.cancellation_pending || PORTAL_UPCOMING_STATUSES.includes(room.status.toLowerCase())) &&
+        !live.every((room) => room.cancellation_pending);
+    } else {
+      group.canCancelAll = live.every((room) => room.can_cancel);
+    }
   }
   return groups;
 }
@@ -907,8 +924,12 @@ export function BookingsSection({ token }: { token: string }) {
     setIsCancelling(true);
     setCancellationError(null);
     try {
-      await GuestPortalDashboardService.cancelBookingGroup(groupToCancel.id, reason, token);
-      setCancellationSuccess(t("dashboard.bookings.group.cancelled", { number: groupToCancel.number }));
+      const response = await GuestPortalDashboardService.cancelBookingGroup(groupToCancel.id, reason, token);
+      setCancellationSuccess(
+        response.cancellation_requested
+          ? t("dashboard.bookings.cancelRequested", { number: groupToCancel.number })
+          : t("dashboard.bookings.group.cancelled", { number: groupToCancel.number }),
+      );
       setGroupToCancel(null);
       void load();
     } catch (caught) {
@@ -977,7 +998,7 @@ export function BookingsSection({ token }: { token: string }) {
     </Stack>
   );
   const dialogBooking: GuestPortalBookingSummary | null = groupToCancel
-    ? { ...groupToCancel.rooms[0], booking_number: groupToCancel.number, completed_payment_id: null, can_cancel: true }
+    ? { ...groupToCancel.rooms[0], booking_number: groupToCancel.number, completed_payment_id: groupToCancel.paidPaymentId, can_cancel: true }
     : bookingToCancel;
 
   return (

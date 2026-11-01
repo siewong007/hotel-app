@@ -209,8 +209,21 @@ describe('BookingsSection multi-room groups', () => {
     expect(await screen.findByText('All rooms in booking GBK-5 were cancelled.')).toBeTruthy();
   });
 
-  it('offers no group cancel once any room is paid', async () => {
+  it('offers a paid group cancel as one staff-review request', async () => {
     mocks.bookings.mockResolvedValue({ items: [room(1, { completed_payment_id: 9 }), room(2)], total: 2 });
+    render(<BookingsSection token="guest-token" />);
+    await screen.findAllByText('Multi-room booking GBK-5');
+    expect(screen.getAllByRole('button', { name: 'Cancel all rooms' }).length).toBeGreaterThan(0);
+  });
+
+  it('offers no group cancel once every room is already under review', async () => {
+    mocks.bookings.mockResolvedValue({
+      items: [
+        room(1, { completed_payment_id: 9, cancellation_pending: true, can_cancel: false }),
+        room(2, { cancellation_pending: true, can_cancel: false }),
+      ],
+      total: 2,
+    });
     render(<BookingsSection token="guest-token" />);
     await screen.findAllByText('Multi-room booking GBK-5');
     expect(screen.queryByRole('button', { name: 'Cancel all rooms' })).toBeNull();

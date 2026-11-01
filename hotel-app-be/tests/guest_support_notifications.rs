@@ -419,6 +419,7 @@ async fn guest_support_rings_the_staff_bell_once_per_request() {
             reason: Some("Change of plans".to_string()),
             ip_address: None,
             user_agent: None,
+            group: None,
         },
     )
     .await
@@ -450,6 +451,7 @@ async fn guest_support_rings_the_staff_bell_once_per_request() {
             reason: Some("Change of plans".to_string()),
             ip_address: None,
             user_agent: None,
+            group: None,
         },
     )
     .await

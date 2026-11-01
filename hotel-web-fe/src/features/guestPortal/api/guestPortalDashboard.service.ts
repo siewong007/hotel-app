@@ -157,12 +157,21 @@ export class GuestPortalDashboardService {
       .json();
   }
 
-  /** Cancel every room of an unpaid multi-room booking at once. */
+  /**
+   * Cancel every room of a multi-room booking at once. Unpaid groups are
+   * cancelled; a group with a paid room is filed for staff review per room
+   * (`cancellation_requested`).
+   */
   static async cancelBookingGroup(
     groupId: number,
     reason: string,
     token?: string
-  ): Promise<{ message?: string; booking_ids?: number[] }> {
+  ): Promise<{
+    message?: string;
+    booking_ids?: number[];
+    cancellation_requested?: boolean;
+    conversation_numbers?: string[];
+  }> {
     return await api
       .post(`guest-portal/me/booking-groups/${groupId}/cancel`, {
         headers: authHeaders(token),

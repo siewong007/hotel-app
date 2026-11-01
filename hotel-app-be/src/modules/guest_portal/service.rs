@@ -787,6 +787,7 @@ pub async fn cancel_my_booking(
                     reason,
                     ip_address,
                     user_agent,
+                    group: None,
                 },
             )
             .await?;
@@ -808,14 +809,23 @@ pub async fn cancel_my_booking(
     .await
 }
 
-/// Cancel a whole unpaid multi-room booking. Every active room must be
-/// cancellable online on its own (same rules as the per-room button); a group
-/// with any paid room goes through per-room staff-review requests instead.
+/// Cancel a whole multi-room booking.
+///
+/// Unpaid: every active room must be cancellable online on its own (same rules
+/// as the per-room button) and the rooms are voided together.
+///
+/// Any room paid: nothing is voided. Every active room is routed into the same
+/// per-room staff review a paid single room uses (one cancellation request per
+/// room, filed in one call, each naming the group), so staff decide refunds
+/// for the rooms together. Rooms that already have a request keep it.
 pub async fn cancel_my_booking_group(
     pool: &DbPool,
+    hub: &crate::modules::support::hub::SupportHub,
     guest_id: i64,
     group_id: i64,
     reason: Option<String>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<serde_json::Value, ApiError> {
     let reason = reason
         .map(|value| value.trim().to_string())
@@ -839,9 +849,10 @@ pub async fn cancel_my_booking_group(
         return Err(ApiError::NotFound("Booking not found".to_string()));
     }
     if rooms.iter().any(|room| room.completed_payment_id.is_some()) {
-        return Err(ApiError::Conflict(
-            "Part of this booking is already paid. Please request cancellation for each room so our team can review it.".to_string(),
-        ));
+        return request_group_cancellation_review(
+            pool, hub, guest_id, &rooms, reason, ip_address, user_agent,
+        )
+        .await;
     }
     if let Some(blocked) = rooms.iter().find(|room| !room.can_cancel) {
         return Err(ApiError::Conflict(
@@ -860,6 +871,76 @@ pub async fn cancel_my_booking_group(
         pool, user_id, group_id, reason,
     )
     .await
+}
+
+/// Paid-group branch of [`cancel_my_booking_group`].
+async fn request_group_cancellation_review(
+    pool: &DbPool,
+    hub: &crate::modules::support::hub::SupportHub,
+    guest_id: i64,
+    rooms: &[GuestPortalBookingSummary],
+    reason: Option<String>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    // Every room here is only filed for review (never voided), so each one is
+    // judged by the paid-room rules: the instant-cancel toggle does not apply.
+    // A room already under review is fine (its request is reused); any other
+    // block (checked in, past stay…) refuses the whole batch.
+    for room in rooms.iter().filter(|room| !room.cancellation_pending) {
+        if let Some(reason) = cancellation_block_reason(&room.status, false, true, false) {
+            return Err(ApiError::Conflict(reason));
+        }
+    }
+    if rooms.iter().all(|room| room.cancellation_pending) {
+        return Err(ApiError::Conflict(
+            "A cancellation request for this booking is already being reviewed.".to_string(),
+        ));
+    }
+    let group_number = rooms
+        .iter()
+        .find_map(|room| room.group_number.clone())
+        .unwrap_or_default();
+    let booking_numbers: Vec<String> = rooms
+        .iter()
+        .map(|room| room.booking_number.clone())
+        .collect();
+    let mut conversation_numbers = Vec::new();
+    let mut booking_ids = Vec::new();
+    let mut notified = false;
+    for room in rooms {
+        let notify = !notified && !room.cancellation_pending;
+        let (_conversation_id, conversation_number) =
+            crate::modules::support::service::open_cancellation_request(
+                pool,
+                hub,
+                crate::modules::support::service::CancellationRequest {
+                    guest_id,
+                    booking_id: room.id,
+                    booking_number: &room.booking_number,
+                    check_in_date: room.check_in_date,
+                    check_out_date: room.check_out_date,
+                    reason: reason.clone(),
+                    ip_address: ip_address.clone(),
+                    user_agent: user_agent.clone(),
+                    group: Some(crate::modules::support::service::CancellationGroup {
+                        group_number: &group_number,
+                        booking_numbers: &booking_numbers,
+                        notify,
+                    }),
+                },
+            )
+            .await?;
+        notified |= notify;
+        conversation_numbers.push(conversation_number);
+        booking_ids.push(room.id);
+    }
+    Ok(serde_json::json!({
+        "cancellation_requested": true,
+        "conversation_numbers": conversation_numbers,
+        "booking_ids": booking_ids,
+        "message": "Cancellation request submitted for every room. Our team will review it and email you the outcome."
+    }))
 }
 
 /// GET /guest-portal/me/transactions
