@@ -95,9 +95,13 @@ export class Visibility {
     const enabled = this.enabled && aspect >= ASPECTS[0] && aspect <= ASPECTS[1];
     const wide = aspect >= LANDSCAPE;
     p = Math.min(1, Math.max(0, p));
-    for (const e of this.list) {
+    // plain loops: a closure and a destructuring per mesh per frame were the
+    // film's own largest source of garbage (~0.4 MB a second while scrolling)
+    for (let i = 0; i < this.list.length; i++) {
+      const e = this.list[i];
       const spans = wide ? e.wide : e.tall;
-      const on = !enabled || !spans || spans.some(([a, b]) => p >= a && p <= b);
+      let on = !enabled || !spans;
+      for (let k = 0; !on && k < spans!.length; k++) on = p >= spans![k][0] && p <= spans![k][1];
       if (on !== e.on) {
         e.on = on;
         e.mesh.layers.set(on ? 0 : CULLED_LAYER);

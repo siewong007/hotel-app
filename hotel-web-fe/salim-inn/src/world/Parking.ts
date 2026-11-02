@@ -14,6 +14,7 @@ import { insideAnyPolygon } from './spatial';
 import { PLAN } from './SalimInnBuilding';
 import { buildCarModels, CAR_LOD, CAR_PAINTS, MODEL_WEIGHTS, type CarModel } from './cars';
 import { wornPaint } from './shaders';
+import { sortNearFirst } from './batchSort';
 
 const BAY_W = 2.5;
 const BAY_D = 5.0;
@@ -159,6 +160,7 @@ export class Parking {
       b.receiveShadow = true;
       b.frustumCulled = false; // one batch spans the whole ring
       b.perObjectFrustumCulled = true;
+      b.customSort = sortNearFirst; // three's order, without the garbage (batchSort.ts)
     }
     this.paint.name = 'cars';
     this.trim.name = 'car-trim';

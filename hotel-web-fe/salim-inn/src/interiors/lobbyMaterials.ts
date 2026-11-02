@@ -11,6 +11,7 @@ import { canvas, finish, normalFrom } from '../world/textures';
 import { rng } from '../world/geom';
 import { BRAND, PUBLIC_COLOURS } from '../config/materials';
 import muralUrl from './reception-mural.jpg';
+import { sceneEdits } from '../experience/FrameKey';
 
 const texCache = new Map<string, THREE.Texture>();
 function cached<T extends THREE.Texture>(key: string, make: () => T): T {
@@ -517,7 +518,11 @@ export function muralTexture(): THREE.Texture {
     t.needsUpdate = true;
     const img = new Image();
     img.decoding = 'async';
-    img.onload = () => { t.image = img; t.needsUpdate = true; };
+    img.onload = () => {
+      t.image = img;
+      t.needsUpdate = true;
+      sceneEdits.bump(); // a settled frame would keep showing the placeholder
+    };
     img.src = muralUrl;
     return t;
   });

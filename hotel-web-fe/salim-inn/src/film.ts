@@ -34,6 +34,7 @@ import { placeAnchor } from './world/placeAnchors';
 import { POINTS } from './world/layout';
 import { DPR_FLOOR_HIDPI, TIERS, type Tier } from './config/quality';
 import { isMobileLike } from './experience/Renderer';
+import { FrameKey, sceneEdits } from './experience/FrameKey';
 
 const ORDER_RANK: Record<Tier['name'], number> = { high: 0, medium: 1, low: 2 };
 import type { RoomCode } from './config/site';
@@ -43,6 +44,8 @@ const DEBUG = params.has('debug');
 const NO_POST = params.get('post') === '0';
 // measurement only (perf/): hold the starting tier
 const NO_GOVERNOR = params.get('governor') === '0';
+// measurement only (perf/): ?settle=0 draws every frame in full (FrameKey.ts)
+const SETTLE = params.get('settle') !== '0' && !NO_POST;
 /** A tier or pixel ratio fixed in the URL (perf/ tooling) skips the calibration. */
 const FORCED_QUALITY = params.has('quality') || params.has('dpr');
 /** Depth of field: the counter close-up (ch. 5) and the rooms (ch. 6). */
@@ -422,7 +425,21 @@ async function boot(): Promise<void> {
   let held = 1; // reduced motion: the chapter whose frame is on screen
   let cutting = false;
   let last = performance.now();
-  let frameCalls = { calls: 0, triangles: 0 };
+  /** draw calls and triangles of the last frame drawn in full */
+  const frameCalls = { calls: 0, triangles: 0 };
+  // Settled frames (experience/FrameKey.ts): a frame that would draw what the
+  // last full one drew re-runs only the post chain's final pass.
+  const key = new FrameKey();
+  /** the interior's build adds to the scene between frames */
+  let building = false;
+  /** three's render count after the last frame: a render since (a warm-up,
+   *  a sky bake, a bench) drew into the post chain's buffers */
+  let renders = -1;
+  let lastSettled = false;
+  const frames = { drawn: 0, settled: 0 };
+  // a lost context takes the post chain's buffers with it (a phone reclaiming
+  // memory): the first frame after the restore is drawn in full
+  canvas.addEventListener('webglcontextrestored', () => sceneEdits.bump());
   let filmPast = false;
   let ticks = 0;
   let camP = 0;
@@ -529,15 +546,37 @@ async function boot(): Promise<void> {
     post.setDof(dofWeight(p), rig.focus);
     post.setSplit(gradeSplit(p));
 
+    const gl = renderer.gl;
+    camera.updateMatrixWorld(); // (three does this in render; the key reads it first)
+    key.begin()
+      .addAll(camera.matrixWorld.elements)
+      .addAll(camera.projectionMatrix.elements)
+      .add(p).add(post.dofShown ? rig.focus : -1).add(gl.toneMappingExposure)
+      .add(renderer.width).add(renderer.height).add(renderer.dpr).add(sceneEdits.count);
+    world.settleKey(key, gl.shadowMap.autoUpdate);
+    const settled = SETTLE && !building && !world.animating() && !gl.shadowMap.needsUpdate
+      && gl.info.render.frame === renders && key.matches();
+
     debug?.begin();
-    renderer.gl.info.reset();
+    gl.info.reset();
     if (NO_POST) {
-      renderer.gl.toneMapping = THREE.AgXToneMapping;
-      renderer.gl.render(world.scene, camera);
-    } else post.render(dt);
-    frameCalls = { calls: renderer.gl.info.render.calls, triangles: renderer.gl.info.render.triangles };
+      gl.toneMapping = THREE.AgXToneMapping;
+      gl.render(world.scene, camera);
+    } else if (settled) post.renderSettled(dt);
+    else post.render(dt);
+    if (settled) frames.settled++;
+    else {
+      key.commit();
+      frames.drawn++;
+      frameCalls.calls = gl.info.render.calls;
+      frameCalls.triangles = gl.info.render.triangles;
+    }
+    renders = gl.info.render.frame;
+    lastSettled = settled;
     debug?.end(timeline, camera, frameCalls);
-    if (!NO_GOVERNOR) governor.frame(dt);
+    // a settled frame costs a fraction of a drawn one, so it says nothing
+    // about whether this device holds the film
+    if (!NO_GOVERNOR && !settled) governor.frame(dt);
   };
   performance.mark('salim:loop');
   const loop = () => {
@@ -570,7 +609,9 @@ async function boot(): Promise<void> {
     for (const e of events) window.addEventListener(e, go, { passive: true });
   });
   governor.hold(true);
+  building = true;
   await world.buildInterior(renderer.gl, camera, post.composer.inputBuffer, () => timeline.progress > 0.38);
+  building = false;
   governor.hold(false);
   performance.mark('salim:interior');
   const room = world.room!;
@@ -619,7 +660,7 @@ async function boot(): Promise<void> {
       for (let i = 0; i < frames; i++) await nextFrame();
       return { progress: timeline.progress, chapter: timeline.chapter.id, calls: frameCalls.calls, triangles: frameCalls.triangles };
     },
-    info: () => ({ tier: tier.name, gpu, reason, calibration: calibration.join(' → '), dpr: renderer.dpr, progress: timeline.progress, ...frameCalls }),
+    info: () => ({ tier: tier.name, gpu, reason, calibration: calibration.join(' → '), dpr: renderer.dpr, progress: timeline.progress, ...frameCalls, frames: { ...frames } }),
     /** perf/: n frames back to back and one readback — ms per frame on the GPU (or CPU, whichever is slower). */
     bench: (n = 24) => benchFrames(n),
     /** How the start-up calibration settled the tier. */
@@ -638,6 +679,30 @@ async function boot(): Promise<void> {
           camera,
           post,
           rig,
+          /** perf/: what a settled frame shows now against a full draw of the
+           *  scene as it stands, both at dt 0 (the same grain): any pixel
+           *  that differs is a change the frame key missed (FrameKey.ts). */
+          settleCheck: () => {
+            const ctx = renderer.gl.getContext();
+            const w = ctx.drawingBufferWidth, h = ctx.drawingBufferHeight;
+            const read = () => {
+              const px = new Uint8Array(w * h * 4);
+              renderer.gl.setRenderTarget(null);
+              ctx.readPixels(0, 0, w, h, ctx.RGBA, ctx.UNSIGNED_BYTE, px);
+              return px;
+            };
+            const settled = lastSettled;
+            post.renderSettled(0);
+            const shown = read();
+            post.render(0);
+            const truth = read();
+            let diff = 0, max = 0;
+            for (let i = 0; i < shown.length; i++) {
+              const d = Math.abs(shown[i] - truth[i]);
+              if (d) { diff++; max = Math.max(max, d); }
+            }
+            return { settled, frames: { ...frames }, diff, max, w, h, key: key.values() };
+          },
           /** perf/probe.ts `stepdown`: the governor's step down, on demand. */
           stepDown: () => {
             const t = lowerTier(tier);

@@ -51,6 +51,8 @@ export class Neighbourhood {
   private hotel: { el: HTMLElement; world: THREE.Vector3; size?: { w: number; h: number } } | null = null;
   private open: PlaceGroup | null = null;
   private v = new THREE.Vector3();
+  /** A ring label's point, every frame (put() copies it at once). */
+  private ringAt = new THREE.Vector3();
   private widths = new WeakMap<HTMLElement, number>();
   private menu: Dish[];
   /** Top of chapter 2's copy on a phone (markers stay above it): measured
@@ -273,7 +275,7 @@ export class Neighbourhood {
     const len = Math.hypot(dx, dz) || 1;
     this.ringLabels.forEach((el, i) => {
       const r = rings.radii[i];
-      put(el, new THREE.Vector3(rings.centre.x + (dx / len) * r, 1, rings.centre.z + (dz / len) * r), r > 5 ? ch7 : 0);
+      put(el, this.ringAt.set(rings.centre.x + (dx / len) * r, 1, rings.centre.z + (dz / len) * r), r > 5 ? ch7 : 0);
     });
     if (ch2 < 0.01 && this.open) this.toggle(this.open); // close the card when chapter 2 ends
   }

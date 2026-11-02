@@ -1,5 +1,10 @@
 // WebGL2 renderer setup (brief §5). Antialiasing comes from the post chain
-// (SMAA), so the context is created without MSAA and without a stencil.
+// (SMAA), so the context is created without MSAA and without a stencil — and
+// without a depth buffer: the scene is drawn into the post chain's own targets,
+// and the canvas only takes the final full-screen pass. Its depth buffer was
+// a screen-sized allocation nothing read (~5 MB on a phone at 2×, ~21 MB on a
+// 1440 × 900 Retina screen). ?post=0 (measurement) draws the scene to the
+// canvas, and keeps it.
 import * as THREE from 'three';
 import type { Tier } from '../config/quality';
 import { MOBILE_DPR_CAP } from '../config/quality';
@@ -27,7 +32,7 @@ export class Renderer {
       antialias: false,
       alpha: false,
       stencil: false,
-      depth: true,
+      depth: new URLSearchParams(location.search).get('post') === '0',
       powerPreference: 'high-performance',
       preserveDrawingBuffer: false,
     });

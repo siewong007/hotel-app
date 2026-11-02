@@ -13,6 +13,7 @@ import { roadClearance, insideAnyPolygon } from './spatial';
 import { POINTS, footprints } from './layout';
 import { mergeGeometries, mergeVertices, pointInPolygon, rng, sectorInstances } from './geom';
 import { foliage } from './shaders';
+import { sortNearFirst } from './batchSort';
 
 interface Tree { x: number; z: number; s: number; kind: 'rain' | 'palm' | 'small' }
 
@@ -279,6 +280,7 @@ export class Vegetation {
     this.near.castShadow = true;
     this.near.receiveShadow = true;
     this.near.perObjectFrustumCulled = true;
+    this.near.customSort = sortNearFirst; // three's order, without the garbage (batchSort.ts)
     this.near.name = 'trees-near';
     this.group.userData.clipProxies = proxies;
 

@@ -33,6 +33,7 @@ import { bakeShadowCasters } from './ShadowCasters';
 import { mergeStatic, packGroups } from './geom';
 import { CULLED_LAYER, Visibility, pvsMeshes } from './Visibility';
 import { interiorMaterials } from '../interiors/prepare';
+import { sceneEdits, type FrameKey } from '../experience/FrameKey';
 
 const ramp = (p: number, a: number, b: number) => THREE.MathUtils.smoothstep(p, a, b);
 
@@ -77,7 +78,11 @@ const SEEN: Record<string, [number, number][]> = {
   corridor: [[0.5125, 0.63], [0.7225, 0.8075]],
   room: [[0.46, 0.56], [0.78, 0.97]],
 };
-const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => p >= a && p <= b);
+/** (a plain loop: it runs for every zoned part every frame) */
+function seenAt(spans: [number, number][], p: number): boolean {
+  for (let i = 0; i < spans.length; i++) if (p >= spans[i][0] && p <= spans[i][1]) return true;
+  return false;
+}
 const LOOK_KEYS = Object.keys(NO_WEATHER) as (keyof Look)[];
 /** What the sky's baked reflections depend on (World.rebakeSky). */
 const skySignature = (l: Look) => [l.day, l.night, l.cloud, l.rain, l.storm].map((v) => v.toFixed(2)).join(',');
@@ -89,6 +94,11 @@ const skySignature = (l: Look) => [l.day, l.night, l.cloud, l.rain, l.storm].map
 const OPEN_LIGHT = { shops: 0.8, upper: 0.45, lobby: 0.9, rooms: 0.5 };
 const CLOSED_DUSK = 0.2;
 const TRADE_KEYS: (keyof Trading)[] = ['hotel', 'mart', 'shops'];
+/** A business's windows while it trades (`open` 0–1) at its share of light. */
+function trade(l: WindowLights, open: number, level: number, closedDusk = CLOSED_DUSK): void {
+  l.open.value = open * level;
+  l.dusk.value = THREE.MathUtils.lerp(closedDusk, 1, open);
+}
 /** Beyond this (metres from the room's centre) the room seen from outside
  *  drops its en-suite and beds (RoomBuilder.setFar). */
 const ROOM_FAR = 30;
@@ -162,6 +172,10 @@ export class World {
   /** Solid meshes the camera must never touch (clip check). */
   readonly solids: THREE.Object3D[] = [];
   private inside = false;
+  /** The window's shape for the visibility spans, read on resize: read in
+   *  every frame, it forced the frame's style and layout pass early in each
+   *  frame of a touch scroll (ui/Chapters.ts measures the story likewise). */
+  private aspect = innerWidth / innerHeight;
   private roomEnv: THREE.Texture | null = null;
   private downOn = 0;
   /** Debug/calibration: force the time of day (0 golden hour … 1 blue hour). */
@@ -180,6 +194,7 @@ export class World {
 
   async build(renderer: THREE.WebGLRenderer, tier: Tier, step: Step): Promise<void> {
     const s = this.scene;
+    addEventListener('resize', () => { this.aspect = innerWidth / innerHeight; }, { passive: true });
     if (tier.name === 'high') setTextureLimits(2048, 1024);
     else setTextureLimits(1024, 512);
     s.background = new THREE.Color(0x2b3346);
@@ -485,6 +500,35 @@ export class World {
     this.trees.setFarVisible(t.farTrees && !this.inside);
     this.trees.setLodScale(t.lodScale);
     this.parking.setLodScale(t.lodScale);
+    sceneEdits.bump();
+  }
+
+  /** Something on screen moves by itself: the cloud deck drifts, rain falls,
+   *  a room type is changing over. No frame is settled then (film.ts). */
+  animating(): boolean {
+    return this.atmosphere.clouds.visible || this.rain.lines.visible || this.room?.transitioning === true;
+  }
+
+  /** What the scene draws beyond the timeline and the camera, for a settled
+   *  frame's key (experience/FrameKey.ts): the eased atmosphere and opening
+   *  hours, the downlights' switch-on, the global uniforms (a debug dusk
+   *  override), the lights and haze as set — not only what sets them: the
+   *  sun is placed (Atmosphere.update) before the look turns it (setDusk), so
+   *  it follows a new look a frame late — and, while its map is redrawn every
+   *  frame (`shadowsLive`), the sun's shadow frustum, which eases toward the
+   *  camera's subject. A map that is held (indoors, the low tier) draws
+   *  nothing new from it. */
+  settleKey(key: FrameKey, shadowsLive: boolean): void {
+    for (const k of LOOK_KEYS) key.add(this.look[k]);
+    for (const k of TRADE_KEYS) key.add(this.trading[k]);
+    key.add(this.downOn).add(shadowsLive ? 1 : 0);
+    key.add(GLOBAL.uDusk.value).add(GLOBAL.uLights.value).add(GLOBAL.uCity.value).add(GLOBAL.uWet.value);
+    const { sun, hemi, fog } = this.atmosphere;
+    key.add(sun.position.x).add(sun.position.y).add(sun.position.z).add(sun.intensity).add(sun.shadow.intensity);
+    key.add(sun.color.r).add(sun.color.g).add(sun.color.b).add(hemi.intensity);
+    key.add(hemi.color.r).add(hemi.color.g).add(hemi.color.b).add(hemi.groundColor.r).add(hemi.groundColor.g).add(hemi.groundColor.b);
+    key.add(fog.density).add(fog.color.r).add(fog.color.g).add(fog.color.b).add(this.scene.environmentIntensity);
+    if (shadowsLive) key.add(sun.shadow.camera.right);
   }
 
   /** Under a pixel from high above the town, and 55k triangles between them
@@ -506,14 +550,20 @@ export class World {
    *  (the first frame). */
   setAtmosphere(target: Look, snap = false): void {
     Object.assign(this.lookTarget, target);
-    if (snap) Object.assign(this.look, target);
+    if (snap) {
+      Object.assign(this.look, target);
+      sceneEdits.bump();
+    }
   }
 
   /** Who is open on Sibu's clock (atmosphere/hours.ts): eased in like the
    *  look, so a shop closing at the hour fades its windows out. */
   setTrading(target: Trading, snap = false): void {
     Object.assign(this.tradingTarget, target);
-    if (snap) Object.assign(this.trading, target);
+    if (snap) {
+      Object.assign(this.trading, target);
+      sceneEdits.bump();
+    }
   }
 
   /** Daylight is brighter than the dusk the chapters' exposures were set for. */
@@ -527,18 +577,34 @@ export class World {
   rebakeSky(renderer: THREE.WebGLRenderer): boolean {
     const t = this.lookTarget, l = this.look;
     for (const k of LOOK_KEYS) if (Math.abs(t[k] - l[k]) > 0.02) return false;
+    // a look at rest gives the same signature: no new string every frame
+    const r = this.skyRead;
+    if (r[0] === l.day && r[1] === l.night && r[2] === l.cloud && r[3] === l.rain && r[4] === l.storm) return false;
+    r[0] = l.day; r[1] = l.night; r[2] = l.cloud; r[3] = l.rain; r[4] = l.storm;
     const sky = skySignature(l);
     if (sky === this.bakedSky) return false;
     this.bakedSky = sky;
     this.atmosphere.bakeEnvironment(renderer);
+    sceneEdits.bump();
     return true;
   }
+
+  /** The sky's values rebakeSky last read (skySignature's inputs). */
+  private readonly skyRead = new Float64Array(5).fill(NaN);
 
   /** Scene state for timeline progress p. */
   update(p: number, dt: number, camera: THREE.PerspectiveCamera, focus: THREE.Vector3, tier: Tier): void {
     const ease = 1 - Math.exp(-dt / 0.9); // ~95 % in under 3 s
-    for (const k of LOOK_KEYS) this.look[k] += (this.lookTarget[k] - this.look[k]) * ease;
-    for (const k of TRADE_KEYS) this.trading[k] += (this.tradingTarget[k] - this.trading[k]) * ease;
+    // (the last 0.001 % in one step: a look at rest is exactly at rest, which
+    // lets the film reuse a settled frame, experience/FrameKey.ts)
+    for (const k of LOOK_KEYS) {
+      this.look[k] += (this.lookTarget[k] - this.look[k]) * ease;
+      if (Math.abs(this.lookTarget[k] - this.look[k]) < 1e-5) this.look[k] = this.lookTarget[k];
+    }
+    for (const k of TRADE_KEYS) {
+      this.trading[k] += (this.tradingTarget[k] - this.trading[k]) * ease;
+      if (Math.abs(this.tradingTarget[k] - this.trading[k]) < 1e-5) this.trading[k] = this.tradingTarget[k];
+    }
     this.atmosphere.update(dt, camera, focus);
     this.parking.update(camera.position);
     this.trees.update(camera.position);
@@ -608,10 +674,6 @@ export class World {
     this.mart.setDusk(GLOBAL.uLights.value);
     // windows lit in opening hours, whatever hour the film shows
     const { hotel, mart, shops } = this.trading;
-    const trade = (l: WindowLights, open: number, level: number, closedDusk = CLOSED_DUSK) => {
-      l.open.value = open * level;
-      l.dusk.value = THREE.MathUtils.lerp(closedDusk, 1, open);
-    };
     trade(this.blocks.shopLights, shops, OPEN_LIGHT.shops);
     trade(this.blocks.upperLights, shops, OPEN_LIGHT.upper, 1); // homes upstairs light up at dusk anyway
     trade(this.salim.cafeLights, shops, OPEN_LIGHT.shops);
@@ -656,10 +718,10 @@ export class World {
 
     // culling: each part only where it can be seen, and the far trees'
     // canopy layer off while inside the block
-    for (const [o, spans] of this.zoned) o.visible = seenAt(spans, p);
+    for (let i = 0; i < this.zoned.length; i++) this.zoned[i][0].visible = seenAt(this.zoned[i][1], p);
     // the entrance glass: the real lobby once it is drawn, the lit veil before
     this.salim.setLobbyShown(this.interior.visible && this.lobbyContent?.visible === true);
-    this.visibility.update(p, innerWidth / innerHeight);
+    this.visibility.update(p, this.aspect);
     const inside = p > 0.585 && p < 0.892;
     if (inside !== this.inside) {
       this.inside = inside;

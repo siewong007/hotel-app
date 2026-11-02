@@ -31,6 +31,9 @@ export function localProgress(p: number, c: ChapterDef): number {
   return Math.min(1, Math.max(0, (p - c.p0) / (c.p1 - c.p0)));
 }
 
+/** Each chapter's centre and exposure (Timeline.exposure, read every frame). */
+const MIDS = CHAPTERS.map((c) => ({ m: (c.p0 + c.p1) / 2, e: c.exposure }));
+
 type Listener = (p: number) => void;
 
 export class Timeline {
@@ -53,7 +56,7 @@ export class Timeline {
   /** Exposure blended between chapter centres. */
   exposure(): number {
     const p = this.progress;
-    const mids = CHAPTERS.map((c) => ({ m: (c.p0 + c.p1) / 2, e: c.exposure }));
+    const mids = MIDS;
     if (p <= mids[0].m) return mids[0].e;
     for (let i = 0; i < mids.length - 1; i++) {
       const a = mids[i], b = mids[i + 1];

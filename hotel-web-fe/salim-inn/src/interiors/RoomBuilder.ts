@@ -12,6 +12,7 @@ import { FLOOR_Y } from '../config/dimensions';
 import type { RoomCode } from '../config/site';
 import { batchPlain, boxAt, mergeStatic, metricUV, packGroups, rbox, wallWithOpenings } from '../world/geom';
 import { CULLED_LAYER } from '../world/Visibility';
+import { sceneEdits } from '../experience/FrameKey';
 import { RoomMats } from './roomMaterials';
 import { acrylicNumberTexture, PublicMats } from './lobbyMaterials';
 import { SHOWCASE_NUMBER } from './Corridor';
@@ -314,6 +315,7 @@ export class RoomBuilder {
   select(code: RoomCode, instant = false): void {
     const target = this.layouts[code];
     if (!target) return;
+    sceneEdits.bump(); // (an instant switch never shows as `transitioning`)
     const changed = target !== this.current;
     this.current = target;
     // snapshot what is on screen now

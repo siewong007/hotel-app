@@ -109,8 +109,10 @@ export class Post {
   readonly sharpen: SharpenEffect;
   private gradePass: EffectPass;
   private aaPass: EffectPass;
+  private readonly renderer: THREE.WebGLRenderer;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    this.renderer = renderer;
     this.camera = camera;
     this.composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: 0 });
     this.renderPass = new RenderPass(scene, camera);
@@ -229,6 +231,11 @@ export class Post {
     this.dof.cocMaterial.adoptCameraSettings(this.camera);
   }
 
+  /** Depth of field is drawn this frame (its focus distance shows). */
+  get dofShown(): boolean {
+    return this.dofOn;
+  }
+
   /** Strength of the grade's split toning: 1 is the film's dusk look. */
   setSplit(v: number): void {
     const u = this.grade.uniforms.get('uSplit')!;
@@ -266,5 +273,24 @@ export class Post {
 
   render(dt: number): void {
     this.composer.render(dt);
+  }
+
+  /** The last frame again (a settled frame, experience/FrameKey.ts): only the
+   *  final pass runs — SMAA, grade, vignette and the grain, which stays alive
+   *  — over the graded scene the full chain left in its buffer. The composer
+   *  starts every frame from the same buffer and swaps the pair after each
+   *  pass that writes the other, so the final pass reads where it did then. */
+  renderSettled(dt: number): void {
+    let input = this.composer.inputBuffer;
+    let output = this.composer.outputBuffer;
+    for (const pass of this.composer.passes) {
+      if (pass === this.aaPass) break;
+      if (pass.enabled && pass.needsSwap) {
+        const t = input;
+        input = output;
+        output = t;
+      }
+    }
+    this.aaPass.render(this.renderer, input, output, dt, false);
   }
 }

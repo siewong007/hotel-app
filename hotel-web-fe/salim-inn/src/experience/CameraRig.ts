@@ -215,6 +215,7 @@ export class CameraRig {
   private pullFocus(dt: number): void {
     const d = this.camera.position.distanceTo(this.subject ?? this.aim);
     this.focus = this.focusPrimed ? THREE.MathUtils.damp(this.focus, d, 3, Math.min(dt, 0.1)) : d;
+    if (Math.abs(this.focus - d) < 1e-5) this.focus = d; // (at rest exactly: FrameKey.ts)
     this.focusPrimed = true;
   }
 
@@ -267,6 +268,12 @@ export class CameraRig {
       const temp = this.tmpVel.copy(this.lookVel).addScaledVector(change, omega).multiplyScalar(Math.min(dt, 0.1));
       this.lookVel.addScaledVector(temp, -omega).multiplyScalar(exp);
       this.look.copy(f.target).add(change.add(temp).multiplyScalar(exp));
+      // the last micrometre in one step, so a spring at rest is exactly at
+      // rest and the film can reuse its frame (experience/FrameKey.ts)
+      if (this.look.distanceToSquared(f.target) < 1e-12 && this.lookVel.lengthSq() < 1e-12) {
+        this.look.copy(f.target);
+        this.lookVel.set(0, 0, 0);
+      }
     }
     // blend toward the configurator's view (position, aim, roll, projection)
     const w = this.view ? THREE.MathUtils.clamp(this.viewWeight, 0, 1) : 0;

@@ -316,6 +316,9 @@ export class Atmosphere {
     const dist = camera.position.distanceTo(focus);
     const target = THREE.MathUtils.clamp(dist * 0.85, 28, 520);
     this.shadowSize += (target - this.shadowSize) * Math.min(1, dt * 3);
+    // the last tenth of a millimetre in one step: a frustum at rest is exactly
+    // at rest (a settled frame, experience/FrameKey.ts)
+    if (Math.abs(target - this.shadowSize) < 1e-4) this.shadowSize = target;
     const s = this.shadowSize;
     const sc = this.sun.shadow.camera;
     // snap the frustum centre to shadow texels to avoid shimmering

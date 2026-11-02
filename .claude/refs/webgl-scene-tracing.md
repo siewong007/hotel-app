@@ -66,6 +66,31 @@ canvas above it and swallows the clicks regardless of `z-index`. Chromium's
   the same film held 60 fps for two minutes, then fell to 30 fps. Other desktop apps also
   share the GPU. Idle before timing runs and record every loop, not the first.
 
+## Settled frames: reuse only what is bit-identical (Salim Inn film, 2026-11-02)
+
+A frame whose inputs equal the last drawn frame's re-runs only the post chain's final pass
+(`experience/FrameKey.ts`, `Post.renderSettled`): ~88 % less GPU while the visitor reads.
+
+- **No tolerance is invisible.** Keying the camera to 1e-6 and the shadow frustum to 1 mm
+  looked safe and was not: SMAA's thresholded edges and a re-rasterised shadow map turned a
+  1e-7 rad turn into 61k changed channel values, up to 99 levels. Key exactly, and make
+  the eases finish their last invisible step at once (CameraRig, World.update, Sky.update).
+- **Key what is set, not only what sets it.** `Atmosphere.update` places the sun before
+  `setDusk` turns it, so the sun follows a new look one frame late; keying only the look
+  reused that frame (±1 level in 20k values). The key carries the lights and fog as set.
+- **Prove it with pixels.** `?debug=1` `__salim.settleCheck()` draws the settled frame and
+  a full redraw at dt 0 (same grain) and diffs them. Comparing renders taken at different
+  times needs `&grain=0`: the grain alone differs in half of all channels (max 5).
+- **The lobby's held shadow map depends on frame timing.** It is the map of whichever frame
+  crossed p = 0.6, so two runs of the same build differ there by ~19k values (max 23).
+  Run a same-build control before blaming a change for a difference at 0.6–0.87.
+- **Removing one forced layout read moves the flush to the next read.** Caching
+  `Chapters.storyTop` only moved touch-scroll flushes into `innerWidth / innerHeight` in
+  `World.update`; both had to go (forced style/layout in frames 175 → 8). Trace with
+  `disabled-by-default-devtools.timeline.stack` to see the caller. Play and desktop wheel
+  scrolls flush in Lenis's own `scrollTo` regardless; measure touch with CDP
+  `Input.synthesizeScrollGesture` (`gestureSourceType: 'touch'`).
+
 ## Flicker on buildings and roads is depth fighting (Salim Inn film, 2026-10-01)
 
 - **A still screenshot hides it.** Two surfaces that share a depth step read as blotchy

@@ -77,6 +77,29 @@ export class Chapters {
       const h = (def.p1 - def.p0) * this.scrollLength + (i === CHAPTERS.length - 1 ? vh : 0);
       this.sections[i].style.height = `${Math.round(h)}px`;
     });
+    this.measured = false;
+  }
+
+  // The story's place on the page, measured once its layout may have changed
+  // (the chapters re-laid out, the page around them resized) rather than in
+  // every frame: read by the frame loop after the previous frame's writes and
+  // while the chapter dots' transitions ran, it forced a style and layout
+  // pass (262 forced layouts in a 30 s scroll, phone profile).
+  private measured = false;
+  private top = 0;
+  private height = 0;
+  private watching = false;
+
+  private measure(): void {
+    if (this.measured) return;
+    this.top = this.story.getBoundingClientRect().top + window.scrollY;
+    this.height = this.story.offsetHeight;
+    this.measured = true;
+    if (this.watching || typeof ResizeObserver === 'undefined') return;
+    this.watching = true;
+    const stale = new ResizeObserver(() => { this.measured = false; });
+    stale.observe(this.story);
+    stale.observe(document.body); // anything above the story moves it
   }
 
   setActive(id: number): void {
@@ -90,11 +113,13 @@ export class Chapters {
   }
 
   get storyTop(): number {
-    return this.story.getBoundingClientRect().top + window.scrollY;
+    this.measure();
+    return this.top;
   }
 
   /** Height of the whole film in px (the page's own sections follow it). */
   get storyHeight(): number {
-    return this.story.offsetHeight;
+    this.measure();
+    return this.height;
   }
 }
