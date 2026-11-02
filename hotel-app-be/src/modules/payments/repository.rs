@@ -1075,6 +1075,32 @@ impl PaymentRepository {
             .map_err(ApiError::from)
     }
 
+    /// A `booking`-type payment attempt that has not finished (a claim under
+    /// review or an open gateway order). Completed payments are not returned:
+    /// a room that is part-paid still owes its balance.
+    pub async fn in_flight_booking_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<Option<(String, String)>, ApiError> {
+        let sql = format!(
+            r#"
+                SELECT payment_method, status
+                FROM payments
+                WHERE booking_id = {}
+                  AND payment_type = 'booking'
+                  AND status IN ('pending', 'processing')
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+            "#,
+            crate::param!(1)
+        );
+        sqlx::query_as::<_, (String, String)>(sqlx::AssertSqlSafe(&*sql))
+            .bind(booking_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)
+    }
+
     /// Defense-in-depth for the completion path: true when the booking already
     /// has a `completed` `booking`-type payment OTHER than `exclude_payment_id`.
     /// Checked inside the completion transaction so a race that slipped past the

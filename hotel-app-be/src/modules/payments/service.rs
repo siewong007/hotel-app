@@ -3634,6 +3634,12 @@ pub async fn create_group_bank_transfer_claim(
 /// Staff action: one completed payment for every room of the group that still
 /// owes money. The amount is the balance of each room's billable total. A
 /// caller cannot pay one room, or pay less than that balance.
+///
+/// A part-paid room (paid on an older basis, or whose total grew after the
+/// group was paid) is charged only its balance; only an unfinished attempt
+/// blocks it. A transaction reference already on another payment is refused,
+/// the same global rule `record_payment` applies: one incoming payment is
+/// never credited twice.
 pub async fn record_group_desk_payment(
     pool: &DbPool,
     user_id: i64,
@@ -3658,14 +3664,44 @@ pub async fn record_group_desk_payment(
             "This booking has nothing left to pay.".to_string(),
         ));
     }
+    // Every room is locked before the reference, the order `record_payment`
+    // takes them in.
+    for (booking_id, _, _, _, _) in &payable {
+        PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
+        if let Some((payment_method, status)) =
+            PaymentRepository::in_flight_booking_payment_tx(&mut tx, *booking_id).await?
+        {
+            return Err(ApiError::Conflict(active_payment_conflict_message(
+                &payment_method,
+                &status,
+            )));
+        }
+        super::settlement_lock::enforce_payment(&mut *tx, *booking_id, "booking", method).await?;
+    }
+    let transaction_reference = transaction_reference
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(transaction_reference) = transaction_reference {
+        PaymentRepository::lock_transaction_references_tx(&mut tx, &[transaction_reference])
+            .await?;
+        let existing =
+            PaymentRepository::list_keyed_reference_payments_tx(&mut tx, transaction_reference)
+                .await?;
+        if let Some(owner) = existing.first() {
+            return Err(PaymentRepository::transaction_reference_conflict_tx(
+                &mut tx,
+                owner.booking_id,
+                payable[0].0,
+            )
+            .await);
+        }
+    }
+
     let reference = uuid::Uuid::new_v4().to_string();
     let mut payment_ids = Vec::new();
     let mut amount = Decimal::ZERO;
     let mut confirmed_rooms = Vec::new();
     for (booking_id, booking_number, status, due, _) in &payable {
-        PaymentRepository::lock_booking_for_payment_tx(&mut tx, *booking_id).await?;
-        ensure_no_active_booking_payment_tx(&mut tx, *booking_id).await?;
-        super::settlement_lock::enforce_payment(&mut *tx, *booking_id, "booking", method).await?;
         let request = RecordPaymentRequest {
             booking_id: *booking_id,
             amount: 0.0,

@@ -1274,7 +1274,8 @@ mod staff_group_create_tests {
             hotel_app_be::modules::payments::group_receipt::group_receipt(&pool, ACTOR, -1).await;
         assert!(matches!(missing, Err(ApiError::NotFound(_))));
 
-        // Paying every room settles the group (single-room payments refresh it).
+        // One desk payment for the whole group settles every room and the
+        // group, for the receipt's grand total. A group is never paid per room.
         let group_field = |field: &'static str| {
             let pool = pool.clone();
             let id = created.group.id;
@@ -1288,25 +1289,19 @@ mod staff_group_create_tests {
                 .unwrap()
             }
         };
-        for (i, row) in receipt.rooms.iter().enumerate() {
-            let request: hotel_app_be::modules::payments::models::RecordPaymentRequest =
-                serde_json::from_value(serde_json::json!({
-                    "booking_id": row.booking_id,
-                    "amount": row.total.to_string().parse::<f64>().unwrap(),
-                    "payment_method": "cash",
-                    "idempotency_key": format!("group-paid-test-{}", row.booking_id),
-                }))
-                .unwrap();
-            hotel_app_be::modules::payments::service::record_payment(&pool, ACTOR, request)
-                .await
-                .expect("record payment");
-            let expected = if i + 1 == receipt.rooms.len() {
-                "paid"
-            } else {
-                "partial"
-            };
-            assert_eq!(group_field("payment_status").await, expected);
-        }
+        let paid = hotel_app_be::modules::payments::service::record_group_desk_payment(
+            &pool,
+            ACTOR,
+            created.group.id,
+            "cash",
+            None,
+            None,
+        )
+        .await
+        .expect("record group payment");
+        assert_eq!(paid.amount, receipt.grand_total);
+        assert_eq!(paid.payment_ids.len(), 3);
+        assert_eq!(group_field("payment_status").await, "paid");
 
         // Once no room is live, the group is no longer active.
         for row in &receipt.rooms {

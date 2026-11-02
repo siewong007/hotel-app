@@ -299,6 +299,151 @@ async fn desk_payment_collects_every_unpaid_room() {
     assert_eq!(amount.to_string(), "400.00");
 }
 
+/// A paid room whose total later grows (here a one-night extension, as a staff
+/// edit writes it) is `partial`. The next group payment collects only its
+/// balance; the completed payment it already has must not block it.
+#[tokio::test]
+async fn desk_payment_collects_the_balance_of_a_part_paid_room() {
+    let Some(pool) = pool().await else { return };
+    let f = fixture(&pool).await;
+    let user_id = admin_id(&pool).await;
+    payments::record_group_desk_payment(&pool, user_id, f.group_id, "cash", None, None)
+        .await
+        .expect("pay the group first");
+    sqlx::query(
+        "UPDATE bookings SET subtotal = 300.00, total_amount = 300.00, \
+         check_out_date = check_out_date + 1 WHERE id = $1",
+    )
+    .bind(f.bookings[0])
+    .execute(&pool)
+    .await
+    .unwrap();
+    payments::recompute_payment_status(&pool, f.bookings[0])
+        .await
+        .unwrap();
+    let before: String = sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")
+        .bind(f.bookings[0])
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let balance =
+        payments::record_group_desk_payment(&pool, user_id, f.group_id, "cash", None, None).await;
+    let statuses: Vec<String> =
+        sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = ANY($1) ORDER BY id")
+            .bind(&f.bookings)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    let group_status: String =
+        sqlx::query_scalar("SELECT payment_status FROM booking_groups WHERE id = $1")
+            .bind(f.group_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let collected: rust_decimal::Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = ANY($1) AND status = 'completed'",
+    )
+    .bind(&f.bookings)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    cleanup(&pool, &f).await;
+    assert_eq!(before, "partial");
+    let balance = balance.expect("the balance is collectable");
+    assert_eq!(balance.amount.to_string(), "100.00");
+    assert_eq!(
+        balance.payment_ids.len(),
+        1,
+        "only the part-paid room is charged"
+    );
+    assert_eq!(statuses, vec!["paid".to_string(), "paid".to_string()]);
+    assert_eq!(group_status, "paid");
+    assert_eq!(collected.to_string(), "500.00");
+}
+
+/// A claim still under review blocks a desk payment, so the same money is
+/// never recorded twice.
+#[tokio::test]
+async fn desk_payment_waits_for_an_unfinished_attempt() {
+    let Some(pool) = pool().await else { return };
+    let f = fixture(&pool).await;
+    let user_id = admin_id(&pool).await;
+    sqlx::query(
+        "INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status) \
+         VALUES (gen_uuidv7(), $1, 200.00, 'bank_transfer', 'booking', 'pending')",
+    )
+    .bind(f.bookings[1])
+    .execute(&pool)
+    .await
+    .unwrap();
+    let paid =
+        payments::record_group_desk_payment(&pool, user_id, f.group_id, "cash", None, None).await;
+    let completed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = ANY($1) AND status = 'completed'",
+    )
+    .bind(&f.bookings)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    cleanup(&pool, &f).await;
+    let err = paid.expect_err("an unfinished attempt blocks the desk payment");
+    assert!(err.to_string().contains("already pending"), "{err}");
+    assert_eq!(completed, 0, "nothing is recorded");
+}
+
+/// A transaction reference identifies one incoming payment. Once it is on one
+/// group's payment, another group cannot be credited with it.
+#[tokio::test]
+async fn desk_payment_refuses_a_reference_already_credited() {
+    let Some(pool) = pool().await else { return };
+    let a = fixture(&pool).await;
+    let b = fixture(&pool).await;
+    let user_id = admin_id(&pool).await;
+    let reference = format!("GROUP-REF-{}", a.group_id);
+    let first = payments::record_group_desk_payment(
+        &pool,
+        user_id,
+        a.group_id,
+        "bank_transfer",
+        Some(&reference),
+        None,
+    )
+    .await;
+    let reused = payments::record_group_desk_payment(
+        &pool,
+        user_id,
+        b.group_id,
+        "bank_transfer",
+        Some(&format!(" {reference} ")),
+        None,
+    )
+    .await;
+    let b_completed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = ANY($1) AND status = 'completed'",
+    )
+    .bind(&b.bookings)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let blank =
+        payments::record_group_desk_payment(&pool, user_id, b.group_id, "cash", Some("  "), None)
+            .await;
+    cleanup(&pool, &a).await;
+    cleanup(&pool, &b).await;
+    assert!(first.is_ok(), "first use: {:?}", first.err());
+    let err = reused.expect_err("a reference is credited once");
+    assert!(
+        err.to_string().contains("already recorded on booking"),
+        "{err}"
+    );
+    assert_eq!(b_completed, 0, "nothing is recorded on the second group");
+    assert!(
+        blank.is_ok(),
+        "a blank reference is no reference: {:?}",
+        blank.err()
+    );
+}
+
 #[tokio::test]
 async fn cancelling_a_paid_group_refunds_room_charges_and_the_group_can_return() {
     let Some(pool) = pool().await else { return };
