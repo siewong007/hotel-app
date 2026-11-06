@@ -170,7 +170,9 @@
     "expandSidebar": "展开侧边栏",
     "breadcrumbs": "面包屑导航",
     "userMenu": "账户菜单",
-    "brand": "酒店"
+    "brand": "酒店",
+    "enterFullscreen": "进入全屏",
+    "exitFullscreen": "退出全屏"
   },
   "palette": {
     "placeholder": "搜索预订、客人、客房、页面…",

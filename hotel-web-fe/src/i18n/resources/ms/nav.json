@@ -170,7 +170,9 @@
     "expandSidebar": "Kembangkan bar sisi",
     "breadcrumbs": "Breadcrumbs",
     "userMenu": "Menu akaun",
-    "brand": "Hotel"
+    "brand": "Hotel",
+    "enterFullscreen": "Masuk skrin penuh",
+    "exitFullscreen": "Keluar skrin penuh"
   },
   "palette": {
     "placeholder": "Cari tempahan, tetamu, bilik, halaman…",

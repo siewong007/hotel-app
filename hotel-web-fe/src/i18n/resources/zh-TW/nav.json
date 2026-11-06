@@ -170,7 +170,9 @@
     "expandSidebar": "展開側邊欄",
     "breadcrumbs": "麵包屑導覽",
     "userMenu": "帳戶選單",
-    "brand": "飯店"
+    "brand": "飯店",
+    "enterFullscreen": "進入全螢幕",
+    "exitFullscreen": "結束全螢幕"
   },
   "palette": {
     "placeholder": "搜尋預訂、賓客、客房、頁面…",

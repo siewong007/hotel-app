@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { LANDING_PAGE_PATH } from '../../guest/guestDocumentPaths';
 import { useTranslation } from '../../i18n';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
+import { FullscreenToggle } from './FullscreenToggle';
 import { Breadcrumbs, CurrentPageTitle } from './Breadcrumbs';
 import { useCommandPalette } from './CommandPalette';
 import { NotificationCenter } from './NotificationCenter';
@@ -14,11 +15,11 @@ import { UserMenu } from './UserMenu';
 /**
  * The staff shell's 56px header: breadcrumbs on the left (current page title
  * below `sm`, where the trail does not fit); command-palette trigger,
- * notification bell, language, account menu and a one-tap sign-out on the
- * right. Phones slim the right side to a search icon, the bell, the same
- * language globe as desktop (icon-only menu), the avatar and the one-tap
- * sign-out icon; the page title gives way with an ellipsis so all five
- * controls fit a 320px bar. Below `sm` navigation lives in the bottom bar
+ * notification bell, language, fullscreen (browser only), account menu and a
+ * one-tap sign-out on the right. Phones slim the right side to a search icon, the bell, the same
+ * language globe as desktop (icon-only menu), fullscreen (browser only),
+ * the avatar and the one-tap sign-out icon; the page title gives way with an
+ * ellipsis so the controls fit a 320px bar. Below `sm` navigation lives in the bottom bar
  * and from `sm` up in the sidebar rail, so the header carries no menu button
  * at any width.
  */
@@ -132,6 +133,7 @@ export const AppTopbar: React.FC = () => {
       <Box sx={{ display: 'inline-flex', flexShrink: 0 }}>
         <LanguageSwitcher color="inherit" size="small" />
       </Box>
+      <FullscreenToggle />
       <UserMenu variant="avatar" />
       <Tooltip title={logoutLabel}>
         <IconButton
