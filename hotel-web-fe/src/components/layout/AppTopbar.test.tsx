@@ -21,6 +21,10 @@ vi.mock('./UserMenu', () => ({
   UserMenu: () => <button type="button" aria-label="Account" />,
 }));
 
+vi.mock('../../desktop/runtimeApi', () => ({
+  shouldUseDesktopRuntime: () => false,
+}));
+
 vi.mock('./Breadcrumbs', () => ({
   Breadcrumbs: () => <nav aria-label="Breadcrumb" />,
   CurrentPageTitle: () => <h1>Overview</h1>,
@@ -103,5 +107,22 @@ describe('AppTopbar language control', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
     expect(logout).toHaveBeenCalledTimes(1);
     expect(logout).toHaveBeenCalledWith({ redirectTo: '/salim-inn/index.html' });
+  });
+});
+
+describe('AppTopbar fullscreen control', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('shows the fullscreen toggle next to the language and account controls', () => {
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: vi.fn(async () => undefined),
+    });
+    render(<AppTopbar />);
+    expect(screen.getByRole('button', { name: 'Enter full screen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Current language: English' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy();
   });
 });

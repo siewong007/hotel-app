@@ -170,7 +170,9 @@
     "expandSidebar": "Expand sidebar",
     "breadcrumbs": "Breadcrumbs",
     "userMenu": "Account menu",
-    "brand": "Hotel"
+    "brand": "Hotel",
+    "enterFullscreen": "Enter full screen",
+    "exitFullscreen": "Exit full screen"
   },
   "palette": {
     "placeholder": "Search bookings, guests, rooms, pages…",
